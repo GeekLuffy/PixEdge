@@ -42,14 +42,14 @@ body:before {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
-  padding: 12rem 2rem 4rem;
+  padding: 8rem 2rem 4rem;
   display: flex;
 }
 
 .hero {
   text-align: center;
   max-width: 800px;
-  margin-bottom: 4rem;
+  margin-bottom: 2.5rem;
 }
 
 .hero h1 {
