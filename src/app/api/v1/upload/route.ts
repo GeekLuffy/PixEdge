@@ -1,16 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToTelegram } from '@/lib/telegram';
-import { saveImage, generateId } from '@/lib/db';
+import { saveImage, generateId, rateLimit } from '@/lib/db';
 
-/**
- * @api {post} /api/v1/upload Upload an image
- * @apiName Upload
- * @apiGroup Image
- * 
- * @apiParam {File} file Image file to upload (required)
- * @apiParam {String} [customId] Optional custom vanity slug
- */
 export async function POST(req: NextRequest) {
+    const ip = req.headers.get('x-forwarded-for') || 'anonymous';
+    const limit = await rateLimit(`upload:${ip}`, 20, 60);
+
+    if (!limit.success) {
+        return NextResponse.json({
+            success: false,
+            error: {
+                code: 'RATE_LIMIT_EXCEEDED',
+                message: `Too many uploads. Try again in ${limit.remaining === 0 ? 'a minute' : 'a moment'}.`
+            }
+        }, {
+            status: 429,
+            headers: {
+                'X-RateLimit-Limit': (limit.limit ?? 20).toString(),
+                'X-RateLimit-Remaining': (limit.remaining ?? 0).toString()
+            }
+        });
+    }
+
     try {
         const formData = await req.formData();
         const file = formData.get('file') as Blob;

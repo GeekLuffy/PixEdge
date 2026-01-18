@@ -83,6 +83,24 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
     }
 }
 
+export async function rateLimit(key: string, limit: number, windowSeconds: number) {
+    if (!redis) return { success: true, count: 0 };
+
+    const fullKey = `ratelimit:${key}`;
+    const count = await redis.incr(fullKey);
+
+    if (count === 1) {
+        await redis.expire(fullKey, windowSeconds);
+    }
+
+    return {
+        success: count <= limit,
+        limit,
+        remaining: Math.max(0, limit - count),
+        count
+    };
+}
+
 export function generateId() {
     return Math.random().toString(36).substring(2, 10);
 }

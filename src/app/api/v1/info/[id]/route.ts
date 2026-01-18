@@ -1,15 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImage } from '@/lib/db';
+import { getImage, rateLimit } from '@/lib/db';
 
-/**
- * @api {get} /api/v1/info/:id Get image metadata
- * @apiName GetInfo
- * @apiGroup Image
- */
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const ip = req.headers.get('x-forwarded-for') || 'anonymous';
+    const limit = await rateLimit(`info:${ip}`, 60, 60);
+
+    if (!limit.success) {
+        return NextResponse.json({
+            success: false,
+            error: {
+                code: 'RATE_LIMIT_EXCEEDED',
+                message: `Too many uploads. Try again in ${limit.remaining === 0 ? 'a minute' : 'a moment'}.`
+            }
+        }, {
+            status: 429,
+            headers: {
+                'X-RateLimit-Limit': (limit.limit ?? 10).toString(),
+                'X-RateLimit-Remaining': (limit.remaining ?? 0).toString()
+            }
+        });
+    }
+
     const { id } = await params;
 
     try {

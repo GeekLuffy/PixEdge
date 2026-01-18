@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Code2, Terminal, Cpu, ArrowLeft, Copy, Check,
-    Book, Zap, Shield, Globe, Layers, Server
+    Book, Zap, Shield, Globe, Layers, Server,
+    Menu, X, Activity, AlertCircle, Box
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,6 +16,7 @@ export default function Docs() {
     const [baseUrl, setBaseUrl] = useState('');
     const [activeLang, setActiveLang] = useState<Language>('bash');
     const [activeSection, setActiveSection] = useState('getting-started');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
         setBaseUrl(window.location.origin);
@@ -78,7 +80,10 @@ func main() {
 
     const SidebarItem = ({ id, label, icon: Icon }: { id: string, label: string, icon: any }) => (
         <button
-            onClick={() => setActiveSection(id)}
+            onClick={() => {
+                setActiveSection(id);
+                setIsMobileMenuOpen(false);
+            }}
             style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -108,18 +113,21 @@ func main() {
             display: 'flex',
             fontFamily: "'Outfit', sans-serif"
         }}>
+            {/* Mobile Header */}
+            <header className="mobile-header">
+                <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'white' }}>
+                    <Zap size={18} fill="#8b5cf6" color="#8b5cf6" />
+                    <span style={{ fontWeight: '800', fontSize: '1rem' }}>PixEdge</span>
+                </Link>
+                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="menu-toggle" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '1px' }}>Menu</span>
+                    {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                </button>
+            </header>
+
             {/* Sidebar */}
-            <aside style={{
-                width: '280px',
-                borderRight: '1px solid rgba(255,255,255,0.05)',
-                padding: '2rem 1.5rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '2rem',
-                position: 'fixed',
-                height: '100vh'
-            }}>
-                <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', color: 'white' }}>
+            <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
+                <Link href="/" className="sidebar-logo">
                     <div style={{ background: '#8b5cf6', padding: '6px', borderRadius: '8px' }}>
                         <Zap size={20} fill="white" />
                     </div>
@@ -134,17 +142,26 @@ func main() {
                     <p style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#3f3f46', marginLeft: '12px', marginBottom: '8px', marginTop: '1.5rem', textTransform: 'uppercase' }}>Endpoints</p>
                     <SidebarItem id="upload" label="Upload Image" icon={Terminal} />
                     <SidebarItem id="info" label="Get Metadata" icon={Cpu} />
+
+                    <p style={{ fontSize: '0.7rem', fontWeight: 'bold', color: '#3f3f46', marginLeft: '12px', marginBottom: '8px', marginTop: '1.5rem', textTransform: 'uppercase' }}>Reference</p>
+                    <SidebarItem id="rate-limiting" label="Rate Limiting" icon={Activity} />
+                    <SidebarItem id="errors" label="Error Codes" icon={AlertCircle} />
+                    <SidebarItem id="sdk" label="SDKs" icon={Box} />
                 </div>
             </aside>
 
             {/* Main Content */}
-            <div style={{ flex: 1, marginLeft: '280px', padding: '4rem 5rem' }}>
+            <div className="content-wrapper">
                 <header style={{ marginBottom: '4rem' }}>
                     <Link href="/" style={{ color: '#71717a', textDecoration: 'none', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
                         <ArrowLeft size={16} /> Home
                     </Link>
                     <h1 style={{ fontSize: '3rem', fontWeight: '800', color: 'white', marginBottom: '1rem' }}>Documentation</h1>
-                    <p style={{ color: '#a1a1aa', fontSize: '1.1rem' }}>API v1.0.0 — The complete reference for PixEdge developers.</p>
+                    <p style={{ color: '#a1a1aa', fontSize: '1.1rem', marginBottom: '1rem' }}>API v1.0.0 — The complete reference for PixEdge developers.</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#3f3f46', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        <ArrowLeft size={14} style={{ transform: 'rotate(90deg)' }} />
+                        <span>Navigate using the sidebar to explore endpoints</span>
+                    </div>
                 </header>
 
                 <div style={{ maxWidth: '800px' }}>
@@ -304,6 +321,98 @@ func main() {
                             </div>
                         </motion.section>
                     )}
+
+                    {activeSection === 'rate-limiting' && (
+                        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                            <h2 style={{ fontSize: '1.8rem', color: 'white', marginBottom: '1.5rem' }}>Rate Limiting</h2>
+                            <p style={{ color: '#a1a1aa', lineHeight: '1.7', marginBottom: '1.5rem' }}>
+                                To ensure peak performance for all PixEdge users, we implement a fair-use rate limiting policy. Limits are applied per IP address.
+                            </p>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '2rem' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <th style={{ textAlign: 'left', padding: '12px', color: '#71717a', fontSize: '0.9rem' }}>Tier</th>
+                                        <th style={{ textAlign: 'left', padding: '12px', color: '#71717a', fontSize: '0.9rem' }}>Limit</th>
+                                        <th style={{ textAlign: 'left', padding: '12px', color: '#71717a', fontSize: '0.9rem' }}>Window</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <td style={{ padding: '12px', color: 'white' }}>Public (Upload)</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>20 requests</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>1 minute</td>
+                                    </tr>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <td style={{ padding: '12px', color: 'white' }}>Public (Info)</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>60 requests</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>1 minute</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p style={{ color: '#71717a', fontSize: '0.9rem' }}>
+                                Exceeding these limits will result in a <code style={{ color: '#ef4444' }}>429 Too Many Requests</code> response.
+                            </p>
+                        </motion.section>
+                    )}
+
+                    {activeSection === 'errors' && (
+                        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                            <h2 style={{ fontSize: '1.8rem', color: 'white', marginBottom: '1.5rem' }}>Error Codes</h2>
+                            <p style={{ color: '#a1a1aa', lineHeight: '1.7', marginBottom: '2rem' }}>
+                                PixEdge uses standard HTTP response codes to indicate the success or failure of an API request. All error responses follow this JSON structure:
+                            </p>
+                            <div style={{ background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', padding: '20px', marginBottom: '2rem' }}>
+                                <pre style={{ margin: 0 }}>
+                                    <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#ef4444', fontSize: '0.85rem' }}>{`{
+  "success": false,
+  "error": {
+    "code": "UPLOAD_FAILED",
+    "message": "The file provided is too large or not a valid image."
+  }
+}`}</code>
+                                </pre>
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <th style={{ textAlign: 'left', padding: '12px', color: '#71717a', fontSize: '0.9rem' }}>Code</th>
+                                        <th style={{ textAlign: 'left', padding: '12px', color: '#71717a', fontSize: '0.9rem' }}>Meaning</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <td style={{ padding: '12px', color: 'white', fontFamily: 'monospace' }}>400</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>Bad Request (Missing parameters)</td>
+                                    </tr>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <td style={{ padding: '12px', color: 'white', fontFamily: 'monospace' }}>404</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>Not Found (Invalid image ID)</td>
+                                    </tr>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <td style={{ padding: '12px', color: 'white', fontFamily: 'monospace' }}>500</td>
+                                        <td style={{ padding: '12px', color: '#a1a1aa' }}>Internal Server Error</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </motion.section>
+                    )}
+
+                    {activeSection === 'sdk' && (
+                        <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                            <h2 style={{ fontSize: '1.8rem', color: 'white', marginBottom: '1.5rem' }}>Official SDKs</h2>
+                            <p style={{ color: '#a1a1aa', lineHeight: '1.7', marginBottom: '2rem' }}>
+                                We are developing official libraries to help you integrate PixEdge into your projects even faster. Coming soon to all major package managers.
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                                {['Node.js', 'Python', 'Go', 'PHP'].map(sdk => (
+                                    <div key={sdk} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '16px', padding: '1.5rem', textAlign: 'center' }}>
+                                        <h4 style={{ color: 'white', marginBottom: '8px' }}>PixEdge {sdk}</h4>
+                                        <span style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 'bold', textTransform: 'uppercase' }}>Under Development</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.section>
+                    )}
                 </div>
             </div>
 
@@ -314,6 +423,112 @@ func main() {
                     margin: 0;
                     padding: 0;
                     background: #050505;
+                    overflow-x: hidden;
+                }
+
+                .mobile-header {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    height: 60px;
+                    background: rgba(5, 5, 5, 0.8);
+                    backdrop-filter: blur(20px);
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                    padding: 0 1.5rem;
+                    align-items: center;
+                    justify-content: space-between;
+                    z-index: 1000;
+                }
+
+                .menu-toggle {
+                    background: transparent;
+                    border: none;
+                    color: white;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                }
+
+                .sidebar {
+                    width: 280px;
+                    border-right: 1px solid rgba(255, 255, 255, 0.05);
+                    padding: 2rem 1.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2rem;
+                    position: fixed;
+                    height: 100vh;
+                    background: #050505;
+                    transition: transform 0.3s ease;
+                    z-index: 999;
+                }
+
+                .sidebar-logo {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    text-decoration: none;
+                    color: white;
+                }
+
+                .content-wrapper {
+                    flex: 1;
+                    margin-left: 280px;
+                    padding: 4rem 5rem;
+                    min-width: 0;
+                }
+
+                table {
+                    display: block;
+                    overflow-x: auto;
+                    white-space: nowrap;
+                }
+
+                pre {
+                    max-width: 100%;
+                    overflow-x: auto;
+                }
+
+                @media (max-width: 1024px) {
+                    .content-wrapper {
+                        padding: 4rem 2rem;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .mobile-header {
+                        display: flex;
+                    }
+
+                    .sidebar {
+                        transform: translateX(-100%);
+                        padding-top: 5rem;
+                        width: 100%;
+                        border-right: none;
+                    }
+
+                    .sidebar.open {
+                        transform: translateX(0);
+                    }
+
+                    .sidebar-logo {
+                        display: none;
+                    }
+
+                    .content-wrapper {
+                        margin-left: 0;
+                        padding: 6rem 1.5rem 4rem;
+                    }
+
+                    h1 {
+                        font-size: 2rem !important;
+                    }
+
+                    header {
+                        margin-bottom: 2rem !important;
+                    }
                 }
 
                 * {
