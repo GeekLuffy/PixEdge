@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'SnapEdge | Lightning Fast Image Hosting',
+    title: 'PixEdge | Premium Edge Image Hosting',
     description: 'Scalable, edge-based image hosting system that minimizes server bandwidth by redirecting directly to distributed storage infrastructure.',
 };
 

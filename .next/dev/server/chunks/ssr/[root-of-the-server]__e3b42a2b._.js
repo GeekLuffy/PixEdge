@@ -47,7 +47,7 @@ function Home() {
     const [showToast, setShowToast] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
     // Load history from localStorage
     (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
-        const saved = localStorage.getItem('snapedge_history');
+        const saved = localStorage.getItem('pixedge_history');
         if (saved) {
             try {
                 setHistory(JSON.parse(saved));
@@ -62,7 +62,7 @@ function Home() {
             ...history
         ].slice(0, 5); // Keep last 5
         setHistory(newHistory);
-        localStorage.setItem('snapedge_history', JSON.stringify(newHistory));
+        localStorage.setItem('pixedge_history', JSON.stringify(newHistory));
     };
     const copyToClipboard = (text)=>{
         const performCopy = ()=>{
@@ -179,7 +179,7 @@ function Home() {
                                 lineNumber: 156,
                                 columnNumber: 21
                             }, this),
-                            "SnapEdge"
+                            "PixEdge"
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
@@ -1113,7 +1113,7 @@ function Home() {
                                 children: [
                                     "© ",
                                     new Date().getFullYear(),
-                                    " SnapEdge — Built with ✨ by TeamEdge"
+                                    " PixEdge — Built with ✨ by TeamEdge"
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/page.tsx",

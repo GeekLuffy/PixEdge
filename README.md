@@ -1,11 +1,11 @@
-# ⚡ SnapEdge: Ultra-Fast Edge Image Hosting
+# ⚡ PixEdge: Ultra-Fast Edge Image Hosting
 
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Upstash](https://img.shields.io/badge/Upstash-00E699?style=for-the-badge&logo=upstash&logoColor=black)](https://upstash.com/)
 [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)](https://telegram.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-**SnapEdge** is a professional-grade, open-source image hosting platform designed for speed and infinite scalability. It leverages the Telegram Bot API as a decentralized storage backend and Upstash Redis for high-performance metadata management, delivering images directly through edge redirection.
+**PixEdge** is a professional-grade, open-source image hosting platform designed for speed and infinite scalability. It leverages the Telegram Bot API as a decentralized storage backend and Upstash Redis for high-performance metadata management, delivering images directly through edge redirection.
 
 ---
 
@@ -33,7 +33,7 @@
 
 ## 🔌 Developer API (v1)
 
-SnapEdge is built with a developer-first approach. You can programmatically upload images and retrieve metadata using our versioned REST API.
+PixEdge is built with a developer-first approach. You can programmatically upload images and retrieve metadata using our versioned REST API.
 
 ### 1. Upload Image
 **Endpoint:** `POST /api/v1/upload`  
@@ -46,7 +46,7 @@ SnapEdge is built with a developer-first approach. You can programmatically uplo
 
 **Example Request (cURL):**
 ```bash
-curl -X POST https://your-snapedge.com/api/v1/upload \
+curl -X POST https://your-pixedge.com/api/v1/upload \
   -F "file=@/path/to/image.jpg" \
   -F "customId=my-awesome-link"
 ```
@@ -60,7 +60,7 @@ curl -X POST https://your-snapedge.com/api/v1/upload \
   "success": true,
   "data": {
     "id": "my-awesome-link",
-    "url": "https://snapedge.com/i/my-awesome-link",
+    "url": "https://pixedge.link/i/my-awesome-link",
     "views": 42,
     "created_at": 1705500000000,
     "metadata": {
@@ -75,7 +75,7 @@ curl -X POST https://your-snapedge.com/api/v1/upload \
 
 ## 🤝 Open Source & Contributions
 
-SnapEdge is **Open Source** and built for the community! We are actively looking for collaborators and contributors to make this the ultimate image hosting solution.
+PixEdge is **Open Source** and built for the community! We are actively looking for collaborators and contributors to make this the ultimate image hosting solution.
 
 ### How to Collaborate:
 1.  **Fork** the repository and experiment with new features.

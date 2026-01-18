@@ -29,7 +29,7 @@ export default function Home() {
 
     // Load history from localStorage
     useEffect(() => {
-        const saved = localStorage.getItem('snapedge_history');
+        const saved = localStorage.getItem('pixedge_history');
         if (saved) {
             try {
                 setHistory(JSON.parse(saved));
@@ -42,7 +42,7 @@ export default function Home() {
     const saveToHistory = (item: HistoryItem) => {
         const newHistory = [item, ...history].slice(0, 5); // Keep last 5
         setHistory(newHistory);
-        localStorage.setItem('snapedge_history', JSON.stringify(newHistory));
+        localStorage.setItem('pixedge_history', JSON.stringify(newHistory));
     };
 
     const copyToClipboard = (text: string) => {
@@ -154,7 +154,7 @@ export default function Home() {
                     gap: '10px'
                 }}>
                     <Zap size={24} fill="white" />
-                    SnapEdge
+                    PixEdge
                 </Link>
                 <Link href="/docs" style={{
                     color: 'rgba(255,255,255,0.7)',
@@ -454,7 +454,7 @@ export default function Home() {
                         <a href="https://github.com" style={{ color: '#666' }}>GitHub</a>
                         <a href="#" style={{ color: '#666' }}>Status</a>
                     </div>
-                    <p>© {new Date().getFullYear()} SnapEdge — Built with ✨ by TeamEdge</p>
+                    <p>© {new Date().getFullYear()} PixEdge — Built with ✨ by TeamEdge</p>
                 </footer>
 
                 {/* Toast System */}

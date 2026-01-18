@@ -70,8 +70,8 @@ func main() {
   "success": true,
   "data": {
     "id": "my-slug",
-    "url": "${baseUrl || 'https://snapedge.io'}/i/my-slug",
-    "direct_url": "${baseUrl || 'https://snapedge.io'}/i/my-slug.jpg",
+    "url": "${baseUrl || 'https://pixedge.link'}/i/my-slug",
+    "direct_url": "${baseUrl || 'https://pixedge.link'}/i/my-slug.jpg",
     "timestamp": 1705500000000
   }
 }`;
@@ -123,7 +123,7 @@ func main() {
                     <div style={{ background: '#8b5cf6', padding: '6px', borderRadius: '8px' }}>
                         <Zap size={20} fill="white" />
                     </div>
-                    <span style={{ fontWeight: '800', fontSize: '1.2rem', letterSpacing: '-0.5px' }}>SnapEdge</span>
+                    <span style={{ fontWeight: '800', fontSize: '1.2rem', letterSpacing: '-0.5px' }}>PixEdge</span>
                 </Link>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -144,7 +144,7 @@ func main() {
                         <ArrowLeft size={16} /> Home
                     </Link>
                     <h1 style={{ fontSize: '3rem', fontWeight: '800', color: 'white', marginBottom: '1rem' }}>Documentation</h1>
-                    <p style={{ color: '#a1a1aa', fontSize: '1.1rem' }}>API v1.0.0 — The complete reference for SnapEdge developers.</p>
+                    <p style={{ color: '#a1a1aa', fontSize: '1.1rem' }}>API v1.0.0 — The complete reference for PixEdge developers.</p>
                 </header>
 
                 <div style={{ maxWidth: '800px' }}>
@@ -152,7 +152,7 @@ func main() {
                         <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                             <h2 style={{ fontSize: '1.8rem', color: 'white', marginBottom: '1.5rem' }}>Getting Started</h2>
                             <p style={{ color: '#a1a1aa', lineHeight: '1.7', marginBottom: '1.5rem' }}>
-                                SnapEdge provides a high-performance REST API for uploading and managing images via our Telegram-backed edge storage.
+                                PixEdge provides a high-performance REST API for uploading and managing images via our Telegram-backed edge storage.
                                 Our storage is 100% free, decentralized, and infinitely scalable.
                             </p>
                             <div style={{
@@ -214,7 +214,7 @@ func main() {
   "success": true,
   "data": {
     "id": "example-id",
-    "url": "https://snapedge.io/i/example-id",
+    "url": "https://pixedge.link/i/example-id",
     "views": 42,
     "created_at": 1705500000000,
     "metadata": {
