@@ -66,11 +66,13 @@ export async function POST(req: NextRequest) {
             }
 
             // Fallback for unknown text
-            await sendMessage(chatId,
-                `❓ <b>I'm not sure what you mean.</b>\n\n` +
-                `Just send me any <b>Photo</b> or <b>Image File</b> and I will host it for you instantly! Or type /help for commands.`,
-                'HTML'
-            );
+            if (body.message.chat.type === 'private') {
+                await sendMessage(chatId,
+                    `❓ <b>I'm not sure what you mean.</b>\n\n` +
+                    `Just send me any <b>Photo</b> or <b>Image File</b> and I will host it for you instantly! Or type /help for commands.`,
+                    'HTML'
+                );
+            }
             return new NextResponse('OK');
         }
 
