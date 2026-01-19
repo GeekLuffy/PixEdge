@@ -37,6 +37,14 @@ export async function POST(req: NextRequest) {
                 );
                 return new NextResponse('OK');
             }
+
+            // Fallback for unknown text
+            await sendMessage(chatId,
+                `❓ <b>I'm not sure what you mean.</b>\n\n` +
+                `Just send me any <b>Photo</b> or <b>Image File</b> and I will host it for you instantly!`,
+                'HTML'
+            );
+            return new NextResponse('OK');
         }
 
         // Handle Photo
