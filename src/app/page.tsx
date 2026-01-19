@@ -6,7 +6,7 @@ import {
     Upload, Copy, Check, Shield, Zap,
     Globe, History, QrCode, Settings,
     Code2, ArrowRight, ExternalLink, Image as ImageIcon,
-    Sun, Moon
+    Sun, Moon, MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
@@ -375,6 +375,66 @@ export default function Home() {
                     </AnimatePresence>
                 </motion.div>
 
+                {/* Telegram Bot CTA */}
+                <motion.a
+                    href="https://t.me/YourBotUser"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.7 }}
+                    style={{
+                        marginTop: '2rem',
+                        marginBottom: '1rem',
+                        textDecoration: 'none',
+                        width: '100%',
+                        maxWidth: '500px'
+                    }}
+                >
+                    <div style={{
+                        background: 'rgba(59, 130, 246, 0.05)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        padding: '16px 20px',
+                        borderRadius: '20px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '15px',
+                        transition: 'all 0.2s'
+                    }}
+                        onMouseOver={(e: any) => {
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.4)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                        }}
+                        onMouseOut={(e: any) => {
+                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.05)';
+                            e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                background: '#3b82f6',
+                                borderRadius: '12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white'
+                            }}>
+                                <MessageSquare size={20} fill="white" />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ color: 'var(--text-main)', fontWeight: '600', fontSize: '1rem' }}>Prefer Telegram?</span>
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Use our bot for instant uploads</span>
+                            </div>
+                        </div>
+                        <ArrowRight size={18} color="var(--text-muted)" />
+                    </div>
+                </motion.a>
+
                 {/* Recently Uploaded (Improved) */}
                 {history.length > 0 && (
                     <div style={{ marginTop: '3rem', width: '100%', maxWidth: '500px' }}>
@@ -468,8 +528,8 @@ export default function Home() {
                     </motion.div>
                     <motion.div className="feature-card" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
                         <Shield size={28} color="#06b6d4" style={{ marginBottom: '1.5rem' }} />
-                        <h3 style={{ marginBottom: '0.8rem' }}>Privacy Proxy</h3>
-                        <p style={{ color: 'var(--card-subtext)', fontSize: '0.9rem', lineHeight: '1.5' }}>Proxied delivery obfuscates origins, keeping your Telegram backend completely hidden.</p>
+                        <h3 style={{ marginBottom: '0.8rem' }}>Privacy Shield</h3>
+                        <p style={{ color: 'var(--card-subtext)', fontSize: '0.9rem', lineHeight: '1.5' }}>Advanced privacy protection that keeps your data sources secure, ensuring clean and anonymous sharing links.</p>
                     </motion.div>
                     <motion.div className="feature-card" initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>
                         <Code2 size={28} color="#eab308" style={{ marginBottom: '1.5rem' }} />
@@ -482,9 +542,11 @@ export default function Home() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginBottom: '1rem' }}>
                         <Link href="/docs" style={{ color: 'var(--text-muted)' }}>API</Link>
                         <a href="https://github.com/GeekLuffy" style={{ color: 'var(--text-muted)' }}>GitHub</a>
-                        <a href="#" style={{ color: 'var(--text-muted)' }}>Status</a>
+                        <a href="https://t.me/EdgeBots" style={{ color: 'var(--text-muted)' }}>Channel</a>
+                        <a href="https://t.me/EdgeBotSupport" style={{ color: 'var(--text-muted)' }}>Support</a>
                     </div>
-                    <p>© {new Date().getFullYear()} PixEdge — Built with ✨ by TeamEdge</p>
+
+
                 </footer>
 
                 {/* Toast System */}
