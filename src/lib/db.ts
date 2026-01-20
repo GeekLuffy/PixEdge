@@ -47,6 +47,7 @@ export async function saveImage(record: any, source: 'web' | 'bot' = 'web', user
         pipeline.incr('stats:total_uploads');
 
         // 2. Source specific stats
+        // 2. Source specific stats
         if (source === 'web') {
             pipeline.incr('stats:web_uploads');
         } else if (source === 'bot') {
@@ -56,6 +57,15 @@ export async function saveImage(record: any, source: 'web' | 'bot' = 'web', user
                 pipeline.sadd('stats:users', userId);
             }
         }
+
+        // 3. Media Type stats
+        const type = record.metadata.type || '';
+        if (type.startsWith('video/') || type === 'image/gif') {
+            pipeline.incr('stats:videos');
+        } else {
+            pipeline.incr('stats:images');
+        }
+
         await pipeline.exec();
         return;
     }
@@ -71,11 +81,13 @@ export async function saveImage(record: any, source: 'web' | 'bot' = 'web', user
 export async function getStats() {
     if (useCloud() && redis) {
         const start = Date.now();
-        const [totalUploads, totalUsers, webUploads, botUploads] = await Promise.all([
+        const [totalUploads, totalUsers, webUploads, botUploads, totalImages, totalVideos] = await Promise.all([
             redis.get('stats:total_uploads'),
             redis.scard('stats:users'),
             redis.get('stats:web_uploads'),
-            redis.get('stats:bot_uploads')
+            redis.get('stats:bot_uploads'),
+            redis.get('stats:images'),
+            redis.get('stats:videos')
         ]);
         const ping = Date.now() - start;
 
@@ -84,6 +96,8 @@ export async function getStats() {
             totalUsers: totalUsers || 0,
             webUploads: parseInt(webUploads as string || '0'),
             botUploads: parseInt(botUploads as string || '0'),
+            totalImages: parseInt(totalImages as string || '0'),
+            totalVideos: parseInt(totalVideos as string || '0'),
             ping
         };
     }
@@ -92,6 +106,8 @@ export async function getStats() {
         totalUsers: 0,
         webUploads: 0,
         botUploads: 0,
+        totalImages: 0,
+        totalVideos: 0,
         ping: 0
     };
 }

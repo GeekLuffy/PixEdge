@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TelegramUpdate, sendMessage, sendPhotoToChannel } from '@/lib/telegram';
+import { TelegramUpdate, sendMessage, sendMediaToChannel } from '@/lib/telegram';
 import { saveImage, generateId, getStats, registerUser } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
         const chatId = body.message.chat.id;
         const text = body.message.text;
         const photo = body.message.photo;
+        const animation = body.message.animation;
         const document = body.message.document;
         const replyTo = body.message.reply_to_message;
         const from = body.message.from;
@@ -20,9 +21,7 @@ export async function POST(req: NextRequest) {
             ? `@${from.username}`
             : `${from.first_name} [${from.id}]`;
 
-        // Handle commands
         if (text) {
-            // Support commands with @BotName suffix
             const command = text.split(' ')[0].split('@')[0].toLowerCase();
 
             if (command === '/start' || command === '/help') {
@@ -56,7 +55,8 @@ export async function POST(req: NextRequest) {
                 await sendMessage(chatId,
                     `📊 <b>PixEdge Statistics</b>\n\n` +
                     `👥 <b>Total Users:</b> ${stats.totalUsers}\n` +
-                    `🖼️ <b>Total Images:</b> ${stats.totalUploads}\n` +
+                    `🖼️ <b>Images:</b> ${stats.totalImages}\n` +
+                    `🎬 <b>Videos/GIFs:</b> ${stats.totalVideos}\n` +
                     `🤖 <b>Bot Uploads:</b> ${stats.botUploads}\n` +
                     `🌐 <b>Web Uploads:</b> ${stats.webUploads}\n` +
                     `📶 <b>Ping:</b> ${stats.ping}ms`,
@@ -70,11 +70,16 @@ export async function POST(req: NextRequest) {
                 if (replyTo) {
                     if (replyTo.photo && replyTo.photo.length > 0) {
                         const largestPhoto = replyTo.photo[replyTo.photo.length - 1];
-                        await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id);
+                        await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo');
                         return new NextResponse('OK');
                     }
-                    if (replyTo.document && replyTo.document.mime_type?.startsWith('image/')) {
-                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id);
+                    if (replyTo.animation) {
+                        await processFile(chatId, replyTo.animation.file_id, replyTo.animation.file_size, replyTo.animation.mime_type || 'image/gif', userLink, from.id, 'animation');
+                        return new NextResponse('OK');
+                    }
+                    if (replyTo.document && (replyTo.document.mime_type?.startsWith('image/') || replyTo.document.mime_type?.startsWith('video/'))) {
+                        const type = replyTo.document.mime_type?.startsWith('video/') ? 'animation' : 'photo';
+                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, type);
                         return new NextResponse('OK');
                     }
                 }
@@ -101,29 +106,34 @@ export async function POST(req: NextRequest) {
             return new NextResponse('OK');
         }
 
-
-        // Handle Photo
         // Handle Photo
         if (photo && photo.length > 0) {
-            // In groups, only process if it's not a direct message (unless bot privacy is off, but we want to ignore spam)
-            // Actually, per user request: "in group it should only upload when replied a photo with command"
-            // So we should IGNORE all direct photos in groups.
             if (body.message.chat.type === 'private') {
                 const largestPhoto = photo[photo.length - 1];
-                await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id);
+                await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo');
             }
             return new NextResponse('OK');
         }
 
-        // Handle Document (only if it's an image)
+        // Handle Animation (GIF)
+        if (animation) {
+            if (body.message.chat.type === 'private') {
+                await processFile(chatId, animation.file_id, animation.file_size, animation.mime_type || 'image/gif', userLink, from.id, 'animation');
+            }
+            return new NextResponse('OK');
+        }
+
+        // Handle Document (image or video/gif)
         if (document) {
             // Only process direct documents in PRIVATE chats
             if (body.message.chat.type === 'private') {
                 const mimeType = document.mime_type || '';
                 if (mimeType.startsWith('image/')) {
-                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id);
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'photo');
+                } else if (mimeType.startsWith('video/')) {
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'animation');
                 } else {
-                    await sendMessage(chatId, "❌ Please send only image files.");
+                    await sendMessage(chatId, "❌ Please send only image or GIF files.");
                 }
             }
             return new NextResponse('OK');
@@ -136,13 +146,20 @@ export async function POST(req: NextRequest) {
     }
 }
 
-async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, userId: number | string) {
+async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, userId: number | string, mediaType: 'photo' | 'animation') {
     try {
+        // Enforce 10MB limit
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (fileSize > MAX_SIZE) {
+            await sendMessage(chatId, "❌ File too large. Max size is 10MB.");
+            return;
+        }
+
         const id = generateId();
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
         // 1. Forward to DB Channel with caption
-        await sendPhotoToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`);
+        await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
 
         // 2. Save to DB
         await saveImage({

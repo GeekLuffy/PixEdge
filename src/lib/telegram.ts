@@ -33,6 +33,12 @@ export interface TelegramUpdate {
       mime_type?: string;
       file_size: number;
     };
+    animation?: {
+      file_id: string;
+      file_unique_id: string;
+      file_size: number;
+      mime_type?: string;
+    };
     reply_to_message?: {
       message_id: number;
       photo?: Array<{
@@ -48,6 +54,12 @@ export interface TelegramUpdate {
         file_name?: string;
         mime_type?: string;
         file_size: number;
+      };
+      animation?: {
+        file_id: string;
+        file_unique_id: string;
+        file_size: number;
+        mime_type?: string;
       };
     };
   };
@@ -125,19 +137,27 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
   });
 }
 
-export async function sendPhotoToChannel(fileId: string, caption: string): Promise<void> {
+export async function sendMediaToChannel(fileId: string, caption: string, mediaType: 'photo' | 'animation' = 'photo'): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
 
-  await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+  const method = mediaType === 'animation' ? 'sendAnimation' : 'sendPhoto';
+  const body: any = {
+    chat_id: chatId,
+    caption,
+    parse_mode: 'HTML'
+  };
+
+  if (mediaType === 'animation') {
+    body.animation = fileId;
+  } else {
+    body.photo = fileId;
+  }
+
+  await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      photo: fileId,
-      caption,
-      parse_mode: 'HTML'
-    }),
+    body: JSON.stringify(body),
   });
 }

@@ -36,7 +36,8 @@ export async function GET(
             return proxyImage();
         }
 
-        const proxiedImgSrc = `/i/${id}.jpg`;
+        const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
+        const proxiedImgSrc = `/i/${id}${ext}`;
         const views = record.views || 0;
         const formattedDate = new Date(record.created_at).toLocaleDateString();
         const formattedSize = record.metadata?.size ? (record.metadata.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
@@ -54,7 +55,7 @@ export async function GET(
                 <style>
                     body { margin: 0; background: #050505; color: white; font-family: 'Inter', system-ui, -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; overflow: hidden; }
                     .container { position: relative; max-width: 90vw; max-height: 80vh; display: flex; align-items: center; justify-content: center; }
-                    img { max-width: 100%; max-height: 80vh; border-radius: 12px; box-shadow: 0 30px 60px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); }
+                    img, video { max-width: 100%; max-height: 80vh; border-radius: 12px; box-shadow: 0 30px 60px rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.1); }
                     .toolbar { 
                         position: fixed; 
                         top: 20px; 
@@ -108,7 +109,10 @@ export async function GET(
                     <a href="${proxiedImgSrc}" download class="primary">Download Raw</a>
                 </div>
                 <div class="container">
-                    <img src="${proxiedImgSrc}" alt="PixEdge Image">
+                    ${record.metadata?.type?.startsWith('video/')
+                ? `<video src="${proxiedImgSrc}" autoplay loop muted playsinline controls></video>`
+                : `<img src="${proxiedImgSrc}" alt="PixEdge Image">`
+            }
                 </div>
                 <div class="info-bar">
                     <div class="info-item"><b>Views</b> ${views}</div>

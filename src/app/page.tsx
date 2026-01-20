@@ -83,8 +83,14 @@ export default function Home() {
     };
 
     const uploadFile = async (file: File) => {
-        if (!file.type.startsWith('image/')) {
-            alert('Please upload an image file');
+        if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+            alert('Please upload an image or video file');
+            return;
+        }
+
+        // 10MB Limit Check
+        if (file.size > 10 * 1024 * 1024) {
+            alert('File too large. Max size is 10MB.');
             return;
         }
 
@@ -296,7 +302,7 @@ export default function Home() {
                             type="file"
                             id="file-upload"
                             className="file-input"
-                            accept="image/*"
+                            accept="image/*,video/*"
                             onChange={(e) => e.target.files?.[0] && uploadFile(e.target.files[0])}
                         />
 
@@ -305,7 +311,7 @@ export default function Home() {
                         </div>
 
                         <div className="upload-text">
-                            <h3>{uploading ? 'Blasting at the edge...' : 'Drop your image here'}</h3>
+                            <h3>{uploading ? 'Blasting at the edge...' : 'Drop image or video here'}</h3>
                             <p style={{ color: 'var(--text-muted)', opacity: 0.6, fontSize: '0.8rem' }}>or click to browse your files</p>
                         </div>
 

@@ -34,6 +34,15 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
+        // Enforce 10MB limit
+        const MAX_SIZE = 10 * 1024 * 1024;
+        if (file.size > MAX_SIZE) {
+            return NextResponse.json({
+                success: false,
+                error: { code: 'FILE_TOO_LARGE', message: 'File too large. Max size is 10MB.' }
+            }, { status: 400 });
+        }
+
         // 1. Upload to Telegram
         const telegramResult = await uploadToTelegram(file, 'upload.jpg', '📦 <b>Uploaded in web</b>');
 
