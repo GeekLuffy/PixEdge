@@ -40,7 +40,13 @@ export async function POST(req: NextRequest) {
                     `<b>Commands:</b>\n` +
                     `/stats - Show bot statistics\n` +
                     `/upload or /tgm - Upload a replied image\n` +
-                    `/help - Show this message`
+                    `/help - Show this message`,
+                    'HTML',
+                    {
+                        inline_keyboard: [[
+                            { text: "🌐 Visit Website", url: "https://pixedge.vercel.app" }
+                        ]]
+                    }
                 );
                 return new NextResponse('OK');
             }

@@ -108,7 +108,7 @@ export async function getTelegramFileUrl(fileId: string): Promise<string> {
   return `https://api.telegram.org/file/bot${token}/${filePath}`;
 }
 
-export async function sendMessage(chatId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML'): Promise<void> {
+export async function sendMessage(chatId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML', replyMarkup?: any): Promise<void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
 
@@ -119,7 +119,8 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
       chat_id: chatId,
       text,
       parse_mode: parseMode,
-      disable_web_page_preview: false
+      disable_web_page_preview: false,
+      reply_markup: replyMarkup
     }),
   });
 }
