@@ -65,7 +65,7 @@ export interface TelegramUpdate {
   };
 }
 
-export async function uploadToTelegram(file: Blob, fileName: string, caption?: string, mediaType: 'photo' | 'animation' = 'photo'): Promise<TelegramFileResult> {
+export async function uploadToTelegram(file: Blob, fileName: string, caption?: string, mediaType: 'photo' | 'animation' | 'video' = 'photo'): Promise<TelegramFileResult> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
@@ -76,8 +76,15 @@ export async function uploadToTelegram(file: Blob, fileName: string, caption?: s
   const formData = new FormData();
   formData.append('chat_id', chatId);
 
-  const method = mediaType === 'animation' ? 'sendAnimation' : 'sendPhoto';
-  const fieldName = mediaType === 'animation' ? 'animation' : 'photo';
+  let method = 'sendPhoto';
+  let fieldName = 'photo';
+  if (mediaType === 'animation') {
+    method = 'sendAnimation';
+    fieldName = 'animation';
+  } else if (mediaType === 'video') {
+    method = 'sendVideo';
+    fieldName = 'video';
+  }
 
   formData.append(fieldName, file, fileName);
   if (caption) {
@@ -102,6 +109,10 @@ export async function uploadToTelegram(file: Blob, fileName: string, caption?: s
   if (mediaType === 'animation') {
     // For animations, it's a single object in 'animation' or 'document' field
     const fileInfo = data.result.animation || data.result.document;
+    fileId = fileInfo.file_id;
+    fileUniqueId = fileInfo.file_unique_id;
+  } else if (mediaType === 'video') {
+    const fileInfo = data.result.video || data.result.document;
     fileId = fileInfo.file_id;
     fileUniqueId = fileInfo.file_unique_id;
   } else {
@@ -153,12 +164,15 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
   });
 }
 
-export async function sendMediaToChannel(fileId: string, caption: string, mediaType: 'photo' | 'animation' = 'photo'): Promise<void> {
+export async function sendMediaToChannel(fileId: string, caption: string, mediaType: 'photo' | 'animation' | 'video' = 'photo'): Promise<TelegramFileResult | void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chatId) return;
 
-  const method = mediaType === 'animation' ? 'sendAnimation' : 'sendPhoto';
+  let method = 'sendPhoto';
+  if (mediaType === 'animation') method = 'sendAnimation';
+  if (mediaType === 'video') method = 'sendVideo';
+
   const body: any = {
     chat_id: chatId,
     caption,
@@ -167,6 +181,8 @@ export async function sendMediaToChannel(fileId: string, caption: string, mediaT
 
   if (mediaType === 'animation') {
     body.animation = fileId;
+  } else if (mediaType === 'video') {
+    body.video = fileId;
   } else {
     body.photo = fileId;
   }
