@@ -4,7 +4,7 @@ export async function GET() {
     return NextResponse.json({
         success: true,
         version: 'v2.0.0',
-        status: 'stable',
+        status: 'beta',
         documentation: '/docs',
         features: {
             authentication: 'JWT and API key support',
@@ -32,6 +32,7 @@ export async function GET() {
             upload: '/api/v2/upload',
             info: '/api/v1/info/[id]'
         },
-        message: 'PixEdge API v2 is active. Authentication is optional but recommended for higher rate limits.'
+        message: 'PixEdge API v2 is in BETA. Authentication is optional but recommended for higher rate limits.',
+        beta_notice: 'This API version is currently in beta. Features may change before stable release.'
     });
 }

@@ -236,22 +236,55 @@ func main() {
                     {activeSection === 'authentication' && (
                         <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                             <h2 style={{ fontSize: '1.8rem', color: 'var(--text-main)', marginBottom: '1.5rem' }}>Authentication</h2>
-                            <p style={{ color: 'var(--text-muted)', lineHeight: '1.7', marginBottom: '1.5rem' }}>
-                                Currently, the PixEdge Public API is **open access**. No API keys are required to upload or retrieve image metadata.
-                                However, to prevent abuse, we implement global rate limiting based on IP addresses.
-                            </p>
+                            
+                            <div style={{ marginBottom: '2rem' }}>
+                                <h3 style={{ fontSize: '1.3rem', color: 'var(--text-main)', marginBottom: '1rem' }}>API v1 (Public Access)</h3>
+                                <p style={{ color: 'var(--text-muted)', lineHeight: '1.7', marginBottom: '1rem' }}>
+                                    The PixEdge Public API v1 is **open access**. No API keys are required to upload or retrieve image metadata.
+                                    However, to prevent abuse, we implement global rate limiting based on IP addresses (20 requests/minute).
+                                </p>
+                            </div>
+
                             <div style={{
-                                background: 'rgba(59, 130, 246, 0.05)',
-                                border: '1px solid rgba(59, 130, 246, 0.2)',
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                border: '1px solid rgba(139, 92, 246, 0.3)',
                                 borderRadius: '16px',
                                 padding: '1.5rem',
-                                color: '#3b82f6'
+                                marginBottom: '1.5rem'
                             }}>
-                                <Server size={20} style={{ marginBottom: '10px' }} />
-                                <h4 style={{ marginBottom: '4px' }}>Upcoming: Private Keys</h4>
-                                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                                    We are working on a dashboard feature to allow developers to generate private API keys for higher rate limits and image management.
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                                    <Shield size={20} color="#8b5cf6" />
+                                    <h4 style={{ margin: 0, color: '#8b5cf6' }}>API v2 (Beta) - API Keys Available</h4>
+                                    <span style={{
+                                        padding: '0.25rem 0.75rem',
+                                        borderRadius: '12px',
+                                        background: 'rgba(251, 191, 36, 0.2)',
+                                        border: '1px solid rgba(251, 191, 36, 0.4)',
+                                        color: '#fbbf24',
+                                        fontSize: '0.75rem',
+                                        fontWeight: '600',
+                                        marginLeft: 'auto'
+                                    }}>BETA</span>
+                                </div>
+                                <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', lineHeight: '1.7', marginBottom: '1rem' }}>
+                                    API v2 introduces authentication with **API Keys** and **JWT tokens**. Create an account and generate API keys from the <Link href="/dashboard" style={{ color: '#8b5cf6', textDecoration: 'underline' }}>Dashboard</Link> for higher rate limits and advanced features.
                                 </p>
+                                <div style={{ marginTop: '1rem' }}>
+                                    <h5 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>Rate Limits:</h5>
+                                    <ul style={{ fontSize: '0.9rem', color: 'var(--text-muted)', lineHeight: '1.8', paddingLeft: '1.5rem' }}>
+                                        <li>Anonymous: 20 requests/minute</li>
+                                        <li>Authenticated (JWT): 50 requests/minute</li>
+                                        <li>API Key: Custom (default: 100 requests/minute)</li>
+                                    </ul>
+                                </div>
+                                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0, 0, 0, 0.2)', borderRadius: '8px' }}>
+                                    <h5 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)' }}>Quick Start:</h5>
+                                    <ol style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.8', paddingLeft: '1.5rem' }}>
+                                        <li>Visit the <Link href="/dashboard" style={{ color: '#8b5cf6', textDecoration: 'underline' }}>Dashboard</Link> to create an account</li>
+                                        <li>Generate an API key from the Dashboard</li>
+                                        <li>Use the API key in the <code style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '0.2rem 0.4rem', borderRadius: '4px', fontSize: '0.85rem' }}>X-API-Key</code> header</li>
+                                    </ol>
+                                </div>
                             </div>
                         </motion.section>
                     )}

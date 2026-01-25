@@ -231,20 +231,62 @@ export default function Home() {
                         transition={{ duration: 0.5 }}
                     >
                         <div style={{
-                            background: 'rgba(139, 92, 246, 0.1)',
-                            padding: '8px 16px',
-                            borderRadius: '100px',
-                            display: 'inline-flex',
+                            display: 'flex',
+                            flexDirection: 'column',
                             alignItems: 'center',
-                            gap: '8px',
-                            marginBottom: '2rem',
-                            border: '1px solid rgba(139, 92, 246, 0.2)',
-                            color: '#8b5cf6',
-                            fontSize: '0.85rem',
-                            fontWeight: '600'
+                            gap: '1rem',
+                            marginBottom: '2rem'
                         }}>
-                            <Zap size={14} fill="#8b5cf6" />
-                            <span>Now powered by Upstash & Telegram</span>
+                            <div style={{
+                                background: 'rgba(139, 92, 246, 0.1)',
+                                padding: '8px 16px',
+                                borderRadius: '100px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                border: '1px solid rgba(139, 92, 246, 0.2)',
+                                color: '#8b5cf6',
+                                fontSize: '0.85rem',
+                                fontWeight: '600'
+                            }}>
+                                <Zap size={14} fill="#8b5cf6" />
+                                <span>Now powered by Upstash & Telegram</span>
+                            </div>
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.3, duration: 0.5 }}
+                                style={{
+                                    background: 'rgba(251, 191, 36, 0.15)',
+                                    padding: '10px 20px',
+                                    borderRadius: '100px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    border: '2px solid rgba(251, 191, 36, 0.4)',
+                                    color: '#fbbf24',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '700',
+                                    boxShadow: '0 4px 20px rgba(251, 191, 36, 0.2)'
+                                }}
+                            >
+                                <span style={{
+                                    background: '#fbbf24',
+                                    color: '#000',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '800',
+                                    letterSpacing: '0.5px'
+                                }}>BETA</span>
+                                <span>API v2 is now available with Authentication & API Keys!</span>
+                                <Link href="/dashboard" style={{
+                                    color: '#fbbf24',
+                                    textDecoration: 'underline',
+                                    fontWeight: '600',
+                                    marginLeft: '4px'
+                                }}>Get Started →</Link>
+                            </motion.div>
                         </div>
                     </motion.div>
 
