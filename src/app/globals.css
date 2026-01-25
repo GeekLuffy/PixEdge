@@ -47,7 +47,7 @@ body {
   position: relative;
 }
 
-/* Cyber Grid Pattern */
+/* Cyber Grid Pattern - Whisper Background */
 body::before {
   content: '';
   position: fixed;
@@ -56,11 +56,12 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(rgba(0, 240, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
   background-size: 50px 50px;
   z-index: 0;
   pointer-events: none;
+  opacity: 0.1;
 }
 
 /* Radial Glows */
@@ -100,19 +101,15 @@ body::after {
   line-height: 1;
   margin-bottom: 1.5rem;
   color: var(--text-main);
-  text-shadow: 
-    0 0 10px var(--accent-cyan-glow),
-    0 0 20px var(--accent-cyan-glow),
-    0 0 30px var(--accent-cyan-glow);
 }
 
 .hero h1 .cyber-glow {
-  color: var(--accent-cyan);
-  text-shadow: 
-    0 0 10px var(--accent-cyan),
-    0 0 20px var(--accent-cyan),
-    0 0 30px var(--accent-cyan),
-    0 0 40px var(--accent-cyan);
+  background: linear-gradient(to right, #ffffff, #00F0FF);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  position: relative;
 }
 
 .hero p {
@@ -120,7 +117,43 @@ body::after {
   font-size: 1.25rem;
   line-height: 1.6;
   font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.2em;
+  font-weight: 500;
+}
+
+/* Pulsing animation for logo icon */
+@keyframes pulse-logo {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px #00F0FF);
+  }
+  50% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 16px #00F0FF) drop-shadow(0 0 24px rgba(0, 240, 255, 0.5));
+  }
+}
+
+.logo-pulse {
+  animation: pulse-logo 2s ease-in-out infinite;
+}
+
+/* Arrow animation for Get Started link */
+@keyframes arrow-slide {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(4px);
+  }
+}
+
+.get-started-arrow {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.get-started-link:hover .get-started-arrow {
+  animation: arrow-slide 0.3s ease forwards;
 }
 
 .upload-card {

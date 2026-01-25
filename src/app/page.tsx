@@ -152,15 +152,14 @@ export default function Home() {
                     left: '50%',
                     background: 'var(--panel-bg)',
                     backdropFilter: 'blur(40px)',
-                    border: '1px solid var(--border-color)',
-                    borderBottom: '2px solid var(--border-cyan)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '12px',
                     padding: '12px 32px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '40px',
                     zIndex: 9999,
-                    boxShadow: '0 0 20px var(--glow-cyan), 0 20px 50px rgba(0,0,0,0.8)',
+                    boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
                     whiteSpace: 'nowrap'
                 }}
             >
@@ -175,7 +174,7 @@ export default function Home() {
                     gap: '10px',
                     fontFamily: 'Inter, sans-serif'
                 }}>
-                    <Zap size={24} fill="#00F0FF" color="#00F0FF" />
+                    <Zap size={24} fill="#00F0FF" color="#00F0FF" className="logo-pulse" />
                     <span>Pix<span style={{ color: '#00F0FF', textShadow: '0 0 10px rgba(0, 240, 255, 0.5)' }}>Edge</span></span>
                 </Link>
                 <Link href="/docs" style={{
@@ -296,7 +295,7 @@ export default function Home() {
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '8px',
-                                    border: '2px solid #00F0FF',
+                                    border: '1px solid #00F0FF',
                                     color: '#00F0FF',
                                     fontSize: '0.9rem',
                                     fontWeight: '700',
@@ -316,13 +315,22 @@ export default function Home() {
                                     boxShadow: '0 0 10px rgba(0, 240, 255, 0.5)'
                                 }}>BETA</span>
                                 <span>API v2 is now available with Authentication & API Keys!</span>
-                                <Link href="/dashboard" style={{
-                                    color: '#00F0FF',
-                                    textDecoration: 'underline',
-                                    fontWeight: '600',
-                                    marginLeft: '4px',
-                                    textShadow: '0 0 10px rgba(0, 240, 255, 0.5)'
-                                }}>Get Started →</Link>
+                                <Link 
+                                    href="/dashboard" 
+                                    className="get-started-link"
+                                    style={{
+                                        color: '#00F0FF',
+                                        textDecoration: 'underline',
+                                        fontWeight: '600',
+                                        marginLeft: '4px',
+                                        textShadow: '0 0 10px rgba(0, 240, 255, 0.5)',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                >
+                                    Get Started <span className="get-started-arrow">→</span>
+                                </Link>
                             </motion.div>
                         </div>
                     </motion.div>
