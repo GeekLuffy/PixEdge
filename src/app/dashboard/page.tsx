@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Key, Plus, Trash2, Copy, Check, LogOut, User,
-    Settings, Webhook, Eye, EyeOff, X, AlertCircle
+    Settings, Webhook, Eye, EyeOff, X, AlertCircle, Github
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -691,6 +691,7 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showToast, setShowToast] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -719,33 +720,142 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
         }
     };
 
+    const handleSocialLogin = (provider: string) => {
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
+    };
+
+    // Google Icon SVG Component
+    const GoogleIcon = () => (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M17.64 9.20454C17.64 8.56636 17.5827 7.95272 17.4764 7.36363H9V10.845H13.8436C13.635 11.97 13.0009 12.9231 12.0477 13.5613V15.8195H14.9564C16.6582 14.2527 17.64 11.9454 17.64 9.20454Z" fill="#4285F4"/>
+            <path d="M9 18C11.43 18 13.467 17.1941 14.9564 15.8195L12.0477 13.5613C11.2418 14.1013 10.2109 14.4204 9 14.4204C6.65454 14.4204 4.67182 12.8372 3.96409 10.71H0.957275V13.0418C2.43818 15.9831 5.48182 18 9 18Z" fill="#34A853"/>
+            <path d="M3.96409 10.71C3.78409 10.17 3.68182 9.59318 3.68182 9C3.68182 8.40681 3.78409 7.83 3.96409 7.29V4.95818H0.957273C0.347727 6.17318 0 7.54772 0 9C0 10.4523 0.347727 11.8268 0.957273 13.0418L3.96409 10.71Z" fill="#FBBC05"/>
+            <path d="M9 3.57955C10.3214 3.57955 11.5077 4.03364 12.4405 4.92545L15.0218 2.34409C13.4632 0.891818 11.4259 0 9 0C5.48182 0 2.43818 2.01682 0.957275 4.95818L3.96409 7.29C4.67182 5.16273 6.65454 3.57955 9 3.57955Z" fill="#EA4335"/>
+        </svg>
+    );
+
     return (
         <div style={{
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
             minHeight: '100vh',
-            padding: '2rem'
+            padding: '2rem',
+            background: '#000000',
+            position: 'relative',
+            fontFamily: "'Inter', sans-serif"
         }}>
+            {/* Decorative Technical Elements */}
+            <div style={{
+                position: 'absolute',
+                top: '2rem',
+                left: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>+</div>
+            <div style={{
+                position: 'absolute',
+                top: '2rem',
+                right: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>×</div>
+            <div style={{
+                position: 'absolute',
+                bottom: '2rem',
+                left: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>+</div>
+            <div style={{
+                position: 'absolute',
+                bottom: '2rem',
+                right: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>×</div>
+
+            {/* Toast Notification */}
+            <AnimatePresence>
+                {showToast && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        style={{
+                            position: 'fixed',
+                            top: '2rem',
+                            right: '2rem',
+                            background: 'rgba(0, 240, 255, 0.1)',
+                            border: '1px solid #00F0FF',
+                            borderRadius: '12px',
+                            padding: '1rem 1.5rem',
+                            color: '#00F0FF',
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: '600',
+                            zIndex: 1000,
+                            boxShadow: '0 0 12px rgba(0, 240, 255, 0.3)',
+                            backdropFilter: 'blur(20px)'
+                        }}
+                    >
+                        Coming Soon!
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <div style={{
                 width: '100%',
                 maxWidth: '400px',
-                padding: '2rem',
-                borderRadius: '16px',
-                background: 'var(--panel-bg)',
-                border: '1px solid var(--border-color)'
+                padding: '2.5rem',
+                borderRadius: '24px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                backdropFilter: 'blur(24px)',
+                WebkitBackdropFilter: 'blur(24px)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 0 20px rgba(0, 240, 255, 0.1)',
+                position: 'relative',
+                zIndex: 1
             }}>
-                <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem', textAlign: 'center' }}>
+                <h1 style={{ 
+                    fontSize: '2rem', 
+                    fontWeight: 900, 
+                    marginBottom: '0.5rem', 
+                    textAlign: 'center',
+                    color: '#FFFFFF',
+                    fontFamily: "'Inter', sans-serif"
+                }}>
                     {isLogin ? 'Login' : 'Sign Up'}
                 </h1>
-                <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginBottom: '2rem' }}>
+                <p style={{ 
+                    color: 'rgba(255, 255, 255, 0.6)', 
+                    textAlign: 'center', 
+                    marginBottom: '2rem',
+                    fontFamily: "'Inter', sans-serif"
+                }}>
                     {isLogin ? 'Welcome back!' : 'Create your account'}
                 </p>
 
                 {error && (
                     <div style={{
                         padding: '0.75rem',
-                        borderRadius: '8px',
+                        borderRadius: '12px',
                         background: 'rgba(239, 68, 68, 0.1)',
                         border: '1px solid rgba(239, 68, 68, 0.3)',
                         color: '#ef4444',
@@ -753,7 +863,8 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        fontSize: '0.9rem'
+                        fontSize: '0.9rem',
+                        fontFamily: "'Inter', sans-serif"
                     }}>
                         <AlertCircle size={16} />
                         {error}
@@ -768,12 +879,23 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         style={{
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            background: 'var(--input-bg)',
-                            border: '1px solid var(--border-color)',
-                            color: 'var(--text-main)',
-                            fontSize: '1rem'
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: '#FFFFFF',
+                            fontSize: '1rem',
+                            fontFamily: "'Inter', sans-serif",
+                            transition: 'all 0.3s',
+                            outline: 'none'
+                        }}
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = '#00F0FF';
+                            e.currentTarget.style.boxShadow = '0 0 8px rgba(0, 240, 255, 0.2)';
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                            e.currentTarget.style.boxShadow = 'none';
                         }}
                     />
                     <input
@@ -784,34 +906,129 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                         required
                         minLength={8}
                         style={{
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            background: 'var(--input-bg)',
-                            border: '1px solid var(--border-color)',
-                            color: 'var(--text-main)',
-                            fontSize: '1rem'
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: '#FFFFFF',
+                            fontSize: '1rem',
+                            fontFamily: "'Inter', sans-serif",
+                            transition: 'all 0.3s',
+                            outline: 'none'
+                        }}
+                        onFocus={(e) => {
+                            e.currentTarget.style.borderColor = '#00F0FF';
+                            e.currentTarget.style.boxShadow = '0 0 8px rgba(0, 240, 255, 0.2)';
+                        }}
+                        onBlur={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                            e.currentTarget.style.boxShadow = 'none';
                         }}
                     />
                     <button
                         type="submit"
                         disabled={loading}
                         style={{
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            background: 'var(--accent-primary)',
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            background: '#00F0FF',
                             border: 'none',
-                            color: 'white',
+                            color: '#000000',
                             fontSize: '1rem',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             cursor: loading ? 'not-allowed' : 'pointer',
-                            opacity: loading ? 0.6 : 1
+                            opacity: loading ? 0.6 : 1,
+                            fontFamily: "'Inter', sans-serif",
+                            transition: 'all 0.3s',
+                            boxShadow: '0 0 12px rgba(0, 240, 255, 0.3)'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (!loading) {
+                                e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.5)';
+                                e.currentTarget.style.transform = 'translateY(-1px)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 240, 255, 0.3)';
+                            e.currentTarget.style.transform = 'translateY(0)';
                         }}
                     >
                         {loading ? 'Please wait...' : (isLogin ? 'Login' : 'Sign Up')}
                     </button>
                 </form>
 
-                <p style={{ textAlign: 'center', marginTop: '1rem', color: 'var(--text-muted)' }}>
+                {/* Social Login Buttons */}
+                <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <button
+                        type="button"
+                        onClick={() => handleSocialLogin('github')}
+                        style={{
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            background: '#000000',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            color: '#FFFFFF',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: "'Inter', sans-serif",
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.75rem',
+                            transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                            e.currentTarget.style.background = '#000000';
+                        }}
+                    >
+                        <Github size={18} />
+                        Continue with GitHub
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSocialLogin('google')}
+                        style={{
+                            padding: '0.875rem',
+                            borderRadius: '12px',
+                            background: '#000000',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            color: '#FFFFFF',
+                            fontSize: '0.95rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: "'Inter', sans-serif",
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.75rem',
+                            transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                            e.currentTarget.style.background = '#000000';
+                        }}
+                    >
+                        <GoogleIcon />
+                        Continue with Google
+                    </button>
+                </div>
+
+                <p style={{ 
+                    textAlign: 'center', 
+                    marginTop: '1.5rem', 
+                    color: 'rgba(255, 255, 255, 0.6)',
+                    fontFamily: "'Inter', sans-serif"
+                }}>
                     {isLogin ? "Don't have an account? " : 'Already have an account? '}
                     <button
                         onClick={() => {
@@ -821,9 +1038,18 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
                         style={{
                             background: 'none',
                             border: 'none',
-                            color: 'var(--accent-primary)',
+                            color: '#00F0FF',
                             cursor: 'pointer',
-                            textDecoration: 'underline'
+                            textDecoration: 'underline',
+                            fontFamily: "'Inter', sans-serif",
+                            fontWeight: 600,
+                            transition: 'all 0.3s'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.textShadow = '0 0 8px rgba(0, 240, 255, 0.5)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.textShadow = 'none';
                         }}
                     >
                         {isLogin ? 'Sign up' : 'Login'}
@@ -832,10 +1058,19 @@ function LoginForm({ onSuccess }: { onSuccess: () => void }) {
 
                 <div style={{ marginTop: '2rem', textAlign: 'center' }}>
                     <Link href="/" style={{
-                        color: 'var(--text-muted)',
+                        color: 'rgba(255, 255, 255, 0.6)',
                         textDecoration: 'none',
-                        fontSize: '0.9rem'
-                    }}>
+                        fontSize: '0.9rem',
+                        fontFamily: "'Inter', sans-serif",
+                        transition: 'all 0.3s'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.color = '#00F0FF';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                    }}
+                    >
                         ← Back to home
                     </Link>
                 </div>
