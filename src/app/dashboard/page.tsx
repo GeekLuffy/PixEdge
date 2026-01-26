@@ -188,40 +188,133 @@ export default function Dashboard() {
             minHeight: '100vh',
             padding: '2rem',
             maxWidth: '1200px',
-            margin: '0 auto'
+            margin: '0 auto',
+            background: '#000000',
+            position: 'relative',
+            fontFamily: "'Inter', sans-serif"
         }}>
+            {/* Decorative Technical Elements */}
+            <div style={{
+                position: 'fixed',
+                top: '2rem',
+                left: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>+</div>
+            <div style={{
+                position: 'fixed',
+                top: '2rem',
+                right: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>×</div>
+            <div style={{
+                position: 'fixed',
+                bottom: '2rem',
+                left: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>+</div>
+            <div style={{
+                position: 'fixed',
+                bottom: '2rem',
+                right: '2rem',
+                color: 'rgba(0, 240, 255, 0.1)',
+                fontSize: '24px',
+                fontFamily: 'monospace',
+                fontWeight: 'bold',
+                zIndex: 0,
+                pointerEvents: 'none'
+            }}>×</div>
             <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '2rem',
                 paddingBottom: '1.5rem',
-                borderBottom: '1px solid var(--border-color)'
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                position: 'relative',
+                zIndex: 1
             }}>
                 <div>
-                    <h1 style={{ fontSize: '2rem', fontWeight: 700, marginBottom: '0.5rem' }}>Dashboard</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>{user.email}</p>
+                    <h1 style={{ 
+                        fontSize: '2rem', 
+                        fontWeight: 900, 
+                        marginBottom: '0.5rem',
+                        color: '#FFFFFF',
+                        fontFamily: "'Inter', sans-serif"
+                    }}>Dashboard</h1>
+                    <p style={{ 
+                        color: 'rgba(255, 255, 255, 0.6)',
+                        fontFamily: "'Inter', sans-serif"
+                    }}>{user.email}</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                     <Link href="/" style={{
                         padding: '0.5rem 1rem',
                         borderRadius: '8px',
-                        background: 'var(--panel-bg)',
-                        border: '1px solid var(--border-color)',
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
                         textDecoration: 'none',
-                        color: 'var(--text-main)'
-                    }}>Home</Link>
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: '0.9rem',
+                        transition: 'all 0.3s',
+                        opacity: 0.5
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.borderColor = '#00F0FF';
+                        e.currentTarget.style.color = '#00F0FF';
+                        e.currentTarget.style.boxShadow = '0 0 8px rgba(0, 240, 255, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '0.5';
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                        e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    >Home</Link>
                     <button onClick={handleLogout} style={{
                         padding: '0.5rem 1rem',
                         borderRadius: '8px',
-                        background: 'var(--panel-bg)',
-                        border: '1px solid var(--border-color)',
-                        color: 'var(--text-main)',
+                        background: 'transparent',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: 'rgba(255, 255, 255, 0.5)',
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '0.5rem'
-                    }}>
+                        gap: '0.5rem',
+                        fontFamily: "'Inter', sans-serif",
+                        fontSize: '0.9rem',
+                        transition: 'all 0.3s',
+                        opacity: 0.5
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.borderColor = '#00F0FF';
+                        e.currentTarget.style.color = '#00F0FF';
+                        e.currentTarget.style.boxShadow = '0 0 8px rgba(0, 240, 255, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '0.5';
+                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                        e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)';
+                        e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    >
                         <LogOut size={16} />
                         Logout
                     </button>
@@ -230,9 +323,11 @@ export default function Dashboard() {
 
             <div style={{
                 display: 'flex',
-                gap: '1rem',
+                gap: '0.5rem',
                 marginBottom: '2rem',
-                borderBottom: '1px solid var(--border-color)'
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                position: 'relative',
+                zIndex: 1
             }}>
                 {(['keys', 'webhooks', 'settings'] as const).map(tab => (
                     <button
@@ -241,12 +336,28 @@ export default function Dashboard() {
                         style={{
                             padding: '0.75rem 1.5rem',
                             border: 'none',
-                            background: activeTab === tab ? 'var(--accent-primary)' : 'transparent',
-                            color: 'var(--text-main)',
+                            background: 'transparent',
+                            color: activeTab === tab ? '#00F0FF' : 'rgba(255, 255, 255, 0.4)',
                             cursor: 'pointer',
-                            borderRadius: '8px 8px 0 0',
-                            textTransform: 'capitalize',
-                            fontWeight: activeTab === tab ? 600 : 400
+                            textTransform: 'uppercase',
+                            fontWeight: activeTab === tab ? 700 : 400,
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '0.85rem',
+                            letterSpacing: '0.1em',
+                            position: 'relative',
+                            transition: 'all 0.3s',
+                            borderBottom: activeTab === tab ? '2px solid #00F0FF' : '2px solid transparent',
+                            boxShadow: activeTab === tab ? '0 4px 12px rgba(0, 240, 255, 0.3)' : 'none'
+                        }}
+                        onMouseEnter={(e) => {
+                            if (activeTab !== tab) {
+                                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.7)';
+                            }
+                        }}
+                        onMouseLeave={(e) => {
+                            if (activeTab !== tab) {
+                                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.4)';
+                            }
                         }}
                     >
                         {tab}
@@ -266,24 +377,44 @@ export default function Dashboard() {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            marginBottom: '1.5rem'
+                            marginBottom: '1.5rem',
+                            position: 'relative',
+                            zIndex: 1
                         }}>
-                            <h2 style={{ fontSize: '1.5rem', fontWeight: 600 }}>API Keys</h2>
+                            <h2 style={{ 
+                                fontSize: '1.5rem', 
+                                fontWeight: 700,
+                                color: '#FFFFFF',
+                                fontFamily: "'Inter', sans-serif"
+                            }}>API Keys</h2>
                             <button
                                 onClick={() => setShowCreateKey(true)}
                                 style={{
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '8px',
-                                    background: 'var(--accent-primary)',
+                                    padding: '0.625rem 1.25rem',
+                                    borderRadius: '12px',
+                                    background: '#00F0FF',
                                     border: 'none',
-                                    color: 'white',
+                                    color: '#000000',
                                     cursor: 'pointer',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '0.5rem'
+                                    gap: '0.5rem',
+                                    fontFamily: "'Inter', sans-serif",
+                                    fontWeight: 700,
+                                    fontSize: '0.9rem',
+                                    transition: 'all 0.3s',
+                                    boxShadow: '0 0 12px rgba(0, 240, 255, 0.3)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.5)';
+                                    e.currentTarget.style.transform = 'translateY(-1px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 240, 255, 0.3)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
                                 }}
                             >
-                                <Plus size={16} />
+                                <Plus size={16} style={{ filter: 'drop-shadow(0 0 4px rgba(0, 0, 0, 0.3))' }} />
                                 Create Key
                             </button>
                         </div>
@@ -424,35 +555,80 @@ export default function Dashboard() {
                                         key={key.id}
                                         style={{
                                             padding: '1.5rem',
-                                            borderRadius: '12px',
-                                            background: 'var(--panel-bg)',
-                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '16px',
+                                            background: 'rgba(255, 255, 255, 0.03)',
+                                            backdropFilter: 'blur(20px)',
+                                            border: '1px solid rgba(0, 240, 255, 0.2)',
                                             display: 'flex',
                                             justifyContent: 'space-between',
-                                            alignItems: 'center'
+                                            alignItems: 'center',
+                                            boxShadow: '0 0 12px rgba(0, 240, 255, 0.1)',
+                                            transition: 'all 0.3s',
+                                            position: 'relative',
+                                            zIndex: 1
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = '#00F0FF';
+                                            e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 240, 255, 0.2)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = 'rgba(0, 240, 255, 0.2)';
+                                            e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 240, 255, 0.1)';
                                         }}
                                     >
                                         <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                <Key size={18} />
-                                                <h3 style={{ fontWeight: 600 }}>{key.name}</h3>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                                <Key size={18} color="#00F0FF" style={{ filter: 'drop-shadow(0 0 4px rgba(0, 240, 255, 0.5))' }} />
+                                                <h3 style={{ 
+                                                    fontWeight: 700,
+                                                    color: '#FFFFFF',
+                                                    fontFamily: "'Inter', sans-serif",
+                                                    fontSize: '1.1rem'
+                                                }}>{key.name}</h3>
+                                                <span style={{
+                                                    padding: '0.2rem 0.5rem',
+                                                    borderRadius: '4px',
+                                                    background: 'rgba(0, 240, 255, 0.1)',
+                                                    border: '1px solid rgba(0, 240, 255, 0.2)',
+                                                    color: '#00F0FF',
+                                                    fontSize: '0.7rem',
+                                                    fontFamily: "'JetBrains Mono', monospace",
+                                                    fontWeight: 600,
+                                                    textTransform: 'uppercase',
+                                                    letterSpacing: '0.05em'
+                                                }}>ID: {key.id.slice(0, 8)}</span>
                                                 {!key.is_active && (
                                                     <span style={{
                                                         padding: '0.25rem 0.5rem',
                                                         borderRadius: '4px',
                                                         background: 'rgba(239, 68, 68, 0.2)',
+                                                        border: '1px solid rgba(239, 68, 68, 0.3)',
                                                         color: '#ef4444',
-                                                        fontSize: '0.75rem'
-                                                    }}>Revoked</span>
+                                                        fontSize: '0.75rem',
+                                                        fontFamily: "'JetBrains Mono', monospace",
+                                                        fontWeight: 600
+                                                    }}>REVOKED</span>
                                                 )}
                                             </div>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                                            <p style={{ 
+                                                color: '#00F0FF', 
+                                                fontSize: '0.85rem', 
+                                                marginBottom: '0.5rem',
+                                                fontFamily: "'JetBrains Mono', monospace",
+                                                letterSpacing: '0.05em'
+                                            }}>
                                                 {key.prefix}...
                                             </p>
-                                            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                                <span>Rate limit: {key.rate_limit}/min</span>
+                                            <div style={{ 
+                                                display: 'flex', 
+                                                gap: '1.5rem', 
+                                                fontSize: '0.8rem', 
+                                                color: 'rgba(255, 255, 255, 0.6)',
+                                                fontFamily: "'JetBrains Mono', monospace"
+                                            }}>
+                                                <span>RATE_LIMIT: <span style={{ color: '#00F0FF' }}>{key.rate_limit}/min</span></span>
                                                 {key.last_used && (
-                                                    <span>Last used: {new Date(key.last_used).toLocaleDateString()}</span>
+                                                    <span>LAST_USED: <span style={{ color: '#00F0FF' }}>{new Date(key.last_used).toLocaleDateString()}</span></span>
                                                 )}
                                             </div>
                                         </div>
@@ -461,10 +637,21 @@ export default function Dashboard() {
                                             style={{
                                                 padding: '0.5rem',
                                                 borderRadius: '8px',
-                                                background: 'rgba(239, 68, 68, 0.1)',
-                                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                color: '#ef4444',
-                                                cursor: 'pointer'
+                                                background: 'transparent',
+                                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                color: 'rgba(239, 68, 68, 0.5)',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.3s'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.borderColor = '#ef4444';
+                                                e.currentTarget.style.color = '#ef4444';
+                                                e.currentTarget.style.boxShadow = '0 0 12px rgba(239, 68, 68, 0.3)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+                                                e.currentTarget.style.color = 'rgba(239, 68, 68, 0.5)';
+                                                e.currentTarget.style.boxShadow = 'none';
                                             }}
                                         >
                                             <Trash2 size={18} />
@@ -639,40 +826,104 @@ export default function Dashboard() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
                     >
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1.5rem' }}>Settings</h2>
+                        <h2 style={{ 
+                            fontSize: '1.5rem', 
+                            fontWeight: 700, 
+                            marginBottom: '1.5rem',
+                            color: '#FFFFFF',
+                            fontFamily: "'Inter', sans-serif",
+                            position: 'relative',
+                            zIndex: 1
+                        }}>Settings</h2>
                         <div style={{
-                            padding: '1.5rem',
-                            borderRadius: '12px',
-                            background: 'var(--panel-bg)',
-                            border: '1px solid var(--border-color)'
+                            padding: '2rem',
+                            borderRadius: '16px',
+                            background: 'rgba(255, 255, 255, 0.03)',
+                            backdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(0, 240, 255, 0.2)',
+                            boxShadow: '0 0 12px rgba(0, 240, 255, 0.1)',
+                            position: 'relative',
+                            zIndex: 1
                         }}>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Email</label>
+                            <div style={{ 
+                                marginBottom: '1.5rem',
+                                paddingBottom: '1.5rem',
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}>
+                                <label style={{ 
+                                    display: 'block', 
+                                    marginBottom: '0.75rem', 
+                                    fontWeight: 700,
+                                    fontSize: '0.75rem',
+                                    color: '#00F0FF',
+                                    fontFamily: "'JetBrains Mono', monospace",
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.1em'
+                                }}>ACCOUNT_EMAIL</label>
                                 <input
                                     type="email"
                                     value={user.email}
                                     disabled
                                     style={{
-                                        padding: '0.75rem',
-                                        borderRadius: '8px',
-                                        background: 'var(--input-bg)',
-                                        border: '1px solid var(--border-color)',
-                                        color: 'var(--text-muted)',
+                                        padding: '0.875rem',
+                                        borderRadius: '12px',
+                                        background: 'rgba(0, 0, 0, 0.3)',
+                                        border: '1px solid rgba(0, 240, 255, 0.2)',
+                                        color: '#FFFFFF',
                                         fontSize: '1rem',
-                                        width: '100%'
+                                        width: '100%',
+                                        fontFamily: "'Inter', sans-serif"
                                     }}
                                 />
                             </div>
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Account Created</label>
-                                <p style={{ color: 'var(--text-muted)' }}>
+                            <div style={{ 
+                                marginBottom: '1.5rem',
+                                paddingBottom: '1.5rem',
+                                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                            }}>
+                                <label style={{ 
+                                    display: 'block', 
+                                    marginBottom: '0.75rem', 
+                                    fontWeight: 700,
+                                    fontSize: '0.75rem',
+                                    color: '#00F0FF',
+                                    fontFamily: "'JetBrains Mono', monospace",
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.1em'
+                                }}>CREATED_AT</label>
+                                <p style={{ 
+                                    color: '#FFFFFF',
+                                    fontSize: '1rem',
+                                    fontFamily: "'JetBrains Mono', monospace",
+                                    padding: '0.875rem',
+                                    background: 'rgba(0, 0, 0, 0.3)',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(0, 240, 255, 0.2)'
+                                }}>
                                     {new Date(user.created_at).toLocaleString()}
                                 </p>
                             </div>
                             {user.last_login && (
                                 <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Last Login</label>
-                                    <p style={{ color: 'var(--text-muted)' }}>
+                                    <label style={{ 
+                                        display: 'block', 
+                                        marginBottom: '0.75rem', 
+                                        fontWeight: 700,
+                                        fontSize: '0.75rem',
+                                        color: '#00F0FF',
+                                        fontFamily: "'JetBrains Mono', monospace",
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.1em'
+                                    }}>LAST_LOGIN</label>
+                                    <p style={{ 
+                                        color: '#FFFFFF',
+                                        fontSize: '1rem',
+                                        fontFamily: "'JetBrains Mono', monospace",
+                                        padding: '0.875rem',
+                                        background: 'rgba(0, 0, 0, 0.3)',
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(0, 240, 255, 0.2)'
+                                    }}>
                                         {new Date(user.last_login).toLocaleString()}
                                     </p>
                                 </div>
