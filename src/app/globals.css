@@ -48,32 +48,28 @@ body {
   position: relative;
 }
 
-/* Background Container with Overflow Control */
+/* Aurora Glows - Three Massive Blurred Elements */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-  z-index: 0;
-  pointer-events: none;
-}
-
-/* Massive Radial Glows */
-body::before {
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
   background: 
-    /* Cyan glow - top left */
-    radial-gradient(circle at 0% 0%, rgba(0, 240, 255, 0.05) 0%, transparent 60%),
-    /* Deep Blue glow - center right */
-    radial-gradient(circle at 80% 50%, rgba(10, 25, 47, 0.5) 0%, transparent 70%);
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
+    /* Cyan glow - top right */
+    radial-gradient(circle at 90% 10%, rgba(6, 182, 212, 0.15) 0%, transparent 60%),
+    /* Indigo glow - center left */
+    radial-gradient(circle at 10% 50%, rgba(67, 56, 202, 0.1) 0%, transparent 60%),
+    /* Teal glow - bottom right */
+    radial-gradient(circle at 90% 90%, rgba(20, 184, 166, 0.1) 0%, transparent 60%);
+  z-index: -10;
+  pointer-events: none;
   filter: blur(120px);
+  overflow: hidden;
 }
 
-/* Dot Grid Pattern */
+/* Fading Grid Pattern + Noise Texture */
 body::after {
   content: '';
   position: fixed;
@@ -81,26 +77,20 @@ body::after {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-image: radial-gradient(circle, rgba(0, 240, 255, 0.1) 1px, transparent 1px);
-  background-size: 40px 40px;
-  background-position: 0 0;
-  z-index: 1;
-  pointer-events: none;
-  opacity: 0.1;
-}
-
-/* Noise/Grain Texture Overlay */
-body {
-  position: relative;
-}
-
-body::after {
   background-image: 
-    radial-gradient(circle, rgba(0, 240, 255, 0.1) 1px, transparent 1px),
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
-  background-size: 40px 40px, 200px 200px;
-  background-position: 0 0, 0 0;
-  mix-blend-mode: overlay;
+    /* Fading grid - most visible at bottom */
+    linear-gradient(rgba(0, 240, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 240, 255, 0.1) 1px, transparent 1px),
+    /* Noise/grain texture */
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+  background-size: 50px 50px, 50px 50px, 200px 200px;
+  background-position: 0 0, 0 0, 0 0;
+  background-repeat: repeat;
+  z-index: -10;
+  pointer-events: none;
+  /* Fade grid from bottom (visible) to top (invisible) */
+  mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.8) 30%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%);
+  -webkit-mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 0%, rgba(0, 0, 0, 0.8) 30%, rgba(0, 0, 0, 0.4) 60%, rgba(0, 0, 0, 0) 100%);
 }
 
 .main-container {
@@ -109,7 +99,8 @@ body::after {
   align-items: center;
   min-height: 100vh;
   padding: 8rem 2rem 4rem;
-  z-index: 1;
+  z-index: 10;
+  position: relative;
 }
 
 .hero {
