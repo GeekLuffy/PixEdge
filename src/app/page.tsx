@@ -166,16 +166,37 @@ export default function Home() {
                 <Link href="/" style={{
                     color: 'var(--text-main)',
                     textDecoration: 'none',
-                    fontWeight: '900',
                     fontSize: '1.6rem',
-                    letterSpacing: '-1.5px',
+                    letterSpacing: '-0.05em',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
                     fontFamily: 'Inter, sans-serif'
                 }}>
-                    <Zap size={24} fill="#00F0FF" color="#00F0FF" className="logo-pulse" />
-                    <span>Volt<span style={{ color: '#00F0FF', textShadow: '0 0 10px rgba(0, 240, 255, 0.5)' }}>Edge</span></span>
+                    <Zap 
+                        size={24} 
+                        fill="#00F0FF" 
+                        color="#00F0FF" 
+                        className="logo-pulse"
+                        style={{
+                            filter: 'drop-shadow(0 0 4px rgba(0, 240, 255, 0.5))'
+                        }}
+                    />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0' }}>
+                        <span style={{ 
+                            fontWeight: '500', 
+                            color: '#FFFFFF',
+                            letterSpacing: '-0.05em'
+                        }}>Volt</span>
+                        <span style={{ 
+                            fontWeight: '900',
+                            background: 'linear-gradient(to right, #FFFFFF, #00F0FF)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text',
+                            letterSpacing: '-0.05em'
+                        }}>Edge</span>
+                    </span>
                 </Link>
                 <Link href="/docs" style={{
                     color: 'var(--text-muted)',

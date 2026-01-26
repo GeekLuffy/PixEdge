@@ -1,4 +1,4 @@
-# ⚡ PixEdge: Ultra-Fast Edge Media Hosting
+# ⚡ VoltEdge: Ultra-Fast Edge Media Hosting
 
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Upstash](https://img.shields.io/badge/Upstash-00E699?style=for-the-badge&logo=upstash&logoColor=black)](https://upstash.com/)
@@ -33,7 +33,7 @@
 
 ## 🔌 Developer API
 
-PixEdge is built with a developer-first approach. You can programmatically upload images and retrieve metadata using our versioned REST API.
+VoltEdge is built with a developer-first approach. You can programmatically upload images and retrieve metadata using our versioned REST API.
 
 ### API v2 (Recommended) - With Authentication
 
@@ -153,7 +153,7 @@ Content-Type: application/json
   "timestamp": 1705500000000,
   "data": {
     "id": "image-id",
-    "url": "https://pixedge.link/i/image-id",
+    "url": "https://voltedge.link/i/image-id",
     "size": 102400,
     "type": "image/jpeg",
     "created_at": 1705500000000
@@ -178,7 +178,7 @@ The v1 API remains available for backward compatibility.
 
 **Example Request (cURL):**
 ```bash
-curl -X POST https://your-pixedge.com/api/v1/upload \
+curl -X POST https://your-voltedge.com/api/v1/upload \
   -F "file=@/path/to/image.jpg" \
   -F "customId=my-awesome-link"
 ```
@@ -207,7 +207,7 @@ curl -X POST https://your-pixedge.com/api/v1/upload \
 
 ## 🤝 Open Source & Contributions
 
-PixEdge is **Open Source** and built for the community! We are actively looking for collaborators and contributors to make this the ultimate image hosting solution.
+VoltEdge is **Open Source** and built for the community! We are actively looking for collaborators and contributors to make this the ultimate image hosting solution.
 
 ### How to Collaborate:
 1.  **Fork** the repository and experiment with new features.
@@ -244,10 +244,10 @@ JWT_SECRET=your-secret-key-change-in-production
 
 ## 🤖 Telegram Bot Integration
 
-PixEdge includes a built-in Telegram Bot for direct uploads from your messaging app.
+VoltEdge includes a built-in Telegram Bot for direct uploads from your messaging app.
 
 ### Setting up the Webhook
-Once you deploy PixEdge to Vercel (or any public URL), you must link your bot to the webhook endpoint. Visit the following URL in your browser:
+Once you deploy VoltEdge to Vercel (or any public URL), you must link your bot to the webhook endpoint. Visit the following URL in your browser:
 
 `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://your-domain.com/api/webhook/telegram`
 
@@ -259,7 +259,7 @@ Once you deploy PixEdge to Vercel (or any public URL), you must link your bot to
 
 ### Features
 - **Direct Upload**: Send any Media or File (as image/video) to the bot for an instant link.
-- **Reply to Upload**: Reply to any existing image in a chat with `/upload` or `/tgm` to host it on PixEdge.
+- **Reply to Upload**: Reply to any existing image in a chat with `/upload` or `/tgm` to host it on VoltEdge.
 - **DB Tracking**: Every upload is forwarded to your storage channel with a caption identifying the user (Name + ID or @Username).
 
 ---
@@ -283,7 +283,7 @@ graph LR
 
 ## 🌐 Community & Support
 
-Stay updated with the latest features and get support for PixEdge:
+Stay updated with the latest features and get support for VoltEdge:
 
 - 📢 **Updates**: [@Hunter_Update](https://t.me/Hunter_Update)
 - 💬 **Support Group**: [@Hunter_Supports](https://t.me/Hunter_Supports)

@@ -144,8 +144,31 @@ func main() {
             {/* Mobile Header */}
             <header className="mobile-header">
                 <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', color: 'var(--text-main)' }}>
-                    <Zap size={18} fill="var(--accent-color)" color="var(--accent-color)" />
-                    <span style={{ fontWeight: '900', fontSize: '1rem', fontFamily: "'Inter', sans-serif" }}>Volt<span style={{ color: 'var(--accent-color)' }}>Edge</span></span>
+                    <Zap 
+                        size={18} 
+                        fill="var(--accent-color)" 
+                        color="var(--accent-color)"
+                        style={{
+                            filter: 'drop-shadow(0 0 4px rgba(0, 240, 255, 0.5))'
+                        }}
+                    />
+                    <span style={{ 
+                        fontSize: '1rem', 
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: '-0.05em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0'
+                    }}>
+                        <span style={{ fontWeight: '500', color: '#FFFFFF' }}>Volt</span>
+                        <span style={{ 
+                            fontWeight: '900',
+                            background: 'linear-gradient(to right, #FFFFFF, var(--accent-color))',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}>Edge</span>
+                    </span>
                 </Link>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <button onClick={toggleTheme} style={{ 
@@ -180,9 +203,34 @@ func main() {
             <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
                 <Link href="/" className="sidebar-logo">
                     <div style={{ background: 'var(--accent-color)', padding: '6px', borderRadius: '8px', boxShadow: `0 0 10px var(--accent-glow)` }}>
-                        <Zap size={20} fill={theme === 'dark' ? '#000000' : '#FFFFFF'} color={theme === 'dark' ? '#000000' : '#FFFFFF'} />
+                        <Zap 
+                            size={20} 
+                            fill={theme === 'dark' ? '#000000' : '#FFFFFF'} 
+                            color={theme === 'dark' ? '#000000' : '#FFFFFF'}
+                            style={{
+                                filter: 'drop-shadow(0 0 4px rgba(0, 240, 255, 0.5))'
+                            }}
+                        />
                     </div>
-                    <span style={{ fontWeight: '900', fontSize: '1.2rem', letterSpacing: '-0.5px', fontFamily: "'Inter', sans-serif" }}>Volt<span style={{ color: 'var(--accent-color)' }}>Edge</span></span>
+                    <span style={{ 
+                        fontSize: '1.2rem', 
+                        letterSpacing: '-0.05em', 
+                        fontFamily: "'Inter', sans-serif",
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0'
+                    }}>
+                        <span style={{ fontWeight: '500', color: theme === 'dark' ? '#FFFFFF' : '#000000' }}>Volt</span>
+                        <span style={{ 
+                            fontWeight: '900',
+                            background: theme === 'dark' 
+                                ? 'linear-gradient(to right, #FFFFFF, var(--accent-color))'
+                                : 'linear-gradient(to right, #000000, var(--accent-color))',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}>Edge</span>
+                    </span>
                 </Link>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
