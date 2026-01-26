@@ -43,40 +43,64 @@ body {
   color: var(--text-main);
   font-family: 'Inter', sans-serif;
   overflow-x: hidden;
+  overflow-y: auto;
   min-height: 100vh;
   position: relative;
 }
 
-/* Cyber Grid Pattern - Whisper Background */
+/* Background Container with Overflow Control */
 body::before {
   content: '';
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: 
-    linear-gradient(rgba(0, 240, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
-  background-size: 50px 50px;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
   z-index: 0;
+  pointer-events: none;
+}
+
+/* Massive Radial Glows */
+body::before {
+  background: 
+    /* Cyan glow - top left */
+    radial-gradient(circle at 0% 0%, rgba(0, 240, 255, 0.05) 0%, transparent 60%),
+    /* Deep Blue glow - center right */
+    radial-gradient(circle at 80% 50%, rgba(10, 25, 47, 0.5) 0%, transparent 70%);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: blur(120px);
+}
+
+/* Dot Grid Pattern */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-image: radial-gradient(circle, rgba(0, 240, 255, 0.1) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: 0 0;
+  z-index: 1;
   pointer-events: none;
   opacity: 0.1;
 }
 
-/* Radial Glows */
+/* Noise/Grain Texture Overlay */
+body {
+  position: relative;
+}
+
 body::after {
-  content: '';
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 20% 20%, rgba(0, 240, 255, 0.1) 0%, transparent 50%),
-              radial-gradient(circle at 80% 80%, rgba(0, 240, 255, 0.1) 0%, transparent 50%);
-  z-index: 0;
-  pointer-events: none;
-  filter: blur(100px);
+  background-image: 
+    radial-gradient(circle, rgba(0, 240, 255, 0.1) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  background-size: 40px 40px, 200px 200px;
+  background-position: 0 0, 0 0;
+  mix-blend-mode: overlay;
 }
 
 .main-container {
