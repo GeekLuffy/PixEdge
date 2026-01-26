@@ -151,7 +151,7 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
 
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -162,16 +162,25 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
       reply_markup: replyMarkup
     }),
   });
+
+  const data = await response.json();
+  if (!data.ok) {
+    console.error(`Telegram sendMessage error: ${data.description}`);
+  }
 }
 
-export async function sendMediaToChannel(fileId: string, caption: string, mediaType: 'photo' | 'animation' | 'video' = 'photo'): Promise<TelegramFileResult | void> {
+export async function sendMediaToChannel(fileId: string, caption: string, mediaType: 'photo' | 'animation' | 'video' | 'document' = 'photo'): Promise<TelegramFileResult | void> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+  if (!token || !chatId) {
+    console.error('Missing token or chatId for sendMediaToChannel');
+    return;
+  }
 
   let method = 'sendPhoto';
   if (mediaType === 'animation') method = 'sendAnimation';
   if (mediaType === 'video') method = 'sendVideo';
+  if (mediaType === 'document') method = 'sendDocument';
 
   const body: any = {
     chat_id: chatId,
@@ -183,19 +192,29 @@ export async function sendMediaToChannel(fileId: string, caption: string, mediaT
     body.animation = fileId;
   } else if (mediaType === 'video') {
     body.video = fileId;
+  } else if (mediaType === 'document') {
+    body.document = fileId;
   } else {
     body.photo = fileId;
   }
 
-  await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+
+  const data = await response.json();
+  if (!data.ok) {
+    console.error(`Telegram ${method} error: ${data.description}`);
+    throw new Error(`Telegram ${method} failed: ${data.description}`);
+  }
+
+  return data.result;
 }
 
 export async function sendLog(text: string): Promise<void> {
-  const logChannelId = process.env.TELEGRAM_LOG_CHANNEL_ID;
+  const logChannelId = process.env.TELEGRAM_LOG_CHANNEL_ID || process.env.TELEGRAM_CHAT_ID;
   if (!logChannelId) return;
 
   await sendMessage(logChannelId, text, 'HTML');

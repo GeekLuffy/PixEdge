@@ -17,6 +17,9 @@ export async function POST(req: NextRequest) {
         const document = body.message.document;
         const replyTo = body.message.reply_to_message;
         const from = body.message.from;
+
+        if (!from) return new NextResponse('OK');
+
         const userLink = from.username
             ? `@${from.username}`
             : `${from.first_name} [${from.id}]`;
@@ -79,8 +82,7 @@ export async function POST(req: NextRequest) {
                         return new NextResponse('OK');
                     }
                     if (replyTo.document && (replyTo.document.mime_type?.startsWith('image/') || replyTo.document.mime_type?.startsWith('video/'))) {
-                        const type = replyTo.document.mime_type?.startsWith('video/') ? 'animation' : 'photo';
-                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, type);
+                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, 'document');
                         return new NextResponse('OK');
                     }
                 }
@@ -130,9 +132,9 @@ export async function POST(req: NextRequest) {
             if (body.message.chat.type === 'private') {
                 const mimeType = document.mime_type || '';
                 if (mimeType.startsWith('image/')) {
-                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'photo');
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document');
                 } else if (mimeType.startsWith('video/')) {
-                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'animation');
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document');
                 } else {
                     await sendMessage(chatId, "❌ Please send only image or GIF files.");
                 }
@@ -148,7 +150,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, userId: number | string, mediaType: 'photo' | 'animation' | 'video') {
+async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, userId: number | string, mediaType: 'photo' | 'animation' | 'video' | 'document') {
     try {
         // Enforce 10MB limit
         const MAX_SIZE = 10 * 1024 * 1024;
@@ -161,7 +163,13 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
         // 1. Forward to DB Channel with caption
-        await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
+        try {
+            await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
+        } catch (channelError: any) {
+            console.error('Channel forward error:', channelError);
+            await sendLog(`⚠️ <b>Channel Forward Failed</b>\n\nUser: ${userLink}\nError: ${channelError.message || channelError}`);
+            // We continue anyway so the user gets their link
+        }
 
         // 2. Save to DB
         await saveImage({

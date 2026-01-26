@@ -33,9 +33,8 @@ async function ensureLocalDb() {
     }
 }
 
-export async function saveImage(record: any, source: 'web' | 'bot' = 'web', userId?: string | number) {
+export async function saveImage(record: Omit<ImageRecord, 'views'>, source: 'web' | 'bot' = 'web', userId?: string | number) {
     if (useCloud() && redis) {
-        // Use HSET to store as a single Hash object in Redis
         const pipeline = redis.pipeline();
         pipeline.hset(`snap:${record.id}`, {
             ...record,
@@ -47,18 +46,20 @@ export async function saveImage(record: any, source: 'web' | 'bot' = 'web', user
         pipeline.incr('stats:total_uploads');
 
         // 2. Source specific stats
-        // 2. Source specific stats
         if (source === 'web') {
             pipeline.incr('stats:web_uploads');
-        } else if (source === 'bot') {
+        } else {
             pipeline.incr('stats:bot_uploads');
-            if (userId) {
-                // 3. Unique Users (only for bot users usually)
-                pipeline.sadd('stats:users', userId);
-            }
         }
 
-        // 3. Media Type stats
+        // 3. User specific tracking
+        if (userId) {
+            pipeline.sadd('stats:users', userId.toString());
+            pipeline.lpush(`user:${userId}:uploads`, record.id);
+            pipeline.ltrim(`user:${userId}:uploads`, 0, 49); // Keep last 50
+        }
+
+        // 4. Media Type stats
         const type = record.metadata.type || '';
         if (type.startsWith('video/') || type === 'image/gif') {
             pipeline.incr('stats:videos');
@@ -74,8 +75,29 @@ export async function saveImage(record: any, source: 'web' | 'bot' = 'web', user
     const content = await fs.readFile(DB_PATH, 'utf-8');
     const db = JSON.parse(content);
     db.images.push({ ...record, views: 0 });
-    // Local DB stats not really needed as this is mostly for the bot which runs with Redis
     await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+}
+
+export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
+    if (!redis) return [];
+
+    const ids = await redis.lrange(`user:${userId}:uploads`, 0, 49);
+    if (!ids || ids.length === 0) return [];
+
+    const results = await Promise.all(ids.map(id => redis.hgetall(`snap:${id}`)));
+
+    return results
+        .map((data: any, index) => {
+            if (!data || Object.keys(data).length === 0) return null;
+            return {
+                ...data,
+                id: ids[index],
+                views: parseInt(data.views || '0'),
+                created_at: parseInt(data.created_at),
+                metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
+            } as ImageRecord;
+        })
+        .filter((item): item is ImageRecord => item !== null);
 }
 
 export async function getStats() {
@@ -169,6 +191,62 @@ export function generateId() {
 
 export async function registerUser(userId: string | number) {
     if (useCloud() && redis) {
-        await redis.sadd('stats:users', userId);
+        await redis.sadd('stats:users', userId.toString());
     }
+}
+
+export async function idExists(id: string): Promise<boolean> {
+    if (useCloud() && redis) {
+        const exists = await redis.exists(`snap:${id}`);
+        return exists === 1;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        return db.images.some((img: any) => img.id === id);
+    } catch {
+        return false;
+    }
+}
+
+export async function generateIdSuggestions(baseId: string): Promise<string[]> {
+    const suggestions: string[] = [];
+    const sanitized = baseId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+    for (let i = 1; i <= 5; i++) {
+        const suggestion = `${sanitized}-${i}`;
+        if (!(await idExists(suggestion))) {
+            suggestions.push(suggestion);
+            if (suggestions.length >= 3) break;
+        }
+    }
+    while (suggestions.length < 3) {
+        const randomSuffix = Math.random().toString(36).substring(2, 6);
+        const suggestion = `${sanitized}-${randomSuffix}`;
+        if (!(await idExists(suggestion))) {
+            suggestions.push(suggestion);
+        }
+    }
+
+    return suggestions;
+}
+
+export async function createApiKey(userId: string): Promise<string> {
+    if (!redis) throw new Error('Redis not configured');
+    const key = `pe_${Math.random().toString(36).substring(2)}${Math.random().toString(36).substring(2)}`;
+    await redis.set(`apikey:${key}`, userId);
+    await redis.set(`user:${userId}:apikey`, key);
+    return key;
+}
+
+export async function getUserApiKey(userId: string): Promise<string | null> {
+    if (!redis) return null;
+    return await redis.get(`user:${userId}:apikey`);
+}
+
+export async function verifyApiKey(key: string): Promise<string | null> {
+    if (!redis) return null;
+    return await redis.get(`apikey:${key}`);
 }

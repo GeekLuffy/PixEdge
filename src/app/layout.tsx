@@ -6,6 +6,7 @@ export const metadata: Metadata = {
     description: 'Scalable, edge-based image hosting system that minimizes server bandwidth by redirecting directly to distributed storage infrastructure.',
 };
 
+import { Providers } from './providers';
 import { Analytics } from "@vercel/analytics/react"
 
 export default function RootLayout({
@@ -16,8 +17,10 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body>
-                {children}
-                <Analytics />
+                <Providers>
+                    {children}
+                    <Analytics />
+                </Providers>
             </body>
         </html>
     );

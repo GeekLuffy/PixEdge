@@ -9,17 +9,24 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@auth/core": "^0.34.3",
+    "@auth/upstash-redis-adapter": "^2.11.1",
     "@upstash/redis": "^1.36.1",
     "@vercel/analytics": "^1.6.1",
     "@vercel/kv": "^3.0.0",
+    "bcryptjs": "^3.0.3",
     "framer-motion": "latest",
+    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.562.0",
     "next": "latest",
+    "next-auth": "^4.24.13",
     "qrcode.react": "^4.2.0",
     "react": "latest",
     "react-dom": "latest"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
