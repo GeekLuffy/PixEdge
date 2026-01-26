@@ -2,7 +2,7 @@
 
 :root {
   /* Cyber-Cloud Palette */
-  --bg-color: #020617;
+  --bg-color: #000000;
   --bg-charcoal: #050505;
   --accent-cyan: #00F0FF;
   --accent-cyan-glow: rgba(0, 240, 255, 0.3);
@@ -48,7 +48,7 @@ body {
   position: relative;
 }
 
-/* Aurora Glows - Three Massive Blurred Elements */
+/* Aurora Glows - Three Massive Blurred Elements (Barely Visible) */
 body::before {
   content: '';
   position: fixed;
@@ -58,11 +58,11 @@ body::before {
   height: 200%;
   background: 
     /* Cyan glow - top right */
-    radial-gradient(circle at 90% 10%, rgba(6, 182, 212, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 90% 10%, rgba(6, 182, 212, 0.04) 0%, transparent 60%),
     /* Indigo glow - center left */
-    radial-gradient(circle at 10% 50%, rgba(67, 56, 202, 0.1) 0%, transparent 60%),
+    radial-gradient(circle at 10% 50%, rgba(67, 56, 202, 0.03) 0%, transparent 60%),
     /* Teal glow - bottom right */
-    radial-gradient(circle at 90% 90%, rgba(20, 184, 166, 0.1) 0%, transparent 60%);
+    radial-gradient(circle at 90% 90%, rgba(20, 184, 166, 0.03) 0%, transparent 60%);
   z-index: -10;
   pointer-events: none;
   filter: blur(120px);
@@ -115,7 +115,7 @@ body::after {
   letter-spacing: -0.05em;
   line-height: 1;
   margin-bottom: 1.5rem;
-  color: var(--text-main);
+  color: #FFFFFF;
 }
 
 .hero h1 .cyber-glow {
@@ -181,7 +181,7 @@ body::after {
   border-radius: 24px;
   padding: 2rem;
   box-shadow: 
-    0 0 20px var(--glow-cyan),
+    0 0 10px rgba(0, 240, 255, 0.2),
     0 25px 50px -12px var(--card-shadow);
   transition: all 0.3s ease;
   position: relative;
@@ -190,7 +190,7 @@ body::after {
 .upload-card:hover {
   border-color: var(--border-cyan);
   box-shadow: 
-    0 0 30px var(--glow-cyan-intense),
+    0 0 15px rgba(0, 240, 255, 0.3),
     0 25px 50px -12px var(--card-shadow);
 }
 
@@ -206,6 +206,13 @@ body::after {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+}
+
+.drop-zone:hover,
+.drop-zone.active {
+  border: 1px solid #00F0FF;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
 }
 
 /* Scanline Animation */

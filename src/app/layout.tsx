@@ -32,7 +32,7 @@ export default function RootLayout({
                         position: 'absolute',
                         top: '5%',
                         left: '5%',
-                        color: 'rgba(0, 240, 255, 0.1)',
+                        color: 'rgba(0, 240, 255, 0.15)',
                         fontSize: '24px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold'
@@ -43,7 +43,7 @@ export default function RootLayout({
                         position: 'absolute',
                         top: '5%',
                         right: '5%',
-                        color: 'rgba(0, 240, 255, 0.1)',
+                        color: 'rgba(0, 240, 255, 0.15)',
                         fontSize: '24px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold'
@@ -54,7 +54,7 @@ export default function RootLayout({
                         position: 'absolute',
                         bottom: '5%',
                         left: '5%',
-                        color: 'rgba(0, 240, 255, 0.1)',
+                        color: 'rgba(0, 240, 255, 0.15)',
                         fontSize: '24px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold'
@@ -65,7 +65,7 @@ export default function RootLayout({
                         position: 'absolute',
                         bottom: '5%',
                         right: '5%',
-                        color: 'rgba(0, 240, 255, 0.1)',
+                        color: 'rgba(0, 240, 255, 0.15)',
                         fontSize: '24px',
                         fontFamily: 'monospace',
                         fontWeight: 'bold'

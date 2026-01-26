@@ -299,7 +299,7 @@ export default function Home() {
                                     color: '#00F0FF',
                                     fontSize: '0.9rem',
                                     fontWeight: '700',
-                                    boxShadow: '0 0 20px rgba(0, 240, 255, 0.3)',
+                                    boxShadow: '0 0 8px rgba(0, 240, 255, 0.2)',
                                     fontFamily: 'Inter, sans-serif'
                                 }}
                             >
