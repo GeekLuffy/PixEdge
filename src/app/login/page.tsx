@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { signIn, useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Github, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, Sparkles, Shield } from 'lucide-react';
+import { Github, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, Sparkles, Shield, Link2 } from 'lucide-react';
 import Link from 'next/link';
 
 const styles = {
@@ -207,18 +207,79 @@ const GoogleIcon = () => (
 );
 
 export default function LoginPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ 
+                minHeight: '100vh', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                background: 'var(--bg-color)'
+            }}>
+                <Loader2 size={32} className="animate-spin" style={{ color: 'var(--accent-primary)' }} />
+            </div>
+        }>
+            <LoginPageContent />
+        </Suspense>
+    );
+}
+
+function LoginPageContent() {
     const [isLogin, setIsLogin] = useState(true);
     const [loading, setLoading] = useState(false);
     const [socialLoading, setSocialLoading] = useState<string | null>(null);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+    const [linkToken, setLinkToken] = useState<string | null>(null);
+    const [linkSuccess, setLinkSuccess] = useState(false);
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { data: session } = useSession();
     const telegramWrapperRef = useRef<HTMLDivElement>(null);
 
+    // Check for link token in URL
     useEffect(() => {
-        if (session) router.push('/');
-    }, [session, router]);
+        const token = searchParams.get('link');
+        if (token) {
+            setLinkToken(token);
+        }
+    }, [searchParams]);
+
+    // Handle session and linking
+    useEffect(() => {
+        if (session) {
+            if (linkToken) {
+                // User logged in with link token - try to link accounts
+                linkTelegramAccount();
+            } else {
+                router.push('/dashboard');
+            }
+        }
+    }, [session, linkToken]);
+
+    const linkTelegramAccount = async () => {
+        if (!linkToken) return;
+        
+        try {
+            const res = await fetch('/api/auth/link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: linkToken })
+            });
+            
+            if (res.ok) {
+                setLinkSuccess(true);
+                setTimeout(() => router.push('/dashboard'), 2000);
+            } else {
+                const data = await res.json();
+                setError(data.error || 'Failed to link account');
+                setTimeout(() => router.push('/dashboard'), 3000);
+            }
+        } catch (err) {
+            setError('Failed to link account');
+            setTimeout(() => router.push('/dashboard'), 3000);
+        }
+    };
 
     useEffect(() => {
         if (telegramWrapperRef.current) {
@@ -242,7 +303,6 @@ export default function LoginPage() {
         setLoading(true);
         const result = await signIn('telegram-login', { redirect: false, ...user });
         if (result?.error) setError('Telegram login failed.');
-        else router.push('/');
         setLoading(false);
     };
 
@@ -258,7 +318,6 @@ export default function LoginPage() {
                 password: formData.password
             });
             if (result?.error) setError('Invalid email or password');
-            else router.push('/');
         } else {
             try {
                 const res = await fetch('/api/auth/register', {
@@ -275,7 +334,6 @@ export default function LoginPage() {
                     email: formData.email,
                     password: formData.password
                 });
-                router.push('/');
             } catch (err: any) {
                 setError(err.message);
             }
@@ -285,8 +343,42 @@ export default function LoginPage() {
 
     const handleSocialLogin = (provider: string) => {
         setSocialLoading(provider);
-        signIn(provider, { callbackUrl: '/' });
+        // Preserve link token in callback URL
+        const callbackUrl = linkToken ? `/login?link=${linkToken}` : '/dashboard';
+        signIn(provider, { callbackUrl });
     };
+
+    // Show link success screen
+    if (linkSuccess) {
+        return (
+            <div style={styles.container}>
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    style={{ ...styles.card, textAlign: 'center' as const }}
+                >
+                    <div style={{ 
+                        width: 80, height: 80, 
+                        background: 'rgba(16, 185, 129, 0.1)', 
+                        borderRadius: '50%', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        margin: '0 auto 1.5rem'
+                    }}>
+                        <Link2 size={40} color="#10b981" />
+                    </div>
+                    <h2 style={{ color: 'var(--text-main)', marginBottom: '0.5rem' }}>Account Linked!</h2>
+                    <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                        Your Telegram is now connected. Bot uploads will appear in your dashboard.
+                    </p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Redirecting to dashboard...
+                    </p>
+                </motion.div>
+            </div>
+        );
+    }
 
     return (
         <div style={styles.container}>
@@ -306,13 +398,37 @@ export default function LoginPage() {
                     </motion.div>
                 </div>
 
+                {/* Link Mode Banner */}
+                {linkToken && (
+                    <div style={{
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.2)',
+                        borderRadius: '12px',
+                        padding: '0.75rem 1rem',
+                        marginBottom: '1.5rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                    }}>
+                        <Link2 size={20} color="#3b82f6" />
+                        <div>
+                            <p style={{ color: '#3b82f6', fontWeight: 600, fontSize: '0.9rem', margin: 0 }}>
+                                Link Telegram Account
+                            </p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0 }}>
+                                Sign in to connect your bot uploads
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div style={styles.header}>
                     <h1 style={styles.title}>
-                        {isLogin ? 'Welcome Back' : 'Create Account'}
+                        {linkToken ? 'Sign In to Link' : (isLogin ? 'Welcome Back' : 'Create Account')}
                     </h1>
                     <p style={styles.subtitle}>
-                        {isLogin ? 'Sign in to access your dashboard' : 'Join PixEdge to start hosting'}
+                        {linkToken ? 'Connect your Telegram bot to your account' : (isLogin ? 'Sign in to access your dashboard' : 'Join PixEdge to start hosting')}
                     </p>
                 </div>
 

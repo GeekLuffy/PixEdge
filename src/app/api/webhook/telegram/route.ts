@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog } from '@/lib/telegram';
-import { saveImage, generateId, getStats, registerUser } from '@/lib/db';
+import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
     try {
@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
                     `• Send an <b>Image/Video/GIF</b> as a <b>Document</b>.\n` +
                     `• Or <b>Reply</b> to an existing Media with /upload or /tgm.\n\n` +
                     `<b>Commands:</b>\n` +
+                    `/login - Connect to your web account\n` +
+                    `/status - Check account link status\n` +
                     `/stats - Show bot statistics\n` +
                     `/upload or /tgm - Upload a replied Media\n` +
                     `/help - Show this message`,
@@ -66,6 +68,66 @@ export async function POST(req: NextRequest) {
                     `📶 <b>Ping:</b> ${stats.ping}ms`,
                     'HTML'
                 );
+                return new NextResponse('OK');
+            }
+
+            if (command === '/login') {
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
+                
+                // Check if already logged in
+                const alreadyLinked = await isAccountLinked(from.id);
+                if (alreadyLinked) {
+                    await sendMessage(chatId,
+                        `✅ <b>Already Logged In!</b>\n\n` +
+                        `Your Telegram account is already connected to your PixEdge web account.\n\n` +
+                        `All your bot uploads will appear in your dashboard.`,
+                        'HTML',
+                        {
+                            inline_keyboard: [[
+                                { text: "📊 Open Dashboard", url: `${baseUrl}/dashboard` }
+                            ]]
+                        }
+                    );
+                    return new NextResponse('OK');
+                }
+
+                // Generate link token
+                const token = await createLinkToken(from.id);
+                const linkUrl = `${baseUrl}/login?link=${token}`;
+
+                await sendMessage(chatId,
+                    `🔗 <b>Link Your Account</b>\n\n` +
+                    `Click the button below to connect your Telegram to your PixEdge web account.\n\n` +
+                    `<i>This link expires in 5 minutes.</i>`,
+                    'HTML',
+                    {
+                        inline_keyboard: [[
+                            { text: "🔗 Link Account", url: linkUrl }
+                        ]]
+                    }
+                );
+                return new NextResponse('OK');
+            }
+
+            if (command === '/status') {
+                const linked = await isAccountLinked(from.id);
+                const linkedAccount = linked ? await getLinkedWebAccount(from.id) : null;
+                
+                if (linked && linkedAccount) {
+                    await sendMessage(chatId,
+                        `✅ <b>Account Status: Linked</b>\n\n` +
+                        `Your Telegram is connected to your PixEdge account.\n` +
+                        `All uploads from this bot will appear in your dashboard.`,
+                        'HTML'
+                    );
+                } else {
+                    await sendMessage(chatId,
+                        `❌ <b>Account Status: Not Linked</b>\n\n` +
+                        `Your Telegram is not connected to a web account.\n` +
+                        `Use /link to connect and sync your uploads.`,
+                        'HTML'
+                    );
+                }
                 return new NextResponse('OK');
             }
 
@@ -150,7 +212,7 @@ export async function POST(req: NextRequest) {
     }
 }
 
-async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, userId: number | string, mediaType: 'photo' | 'animation' | 'video' | 'document') {
+async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, telegramUserId: number | string, mediaType: 'photo' | 'animation' | 'video' | 'document') {
     try {
         // Enforce 20MB limit (Telegram getFile API limit)
         const MAX_SIZE = 20 * 1024 * 1024;
@@ -162,6 +224,10 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         const id = generateId();
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
+        // Check if user has linked web account
+        const linkedWebAccount = await getLinkedWebAccount(telegramUserId);
+        const trackingUserId = linkedWebAccount || telegramUserId.toString();
+
         // 1. Forward to DB Channel with caption
         try {
             await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
@@ -171,7 +237,7 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
             // We continue anyway so the user gets their link
         }
 
-        // 2. Save to DB
+        // 2. Save to DB (use linked web account if available)
         await saveImage({
             id,
             telegram_file_id: fileId,
@@ -180,14 +246,18 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
                 size: fileSize,
                 type: mimeType
             }
-        }, 'bot', userId);
+        }, 'bot', trackingUserId);
 
         const publicUrl = `${baseUrl}/i/${id}`;
 
+        // Show linked status in success message
+        const linkedNote = linkedWebAccount 
+            ? `\n📊 <i>Synced to dashboard</i>` 
+            : `\n💡 <i>Use /login to sync with dashboard</i>`;
+
         await sendMessage(chatId,
             `✅ <b>File Uploaded Successfully!</b>\n\n` +
-            `🔗 <b>Link:</b> ${publicUrl}\n` +
-            `⚡ <i>Hosted on PixEdge</i>`,
+            `🔗 <b>Link:</b> ${publicUrl}${linkedNote}`,
             'HTML'
         );
 

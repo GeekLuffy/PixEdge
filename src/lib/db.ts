@@ -250,3 +250,44 @@ export async function verifyApiKey(key: string): Promise<string | null> {
     if (!redis) return null;
     return await redis.get(`apikey:${key}`);
 }
+
+// Telegram account linking functions
+export async function createLinkToken(telegramId: string | number): Promise<string> {
+    if (!redis) throw new Error('Redis not configured');
+    const token = Math.random().toString(36).substring(2, 10);
+    // Store token -> telegramId mapping (expires in 5 minutes)
+    await redis.set(`link_token:${token}`, telegramId.toString(), { ex: 300 });
+    return token;
+}
+
+export async function verifyLinkToken(token: string): Promise<string | null> {
+    if (!redis) return null;
+    const telegramId = await redis.get(`link_token:${token}`);
+    if (telegramId) {
+        await redis.del(`link_token:${token}`); // One-time use
+    }
+    return telegramId as string | null;
+}
+
+export async function linkTelegramToAccount(telegramId: string, webUserId: string): Promise<void> {
+    if (!redis) return;
+    // Bidirectional mapping
+    await redis.set(`telegram_link:${telegramId}`, webUserId);
+    await redis.set(`web_link:${webUserId}`, telegramId);
+}
+
+export async function getLinkedWebAccount(telegramId: string | number): Promise<string | null> {
+    if (!redis) return null;
+    return await redis.get(`telegram_link:${telegramId.toString()}`);
+}
+
+export async function getLinkedTelegram(webUserId: string): Promise<string | null> {
+    if (!redis) return null;
+    return await redis.get(`web_link:${webUserId}`);
+}
+
+export async function isAccountLinked(telegramId: string | number): Promise<boolean> {
+    if (!redis) return false;
+    const linked = await redis.exists(`telegram_link:${telegramId.toString()}`);
+    return linked === 1;
+}
