@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToTelegram, sendLog } from '@/lib/telegram';
 import { saveImage, generateId, rateLimit } from '@/lib/db';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
+    // Get user session (optional - uploads work without login too)
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
     const ip = req.headers.get('x-forwarded-for') || 'anonymous';
     const limit = await rateLimit(`upload:${ip}`, 20, 60);
 
@@ -64,8 +69,8 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Save to DB
-        await saveImage(record);
+        // Save to DB (with user tracking if logged in)
+        await saveImage(record, 'web', userId);
 
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
             (req.headers.get('host') ? `http://${req.headers.get('host')}` : '');

@@ -129,8 +129,20 @@ export default function Home() {
                 method: "POST",
                 body: formData,
             });
-
-            const json = await response.json();
+            if (response.status === 413) {
+                alert("File too large for server. Try a smaller file (under 4.5MB for free tier).");
+                setUploading(false);
+                return;
+            }
+            let json;
+            try {
+                json = await response.json();
+            } catch {
+                // Server returned non-JSON (likely Vercel error page)
+                alert("Upload failed. File may be too large for server limits.");
+                setUploading(false);
+                return;
+            }
 
             // Handle ID collision with suggestions
             if (!json.success && json.error.code === "ID_ALREADY_EXISTS") {
