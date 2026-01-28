@@ -63,6 +63,22 @@ export interface TelegramUpdate {
       };
     };
   };
+  callback_query?: {
+    id: string;
+    from: {
+      id: number;
+      first_name: string;
+      username?: string;
+    };
+    message?: {
+      message_id: number;
+      chat: {
+        id: number;
+        type: string;
+      };
+    };
+    data: string;
+  };
 }
 
 export async function uploadToTelegram(file: Blob, fileName: string, caption?: string, mediaType: 'photo' | 'animation' | 'video' = 'photo'): Promise<TelegramFileResult> {

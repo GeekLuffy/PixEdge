@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog } from '@/lib/telegram';
-import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount } from '@/lib/db';
+import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount, unlinkTelegramAccount } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
     try {
@@ -24,15 +24,73 @@ export async function POST(req: NextRequest) {
             ? `@${from.username}`
             : `${from.first_name} [${from.id}]`;
 
+        // Handle callback queries
+        if (body.callback_query) {
+            const callbackId = body.callback_query.id;
+            const chatId = body.callback_query.message?.chat.id;
+            const data = body.callback_query.data;
+            const fromUser = body.callback_query.from;
+
+            if (!chatId || !fromUser) return new NextResponse('OK');
+
+            const callbackUserLink = fromUser.username
+                ? `@${fromUser.username}`
+                : `${fromUser.first_name} [${fromUser.id}]`;
+
+            if (data === 'disconnect') {
+                const success = await unlinkTelegramAccount(fromUser.id);
+                if (success) {
+                    await sendMessage(chatId,
+                        `🔓 <b>Account Disconnected</b>\n\n` +
+                        `Your Telegram has been unlinked from your web account.\n` +
+                        `Future uploads will not sync to dashboard.\n\n` +
+                        `Use /login anytime to reconnect.`
+                    );
+                } else {
+                    await sendMessage(chatId,
+                        `❌ <b>Error</b>\n\nFailed to disconnect. Please try again.`
+                    );
+                }
+
+                // Answer the callback query to remove loading state
+                await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        callback_query_id: callbackId,
+                        text: success ? 'Account disconnected' : 'Failed to disconnect'
+                    })
+                });
+            }
+
+            return new NextResponse('OK');
+        }
+
         if (text) {
             const command = text.split(' ')[0].split('@')[0].toLowerCase();
 
-            if (command === '/start' || command === '/help') {
-                if (command === '/start') {
-                    await registerUser(from.id);
-                    await sendLog(`👤 <b>New User Started Bot</b>\n\nUser: ${userLink}\nID: ${from.id}`);
-                }
+            if (command === '/start') {
+                await registerUser(from.id);
+                await sendLog(`👤 <b>New User Started Bot</b>\n\nUser: ${userLink}\nID: ${from.id}`);
 
+                await sendMessage(chatId,
+                    `✨ <b>Welcome to PixEdge!</b>\n\n` +
+                    `Upload photos, videos, or GIFs and get fast edge-hosted links.\n\n` +
+                    `📤 <b>To upload:</b>\n` +
+                    `• Send media directly\n` +
+                    `• Or reply to media with /upload\n\n` +
+                    `👉 Use /help to see all commands`,
+                    'HTML',
+                    {
+                        inline_keyboard: [[
+                            { text: "🌐 Visit Website", url: "https://pixedge.vercel.app" }
+                        ]]
+                    }
+                );
+                return new NextResponse('OK');
+            }
+
+            if (command === '/help') {
                 await sendMessage(chatId,
                     `✨ <b>PixEdge Bot Help</b>\n\n` +
                     `I can host your media at lightning speed using our edge infrastructure.\n\n` +
@@ -43,6 +101,7 @@ export async function POST(req: NextRequest) {
                     `<b>Commands:</b>\n` +
                     `/login - Connect to your web account\n` +
                     `/status - Check account link status\n` +
+                    `/disconnect - Disconnect from web account\n` +
                     `/stats - Show bot statistics\n` +
                     `/upload or /tgm - Upload a replied Media\n` +
                     `/help - Show this message`,
@@ -73,7 +132,7 @@ export async function POST(req: NextRequest) {
 
             if (command === '/login') {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
-                
+
                 // Check if already logged in
                 const alreadyLinked = await isAccountLinked(from.id);
                 if (alreadyLinked) {
@@ -110,21 +169,58 @@ export async function POST(req: NextRequest) {
             }
 
             if (command === '/status') {
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
                 const linked = await isAccountLinked(from.id);
                 const linkedAccount = linked ? await getLinkedWebAccount(from.id) : null;
-                
+                            
                 if (linked && linkedAccount) {
                     await sendMessage(chatId,
                         `✅ <b>Account Status: Linked</b>\n\n` +
                         `Your Telegram is connected to your PixEdge account.\n` +
                         `All uploads from this bot will appear in your dashboard.`,
-                        'HTML'
+                        'HTML',
+                        {
+                            inline_keyboard: [
+                                [{ text: "📊 Open Dashboard", url: `${baseUrl}/dashboard` }],
+                                [{ text: "🔓 Disconnect Account", callback_data: "disconnect" }]
+                            ]
+                        }
                     );
                 } else {
                     await sendMessage(chatId,
                         `❌ <b>Account Status: Not Linked</b>\n\n` +
                         `Your Telegram is not connected to a web account.\n` +
-                        `Use /link to connect and sync your uploads.`,
+                        `Use /login to connect and sync your uploads.`,
+                        'HTML'
+                    );
+                }
+                return new NextResponse('OK');
+            }
+            
+            if (command === '/disconnect') {
+                const linked = await isAccountLinked(from.id);
+                if (!linked) {
+                    await sendMessage(chatId,
+                        `❌ <b>Not Connected</b>\n\n` +
+                        `Your account is not linked to any web account.\n` +
+                        `Use /login to connect first.`,
+                        'HTML'
+                    );
+                    return new NextResponse('OK');
+                }
+            
+                const success = await unlinkTelegramAccount(from.id);
+                if (success) {
+                    await sendMessage(chatId,
+                        `🔓 <b>Account Disconnected</b>\n\n` +
+                        `Your Telegram has been unlinked from your web account.\n` +
+                        `Future uploads will not sync to dashboard.\n\n` +
+                        `Use /login anytime to reconnect.`,
+                        'HTML'
+                    );
+                } else {
+                    await sendMessage(chatId,
+                        `❌ <b>Error</b>\n\nFailed to disconnect. Please try again.`,
                         'HTML'
                     );
                 }
@@ -251,17 +347,23 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         const publicUrl = `${baseUrl}/i/${id}`;
 
         // Show linked status in success message
-        const linkedNote = linkedWebAccount 
-            ? `\n📊 <i>Synced to dashboard</i>` 
+        const linkedNote = linkedWebAccount
+            ? `\n📊 <i>Synced to dashboard</i>`
             : `\n💡 <i>Use /login to sync with dashboard</i>`;
 
         await sendMessage(chatId,
             `✅ <b>File Uploaded Successfully!</b>\n\n` +
-            `🔗 <b>Link:</b> ${publicUrl}${linkedNote}`,
+            `🔗 <b>Link:</b> ${publicUrl}\n` +
+            `⚡ <i>Hosted on PixEdge</i>${linkedNote}`,
             'HTML'
         );
 
-        await sendLog(`📤 <b>New Bot Upload</b>\n\nUser: ${userLink}\nType: ${mimeType}\nSize: ${(fileSize / 1024 / 1024).toFixed(2)} MB\nLink: ${publicUrl}`);
+        await sendLog(`📤 <b>New Bot Upload</b>
+
+User: ${userLink}
+Type: ${mimeType}
+Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB
+Link: ${publicUrl}`);
     } catch (error) {
         console.error('Processing error:', error);
         await sendLog(`❌ <b>Upload Processing Error</b>\n\nUser: ${userLink}\nError: ${error}`);

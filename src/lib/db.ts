@@ -291,3 +291,14 @@ export async function isAccountLinked(telegramId: string | number): Promise<bool
     const linked = await redis.exists(`telegram_link:${telegramId.toString()}`);
     return linked === 1;
 }
+
+export async function unlinkTelegramAccount(telegramId: string | number): Promise<boolean> {
+    if (!redis) return false;
+    const webUserId = await redis.get(`telegram_link:${telegramId.toString()}`);
+    if (webUserId) {
+        await redis.del(`telegram_link:${telegramId.toString()}`);
+        await redis.del(`web_link:${webUserId}`);
+        return true;
+    }
+    return false;
+}
