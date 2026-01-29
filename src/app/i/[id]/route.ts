@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImage } from '@/lib/db';
+import { getImage, incrementViews, incrementDownloads } from '@/lib/db';
 import { getTelegramFileUrl } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
@@ -26,7 +26,11 @@ export async function GET(
 
         const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
 
-        const proxyImage = async () => {
+        const proxyImage = async (isDownload: boolean = false) => {
+            // Only increment downloads for direct file access (with extension)
+            if (isDownload) {
+                await incrementDownloads(id);
+            }
             const response = await fetch(fileUrl);
             const blob = await response.blob();
             const headers = new Headers();
@@ -37,12 +41,16 @@ export async function GET(
 
         const accept = req.headers.get('accept') || '';
         if (hasExtension || (!accept.includes('text/html') && !isTelegramBot)) {
-            return proxyImage();
+            return proxyImage(hasExtension);
         }
+
+        // Increment views only for HTML page view
+        await incrementViews(id);
 
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const proxiedImgSrc = `/i/${id}${ext}`;
         const views = record.views || 0;
+        const downloads = record.downloads || 0;
         const formattedDate = new Date(record.created_at).toLocaleDateString();
         const formattedSize = record.metadata?.size ? (record.metadata.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
 
@@ -129,6 +137,7 @@ export async function GET(
                 </div>
                 <div class="info-bar">
                     <div class="info-item"><b>Views</b> ${views}</div>
+                    <div class="info-item"><b>Downloads</b> ${downloads}</div>
                     <div class="info-item"><b>Size</b> ${formattedSize}</div>
                     <div class="info-item"><b>Date</b> ${formattedDate}</div>
                 </div>

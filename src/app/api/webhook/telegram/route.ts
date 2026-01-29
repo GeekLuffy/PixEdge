@@ -6,37 +6,15 @@ export async function POST(req: NextRequest) {
     try {
         const body: TelegramUpdate = await req.json();
 
-        if (!body.message) {
-            return new NextResponse('OK');
-        }
-
-        const chatId = body.message.chat.id;
-        const text = body.message.text;
-        const photo = body.message.photo;
-        const animation = body.message.animation;
-        const document = body.message.document;
-        const replyTo = body.message.reply_to_message;
-        const from = body.message.from;
-
-        if (!from) return new NextResponse('OK');
-
-        const userLink = from.username
-            ? `@${from.username}`
-            : `${from.first_name} [${from.id}]`;
-
-        // Handle callback queries
+        // Handle callback queries FIRST
         if (body.callback_query) {
             const callbackId = body.callback_query.id;
             const chatId = body.callback_query.message?.chat.id;
             const data = body.callback_query.data;
             const fromUser = body.callback_query.from;
-
+            
             if (!chatId || !fromUser) return new NextResponse('OK');
-
-            const callbackUserLink = fromUser.username
-                ? `@${fromUser.username}`
-                : `${fromUser.first_name} [${fromUser.id}]`;
-
+            
             if (data === 'disconnect') {
                 const success = await unlinkTelegramAccount(fromUser.id);
                 if (success) {
@@ -44,14 +22,16 @@ export async function POST(req: NextRequest) {
                         `🔓 <b>Account Disconnected</b>\n\n` +
                         `Your Telegram has been unlinked from your web account.\n` +
                         `Future uploads will not sync to dashboard.\n\n` +
-                        `Use /login anytime to reconnect.`
+                        `Use /link anytime to reconnect.`,
+                        'HTML'
                     );
                 } else {
                     await sendMessage(chatId,
-                        `❌ <b>Error</b>\n\nFailed to disconnect. Please try again.`
+                        `❌ <b>Error</b>\n\nFailed to disconnect. Please try again.`,
+                        'HTML'
                     );
                 }
-
+                
                 // Answer the callback query to remove loading state
                 await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
                     method: 'POST',
@@ -62,9 +42,27 @@ export async function POST(req: NextRequest) {
                     })
                 });
             }
-
+            
             return new NextResponse('OK');
         }
+
+        if (!body.message) {
+            return new NextResponse('OK');
+        }
+
+        const chatId = body.message.chat.id;
+        const text = body.message.text;
+        const photo = body.message?.photo;
+        const animation = body.message?.animation;
+        const document = body.message?.document;
+        const replyTo = body.message?.reply_to_message;
+        const from = body.message?.from;
+
+        if (!from) return new NextResponse('OK');
+
+        const userLink = from.username
+            ? `@${from.username}`
+            : `${from.first_name} [${from.id}]`;
 
         if (text) {
             const command = text.split(' ')[0].split('@')[0].toLowerCase();

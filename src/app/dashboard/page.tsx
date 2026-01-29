@@ -29,6 +29,13 @@ import {
     Sun,
     Moon,
     Sparkles,
+    Trash2,
+    Download,
+    Code,
+    FileText,
+    Video,
+    X,
+    Check,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -272,14 +279,16 @@ const styles = {
         border: "1px solid var(--border-color)",
         borderRadius: "18px",
         overflow: "hidden",
-        cursor: "pointer",
         transition: "all 0.25s ease",
+        position: "relative" as const,
     },
     uploadPreview: {
         width: "100%",
         aspectRatio: "16/10",
         overflow: "hidden",
         background: "rgba(0,0,0,0.15)",
+        cursor: "pointer",
+        position: "relative" as const,
     },
     uploadImage: {
         width: "100%",
@@ -545,6 +554,49 @@ export default function DashboardPage() {
     const [uploads, setUploads] = useState<any[]>([]);
     const [loadingUploads, setLoadingUploads] = useState(true);
     const [theme, setTheme] = useState<"dark" | "light">("dark");
+    const [selectedUpload, setSelectedUpload] = useState<any | null>(null);
+    const [showCopyModal, setShowCopyModal] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
+    const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
+
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+
+    // Copy format helpers
+    const getCopyFormats = (upload: any) => {
+        const url = `${baseUrl}/i/${upload.id}`;
+        const directUrl = `${baseUrl}/i/${upload.id}.jpg`;
+        return [
+            { label: "Direct Link", value: url, icon: Link2 },
+            { label: "Direct Image", value: directUrl, icon: ImageIcon },
+            { label: "Markdown", value: `![${upload.id}](${directUrl})`, icon: FileText },
+            { label: "HTML", value: `<img src="${directUrl}" alt="${upload.id}" />`, icon: Code },
+            { label: "BBCode", value: `[img]${directUrl}[/img]`, icon: Code },
+        ];
+    };
+
+    const copyFormat = (format: string, value: string) => {
+        navigator.clipboard.writeText(value);
+        setCopiedFormat(format);
+        setTimeout(() => setCopiedFormat(null), 2000);
+    };
+
+    // Delete upload
+    const handleDelete = async (id: string) => {
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/v1/delete/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                setUploads(uploads.filter(u => u.id !== id));
+                setDeleteConfirm(null);
+                setSuccess("Upload deleted successfully");
+                setTimeout(() => setSuccess(""), 3000);
+            }
+        } catch (e) {
+            console.error("Delete failed");
+        }
+        setDeleting(false);
+    };
 
     // Load theme
     useEffect(() => {
@@ -872,28 +924,62 @@ export default function DashboardPage() {
                                 </div>
                             ) : uploads.length > 0 ? (
                                 <div className="dashboard-uploads" style={styles.uploadsGrid}>
-                                    {uploads.map((upload, idx) => (
+                                    {uploads.map((upload, idx) => {
+                                        const isVideo = upload.metadata?.type?.startsWith('video/');
+                                        return (
                                         <motion.div
                                             key={upload.id}
                                             className="dashboard-upload-card"
                                             initial={{ opacity: 0, scale: 0.95 }}
                                             animate={{ opacity: 1, scale: 1 }}
                                             transition={{ delay: idx * 0.03 }}
-                                            whileHover={{ y: -4, borderColor: "rgba(139, 92, 246, 0.35)" }}
-                                            onClick={() => window.open(`/i/${upload.id}`, "_blank")}
                                             style={styles.uploadCard}
                                         >
-                                            <div style={styles.uploadPreview}>
-                                                <img
-                                                    src={`/i/${upload.id}.jpg`}
-                                                    alt={upload.id}
-                                                    style={styles.uploadImage}
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).src =
-                                                            "https://placehold.co/400x250/1a1a1a/444?text=Preview";
-                                                    }}
-                                                />
+                                            {/* Preview */}
+                                            <div 
+                                                style={styles.uploadPreview}
+                                                onClick={() => window.open(`/i/${upload.id}`, "_blank")}
+                                            >
+                                                {isVideo ? (
+                                                    <video
+                                                        src={`/i/${upload.id}.mp4`}
+                                                        style={styles.uploadImage}
+                                                        muted
+                                                        playsInline
+                                                        onMouseEnter={(e) => (e.target as HTMLVideoElement).play()}
+                                                        onMouseLeave={(e) => { (e.target as HTMLVideoElement).pause(); (e.target as HTMLVideoElement).currentTime = 0; }}
+                                                    />
+                                                ) : (
+                                                    <img
+                                                        src={`/i/${upload.id}.jpg`}
+                                                        alt={upload.id}
+                                                        style={styles.uploadImage}
+                                                        onError={(e) => {
+                                                            (e.target as HTMLImageElement).src =
+                                                                "https://placehold.co/400x250/1a1a1a/444?text=Preview";
+                                                        }}
+                                                    />
+                                                )}
+                                                {isVideo && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: '8px',
+                                                        left: '8px',
+                                                        background: 'rgba(0,0,0,0.7)',
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        color: '#fff'
+                                                    }}>
+                                                        <Video size={10} /> Video
+                                                    </div>
+                                                )}
                                             </div>
+
+                                            {/* Info */}
                                             <div className="dashboard-upload-info" style={styles.uploadInfo}>
                                                 <div style={styles.uploadTitle}>
                                                     <Link2 size={12} style={{ color: "var(--accent-primary)" }} />
@@ -901,14 +987,119 @@ export default function DashboardPage() {
                                                 </div>
                                                 <div style={styles.uploadMeta}>
                                                     <span style={styles.uploadDate}>{new Date(upload.created_at).toLocaleDateString()}</span>
-                                                    <span style={styles.uploadViews}>
-                                                        <Eye size={10} />
-                                                        {upload.views}
-                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <span style={styles.uploadViews}>
+                                                            <Eye size={10} />
+                                                            {upload.views || 0}
+                                                        </span>
+                                                        <span style={{ ...styles.uploadViews, color: '#06b6d4' }}>
+                                                            <Download size={10} />
+                                                            {upload.downloads || 0}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Actions */}
+                                                <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setSelectedUpload(upload); setShowCopyModal(true); }}
+                                                        style={{
+                                                            flex: 1,
+                                                            padding: '8px',
+                                                            background: 'var(--input-bg)',
+                                                            border: '1px solid var(--border-color)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--text-muted)',
+                                                            fontSize: '0.75rem',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '4px',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <Copy size={12} /> Copy
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setDeleteConfirm(upload.id); }}
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            background: 'rgba(239, 68, 68, 0.1)',
+                                                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                            borderRadius: '8px',
+                                                            color: '#f87171',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
                                                 </div>
                                             </div>
+
+                                            {/* Delete Confirm Overlay */}
+                                            {deleteConfirm === upload.id && (
+                                                <motion.div
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        inset: 0,
+                                                        background: 'rgba(0,0,0,0.9)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        gap: '12px',
+                                                        borderRadius: '18px',
+                                                        padding: '1rem'
+                                                    }}
+                                                >
+                                                    <p style={{ color: '#fff', fontSize: '0.85rem', textAlign: 'center' }}>Delete this upload?</p>
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirm(null); }}
+                                                            style={{
+                                                                padding: '8px 16px',
+                                                                background: 'var(--input-bg)',
+                                                                border: '1px solid var(--border-color)',
+                                                                borderRadius: '8px',
+                                                                color: '#fff',
+                                                                cursor: 'pointer',
+                                                                fontFamily: 'inherit'
+                                                            }}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleDelete(upload.id); }}
+                                                            disabled={deleting}
+                                                            style={{
+                                                                padding: '8px 16px',
+                                                                background: '#ef4444',
+                                                                border: 'none',
+                                                                borderRadius: '8px',
+                                                                color: '#fff',
+                                                                cursor: 'pointer',
+                                                                fontFamily: 'inherit',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px'
+                                                            }}
+                                                        >
+                                                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                                            Delete
+                                                        </button>
+                                                    </div>
+                                                </motion.div>
+                                            )}
                                         </motion.div>
-                                    ))}
+                                    )})}
                                 </div>
                             ) : (
                                 <div style={styles.emptyState}>
@@ -1101,6 +1292,136 @@ export default function DashboardPage() {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* Copy Modal */}
+            <AnimatePresence>
+                {showCopyModal && selectedUpload && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setShowCopyModal(false)}
+                        style={{
+                            position: 'fixed',
+                            inset: 0,
+                            background: 'rgba(0,0,0,0.8)',
+                            backdropFilter: 'blur(8px)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 1000,
+                            padding: '1rem'
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: 'var(--panel-bg)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '20px',
+                                padding: '1.5rem',
+                                width: '100%',
+                                maxWidth: '450px',
+                                backdropFilter: 'blur(20px)'
+                            }}
+                        >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                                <h3 style={{ color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 600 }}>
+                                    Copy Link Formats
+                                </h3>
+                                <button
+                                    onClick={() => setShowCopyModal(false)}
+                                    style={{
+                                        background: 'var(--input-bg)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '8px',
+                                        padding: '6px',
+                                        cursor: 'pointer',
+                                        color: 'var(--text-muted)',
+                                        display: 'flex'
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {getCopyFormats(selectedUpload).map((format) => (
+                                    <div
+                                        key={format.label}
+                                        style={{
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '12px',
+                                            padding: '12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '12px'
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '36px',
+                                            height: '36px',
+                                            background: 'rgba(139, 92, 246, 0.1)',
+                                            borderRadius: '8px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: 'var(--accent-primary)',
+                                            flexShrink: 0
+                                        }}>
+                                            <format.icon size={16} />
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)', marginBottom: '2px' }}>
+                                                {format.label}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '0.7rem',
+                                                color: 'var(--text-muted)',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                fontFamily: 'monospace'
+                                            }}>
+                                                {format.value}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => copyFormat(format.label, format.value)}
+                                            style={{
+                                                padding: '8px 12px',
+                                                background: copiedFormat === format.label ? 'rgba(16, 185, 129, 0.2)' : 'var(--accent-primary)',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                color: '#fff',
+                                                cursor: 'pointer',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 500,
+                                                fontFamily: 'inherit',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                transition: 'all 0.2s',
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            {copiedFormat === format.label ? (
+                                                <><Check size={12} /> Copied</>
+                                            ) : (
+                                                <><Copy size={12} /> Copy</>
+                                            )}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

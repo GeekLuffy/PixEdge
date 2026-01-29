@@ -34,6 +34,8 @@ export default function Home() {
     const { data: session } = useSession();
     const [isDragging, setIsDragging] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [uploadStatus, setUploadStatus] = useState<string>("");
     const [result, setResult] = useState<{ id: string; url: string } | null>(
         null,
     );
@@ -117,6 +119,8 @@ export default function Home() {
         }
 
         setUploading(true);
+        setUploadProgress(0);
+        setUploadStatus("Preparing upload...");
         setResult(null);
         setShowQr(false);
 
@@ -125,41 +129,66 @@ export default function Home() {
         if (customId) formData.append("customId", customId);
 
         try {
-            const response = await fetch("/api/v1/upload", {
-                method: "POST",
-                body: formData,
+            // Use XMLHttpRequest for progress tracking
+            const result = await new Promise<any>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener("progress", (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        setUploadProgress(percent);
+                        if (percent < 100) {
+                            setUploadStatus(`Uploading... ${percent}%`);
+                        } else {
+                            setUploadStatus("Processing at edge...");
+                        }
+                    }
+                });
+
+                xhr.addEventListener("load", () => {
+                    if (xhr.status === 413) {
+                        reject(new Error("File too large for server. Try a smaller file (under 4.5MB for free tier)."));
+                        return;
+                    }
+                    try {
+                        const json = JSON.parse(xhr.responseText);
+                        resolve(json);
+                    } catch {
+                        reject(new Error("Upload failed. File may be too large for server limits."));
+                    }
+                });
+
+                xhr.addEventListener("error", () => {
+                    reject(new Error("Network error. Please try again."));
+                });
+
+                xhr.addEventListener("abort", () => {
+                    reject(new Error("Upload cancelled."));
+                });
+
+                xhr.open("POST", "/api/v1/upload");
+                xhr.send(formData);
             });
-            if (response.status === 413) {
-                alert("File too large for server. Try a smaller file (under 4.5MB for free tier).");
-                setUploading(false);
-                return;
-            }
-            let json;
-            try {
-                json = await response.json();
-            } catch {
-                // Server returned non-JSON (likely Vercel error page)
-                alert("Upload failed. File may be too large for server limits.");
-                setUploading(false);
-                return;
-            }
 
             // Handle ID collision with suggestions
-            if (!json.success && json.error.code === "ID_ALREADY_EXISTS") {
-                const suggestions = json.error.suggestions || [];
+            if (!result.success && result.error?.code === "ID_ALREADY_EXISTS") {
+                const suggestions = result.error.suggestions || [];
                 const suggestionText =
                     suggestions.length > 0
                         ? `\n\nSuggested alternatives:\n${suggestions.map((s: string) => `• ${s}`).join("\n")}`
                         : "";
 
-                alert(`${json.error.message}${suggestionText}`);
+                alert(`${result.error.message}${suggestionText}`);
                 setUploading(false);
                 return;
             }
 
-            if (!json.success) throw new Error(json.error.message);
+            if (!result.success) throw new Error(result.error?.message || "Upload failed");
 
-            const data = json.data;
+            setUploadStatus("Complete!");
+            setUploadProgress(100);
+            
+            const data = result.data;
             setResult(data);
             saveToHistory({
                 id: data.id,
@@ -451,7 +480,7 @@ export default function Home() {
                         <div className="upload-text">
                             <h3>
                                 {uploading
-                                    ? "Blasting at the edge..."
+                                    ? uploadStatus
                                     : "Drop image or video here"}
                             </h3>
                             <p
@@ -461,7 +490,7 @@ export default function Home() {
                                     fontSize: "0.8rem",
                                 }}
                             >
-                                or click to browse your files
+                                {uploading ? `${(uploadProgress).toFixed(0)}% complete` : "or click to browse your files"}
                             </p>
                         </div>
 
@@ -471,14 +500,26 @@ export default function Home() {
                                     <motion.div
                                         className="progress-fill"
                                         initial={{ width: 0 }}
-                                        animate={{ width: "100%" }}
+                                        animate={{ width: `${uploadProgress}%` }}
                                         transition={{
-                                            duration: 2,
-                                            repeat: Infinity,
-                                            ease: "linear",
+                                            duration: 0.3,
+                                            ease: "easeOut",
                                         }}
                                     />
                                 </div>
+                                <div className="progress-glow" style={{
+                                    position: "absolute",
+                                    left: `${Math.min(uploadProgress, 98)}%`,
+                                    top: "50%",
+                                    transform: "translate(-50%, -50%)",
+                                    width: "20px",
+                                    height: "20px",
+                                    background: "var(--accent-primary)",
+                                    borderRadius: "50%",
+                                    filter: "blur(10px)",
+                                    opacity: uploadProgress < 100 ? 0.8 : 0,
+                                    transition: "opacity 0.3s",
+                                }} />
                             </div>
                         )}
                     </div>

@@ -19,6 +19,7 @@ export interface ImageRecord {
     telegram_file_id: string;
     created_at: number;
     views: number;
+    downloads: number;
     metadata: {
         size: number;
         type: string;
@@ -33,12 +34,13 @@ async function ensureLocalDb() {
     }
 }
 
-export async function saveImage(record: Omit<ImageRecord, 'views'>, source: 'web' | 'bot' = 'web', userId?: string | number) {
+export async function saveImage(record: Omit<ImageRecord, 'views' | 'downloads'>, source: 'web' | 'bot' = 'web', userId?: string | number) {
     if (useCloud() && redis) {
         const pipeline = redis.pipeline();
         pipeline.hset(`snap:${record.id}`, {
             ...record,
             views: 0,
+            downloads: 0,
             metadata: JSON.stringify(record.metadata)
         });
 
@@ -74,7 +76,7 @@ export async function saveImage(record: Omit<ImageRecord, 'views'>, source: 'web
     await ensureLocalDb();
     const content = await fs.readFile(DB_PATH, 'utf-8');
     const db = JSON.parse(content);
-    db.images.push({ ...record, views: 0 });
+    db.images.push({ ...record, views: 0, downloads: 0 });
     await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
 }
 
@@ -93,6 +95,7 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
                 ...data,
                 id: ids[index],
                 views: parseInt(data.views || '0'),
+                downloads: parseInt(data.downloads || '0'),
                 created_at: parseInt(data.created_at),
                 metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
             } as ImageRecord;
@@ -134,10 +137,9 @@ export async function getStats() {
     };
 }
 
+// Get image data WITHOUT incrementing any counters
 export async function getImage(id: string): Promise<ImageRecord | null> {
     if (useCloud() && redis) {
-        // Increment views and get data from the SAME hash object
-        await redis.hincrby(`snap:${id}`, 'views', 1);
         const data: any = await redis.hgetall(`snap:${id}`);
 
         if (!data || Object.keys(data).length === 0) return null;
@@ -146,9 +148,28 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             ...data,
             id,
             views: parseInt(data.views || '0'),
+            downloads: parseInt(data.downloads || '0'),
             created_at: parseInt(data.created_at),
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
         } as ImageRecord;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const image = db.images.find((img: any) => img.id === id);
+        return image || null;
+    } catch {
+        return null;
+    }
+}
+
+// Increment view count
+export async function incrementViews(id: string): Promise<void> {
+    if (useCloud() && redis) {
+        await redis.hincrby(`snap:${id}`, 'views', 1);
+        return;
     }
 
     try {
@@ -159,11 +180,62 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
         if (index !== -1) {
             db.images[index].views = (db.images[index].views || 0) + 1;
             await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
-            return db.images[index];
         }
-        return null;
     } catch {
-        return null;
+        // Silently fail
+    }
+}
+
+// Increment download count
+export async function incrementDownloads(id: string): Promise<void> {
+    if (useCloud() && redis) {
+        await redis.hincrby(`snap:${id}`, 'downloads', 1);
+        return;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const index = db.images.findIndex((img: any) => img.id === id);
+        if (index !== -1) {
+            db.images[index].downloads = (db.images[index].downloads || 0) + 1;
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        }
+    } catch {
+        // Silently fail
+    }
+}
+
+// Delete an image record
+export async function deleteImage(id: string, userId: string): Promise<boolean> {
+    if (useCloud() && redis) {
+        // Check if image exists
+        const exists = await redis.exists(`snap:${id}`);
+        if (!exists) return false;
+
+        // Delete the image record
+        await redis.del(`snap:${id}`);
+        
+        // Remove from user's upload list
+        await redis.lrem(`user:${userId}:uploads`, 0, id);
+        
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const index = db.images.findIndex((img: any) => img.id === id);
+        if (index !== -1) {
+            db.images.splice(index, 1);
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
     }
 }
 
