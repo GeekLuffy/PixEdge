@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
         const text = body.message.text;
         const photo = body.message?.photo;
         const animation = body.message?.animation;
+        const video = body.message?.video;
         const document = body.message?.document;
         const replyTo = body.message?.reply_to_message;
         const from = body.message?.from;
@@ -237,6 +238,10 @@ export async function POST(req: NextRequest) {
                         await processFile(chatId, replyTo.animation.file_id, replyTo.animation.file_size, replyTo.animation.mime_type || 'image/gif', userLink, from.id, 'animation');
                         return new NextResponse('OK');
                     }
+                    if (replyTo.video) {
+                        await processFile(chatId, replyTo.video.file_id, replyTo.video.file_size, replyTo.video.mime_type || 'video/mp4', userLink, from.id, 'video');
+                        return new NextResponse('OK');
+                    }
                     if (replyTo.document && (replyTo.document.mime_type?.startsWith('image/') || replyTo.document.mime_type?.startsWith('video/'))) {
                         await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, 'document');
                         return new NextResponse('OK');
@@ -282,6 +287,14 @@ export async function POST(req: NextRequest) {
             return new NextResponse('OK');
         }
 
+        // Handle Video
+        if (video) {
+            if (body.message.chat.type === 'private') {
+                await processFile(chatId, video.file_id, video.file_size, video.mime_type || 'video/mp4', userLink, from.id, 'video');
+            }
+            return new NextResponse('OK');
+        }
+
         // Handle Document (image or video/gif)
         if (document) {
             // Only process direct documents in PRIVATE chats
@@ -292,7 +305,7 @@ export async function POST(req: NextRequest) {
                 } else if (mimeType.startsWith('video/')) {
                     await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document');
                 } else {
-                    await sendMessage(chatId, "❌ Please send only image or GIF files.");
+                    await sendMessage(chatId, "❌ Please send only image, video or GIF files.");
                 }
             }
             return new NextResponse('OK');

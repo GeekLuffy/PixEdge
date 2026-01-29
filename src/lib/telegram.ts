@@ -39,6 +39,15 @@ export interface TelegramUpdate {
       file_size: number;
       mime_type?: string;
     };
+    video?: {
+      file_id: string;
+      file_unique_id: string;
+      file_size: number;
+      mime_type?: string;
+      duration?: number;
+      width?: number;
+      height?: number;
+    };
     reply_to_message?: {
       message_id: number;
       photo?: Array<{
@@ -60,6 +69,15 @@ export interface TelegramUpdate {
         file_unique_id: string;
         file_size: number;
         mime_type?: string;
+      };
+      video?: {
+        file_id: string;
+        file_unique_id: string;
+        file_size: number;
+        mime_type?: string;
+        duration?: number;
+        width?: number;
+        height?: number;
       };
     };
   };

@@ -31,10 +31,7 @@ import {
     Sparkles,
     Trash2,
     Download,
-    Code,
-    FileText,
     Video,
-    X,
     Check,
 } from "lucide-react";
 import Link from "next/link";
@@ -554,31 +551,17 @@ export default function DashboardPage() {
     const [uploads, setUploads] = useState<any[]>([]);
     const [loadingUploads, setLoadingUploads] = useState(true);
     const [theme, setTheme] = useState<"dark" | "light">("dark");
-    const [selectedUpload, setSelectedUpload] = useState<any | null>(null);
-    const [showCopyModal, setShowCopyModal] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
-    const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
-    // Copy format helpers
-    const getCopyFormats = (upload: any) => {
-        const url = `${baseUrl}/i/${upload.id}`;
-        const directUrl = `${baseUrl}/i/${upload.id}.jpg`;
-        return [
-            { label: "Direct Link", value: url, icon: Link2 },
-            { label: "Direct Image", value: directUrl, icon: ImageIcon },
-            { label: "Markdown", value: `![${upload.id}](${directUrl})`, icon: FileText },
-            { label: "HTML", value: `<img src="${directUrl}" alt="${upload.id}" />`, icon: Code },
-            { label: "BBCode", value: `[img]${directUrl}[/img]`, icon: Code },
-        ];
-    };
-
-    const copyFormat = (format: string, value: string) => {
-        navigator.clipboard.writeText(value);
-        setCopiedFormat(format);
-        setTimeout(() => setCopiedFormat(null), 2000);
+    // Simple copy link
+    const copyLink = (id: string) => {
+        navigator.clipboard.writeText(`${baseUrl}/i/${id}`);
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
     };
 
     // Delete upload
@@ -1002,14 +985,14 @@ export default function DashboardPage() {
                                                 {/* Actions */}
                                                 <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); setSelectedUpload(upload); setShowCopyModal(true); }}
+                                                        onClick={(e) => { e.stopPropagation(); copyLink(upload.id); }}
                                                         style={{
                                                             flex: 1,
                                                             padding: '8px',
-                                                            background: 'var(--input-bg)',
-                                                            border: '1px solid var(--border-color)',
+                                                            background: copiedId === upload.id ? 'rgba(16, 185, 129, 0.2)' : 'var(--input-bg)',
+                                                            border: `1px solid ${copiedId === upload.id ? 'rgba(16, 185, 129, 0.3)' : 'var(--border-color)'}`,
                                                             borderRadius: '8px',
-                                                            color: 'var(--text-muted)',
+                                                            color: copiedId === upload.id ? '#10b981' : 'var(--text-muted)',
                                                             fontSize: '0.75rem',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -1020,7 +1003,7 @@ export default function DashboardPage() {
                                                             transition: 'all 0.2s'
                                                         }}
                                                     >
-                                                        <Copy size={12} /> Copy
+                                                        {copiedId === upload.id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setDeleteConfirm(upload.id); }}
@@ -1292,136 +1275,6 @@ export default function DashboardPage() {
                     )}
                 </AnimatePresence>
             </div>
-
-            {/* Copy Modal */}
-            <AnimatePresence>
-                {showCopyModal && selectedUpload && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={() => setShowCopyModal(false)}
-                        style={{
-                            position: 'fixed',
-                            inset: 0,
-                            background: 'rgba(0,0,0,0.8)',
-                            backdropFilter: 'blur(8px)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 1000,
-                            padding: '1rem'
-                        }}
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                                background: 'var(--panel-bg)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '20px',
-                                padding: '1.5rem',
-                                width: '100%',
-                                maxWidth: '450px',
-                                backdropFilter: 'blur(20px)'
-                            }}
-                        >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                                <h3 style={{ color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 600 }}>
-                                    Copy Link Formats
-                                </h3>
-                                <button
-                                    onClick={() => setShowCopyModal(false)}
-                                    style={{
-                                        background: 'var(--input-bg)',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: '8px',
-                                        padding: '6px',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-muted)',
-                                        display: 'flex'
-                                    }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {getCopyFormats(selectedUpload).map((format) => (
-                                    <div
-                                        key={format.label}
-                                        style={{
-                                            background: 'var(--input-bg)',
-                                            border: '1px solid var(--border-color)',
-                                            borderRadius: '12px',
-                                            padding: '12px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '12px'
-                                        }}
-                                    >
-                                        <div style={{
-                                            width: '36px',
-                                            height: '36px',
-                                            background: 'rgba(139, 92, 246, 0.1)',
-                                            borderRadius: '8px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            color: 'var(--accent-primary)',
-                                            flexShrink: 0
-                                        }}>
-                                            <format.icon size={16} />
-                                        </div>
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-main)', marginBottom: '2px' }}>
-                                                {format.label}
-                                            </div>
-                                            <div style={{
-                                                fontSize: '0.7rem',
-                                                color: 'var(--text-muted)',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap',
-                                                fontFamily: 'monospace'
-                                            }}>
-                                                {format.value}
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={() => copyFormat(format.label, format.value)}
-                                            style={{
-                                                padding: '8px 12px',
-                                                background: copiedFormat === format.label ? 'rgba(16, 185, 129, 0.2)' : 'var(--accent-primary)',
-                                                border: 'none',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                cursor: 'pointer',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 500,
-                                                fontFamily: 'inherit',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '4px',
-                                                transition: 'all 0.2s',
-                                                flexShrink: 0
-                                            }}
-                                        >
-                                            {copiedFormat === format.label ? (
-                                                <><Check size={12} /> Copied</>
-                                            ) : (
-                                                <><Copy size={12} /> Copy</>
-                                            )}
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }
