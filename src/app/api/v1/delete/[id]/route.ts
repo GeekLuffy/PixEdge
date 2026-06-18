@@ -1,17 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { deleteImage, getImage } from '@/lib/db';
+import { deleteImage, getImage, verifyApiKey } from '@/lib/db';
+
+// Resolve userId from session OR X-API-Key / Authorization header
+async function resolveUserId(req: NextRequest): Promise<string | null> {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) return session.user.id;
+
+    const apiKey =
+        req.headers.get('x-api-key') ||
+        req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (apiKey) {
+        return await verifyApiKey(apiKey);
+    }
+    return null;
+}
 
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const userId = await resolveUserId(req);
+    if (!userId) {
         return NextResponse.json({ 
             success: false, 
-            error: { code: 'UNAUTHORIZED', message: 'Authentication required' } 
+            error: { code: 'UNAUTHORIZED', message: 'Authentication required. Use session or X-API-Key header.' } 
         }, { status: 401 });
     }
 
@@ -27,8 +42,8 @@ export async function DELETE(
             }, { status: 404 });
         }
 
-        // Delete the image
-        const success = await deleteImage(id, session.user.id);
+        // Delete the image (deleteImage enforces ownership internally)
+        const success = await deleteImage(id, userId);
 
         if (success) {
             return NextResponse.json({

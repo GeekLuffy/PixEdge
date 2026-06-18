@@ -47,6 +47,7 @@ export async function GET(
                 direct_url: `${baseUrl}/i/${record.id}.jpg`,
                 views: record.views,
                 created_at: record.created_at,
+                expires_at: record.expires_at ?? null,
                 metadata: record.metadata
             }
         });

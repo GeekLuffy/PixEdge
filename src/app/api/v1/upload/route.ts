@@ -1,8 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToTelegram, sendLog } from '@/lib/telegram';
-import { saveImage, generateId, rateLimit, getImage } from '@/lib/db';
+import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/db';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+
+// Resolve authenticated userId from session OR X-API-Key / Authorization header
+async function resolveUserId(req: NextRequest): Promise<string | undefined> {
+    const session = await getServerSession(authOptions);
+    if (session?.user?.id) return session.user.id;
+
+    const apiKey =
+        req.headers.get('x-api-key') ||
+        req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+    if (apiKey) {
+        const userId = await verifyApiKey(apiKey);
+        return userId ?? undefined;
+    }
+    return undefined;
+}
 
 // Validate custom ID format
 function validateCustomId(id: string): { valid: boolean; error?: string; sanitized?: string } {
@@ -49,11 +65,14 @@ function generateSuggestions(baseId: string): string[] {
 }
 
 export async function POST(req: NextRequest) {
-    // Get user session (optional - uploads work without login too)
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id;
+    // Resolve authenticated userId (session or API key)
+    const userId = await resolveUserId(req);
     const ip = req.headers.get('x-forwarded-for') || 'anonymous';
-    const limit = await rateLimit(`upload:${ip}`, 20, 60);
+
+    // Authenticated users get 100 uploads/min; anonymous users get 20/min
+    const rateLimitKey = userId ? `upload:user:${userId}` : `upload:ip:${ip}`;
+    const rateLimitMax = userId ? 100 : 20;
+    const limit = await rateLimit(rateLimitKey, rateLimitMax, 60);
 
     if (!limit.success) {
         return NextResponse.json({
@@ -65,7 +84,7 @@ export async function POST(req: NextRequest) {
         }, {
             status: 429,
             headers: {
-                'X-RateLimit-Limit': (limit.limit ?? 20).toString(),
+                'X-RateLimit-Limit': (limit.limit ?? rateLimitMax).toString(),
                 'X-RateLimit-Remaining': (limit.remaining ?? 0).toString()
             }
         });
@@ -75,6 +94,13 @@ export async function POST(req: NextRequest) {
         const formData = await req.formData();
         const file = formData.get('file') as Blob;
         const customId = formData.get('customId') as string;
+
+        // Optional expiry in seconds (3600=1h, 86400=24h, 604800=7d, 2592000=30d)
+        const expiresInRaw = formData.get('expiresIn') as string | null;
+        const VALID_EXPIRY = [3600, 86400, 604800, 2592000];
+        const expiresIn = expiresInRaw
+            ? VALID_EXPIRY.includes(parseInt(expiresInRaw)) ? parseInt(expiresInRaw) : undefined
+            : undefined;
 
         if (!file) {
             return NextResponse.json({
@@ -141,8 +167,8 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Save to DB (with user tracking if logged in)
-        await saveImage(record, 'web', userId);
+        // Save to DB (with user tracking if logged in, and optional expiry)
+        await saveImage(record, 'web', userId, expiresIn);
 
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
             (req.headers.get('host') ? `http://${req.headers.get('host')}` : '');
@@ -158,7 +184,8 @@ export async function POST(req: NextRequest) {
                 id,
                 url: `${baseUrl}/i/${id}`,
                 direct_url: `${baseUrl}/i/${id}.jpg`,
-                timestamp: record.created_at
+                timestamp: record.created_at,
+                expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null
             }
         });
 

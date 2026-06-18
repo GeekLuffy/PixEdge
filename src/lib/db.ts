@@ -16,13 +16,16 @@ const useCloud = () => !!redis;
 
 export interface ImageRecord {
     id: string;
+    user_id?: string;
     telegram_file_id: string;
     created_at: number;
+    expires_at?: number;
     views: number;
     downloads: number;
     metadata: {
         size: number;
         type: string;
+        version?: string;
     };
 }
 
@@ -34,15 +37,28 @@ async function ensureLocalDb() {
     }
 }
 
-export async function saveImage(record: Omit<ImageRecord, 'views' | 'downloads'>, source: 'web' | 'bot' = 'web', userId?: string | number) {
+export async function saveImage(
+    record: Omit<ImageRecord, 'views' | 'downloads'>,
+    source: 'web' | 'bot' = 'web',
+    userId?: string | number,
+    expiresIn?: number // seconds until expiry; undefined = never
+) {
     if (useCloud() && redis) {
+        const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
         const pipeline = redis.pipeline();
         pipeline.hset(`snap:${record.id}`, {
             ...record,
+            user_id: userId?.toString() || '',
             views: 0,
             downloads: 0,
+            expires_at: expiresAt ? expiresAt.toString() : '',
             metadata: JSON.stringify(record.metadata)
         });
+
+        if (expiresIn) {
+            // Auto-delete the Redis key when the link expires
+            pipeline.expire(`snap:${record.id}`, expiresIn);
+        }
 
         // 1. Total Uploads
         pipeline.incr('stats:total_uploads');
@@ -144,12 +160,24 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
 
         if (!data || Object.keys(data).length === 0) return null;
 
+        // Check expiry (safety net — Redis TTL handles auto-deletion, but this
+        // covers the edge case where Redis hasn't evicted yet)
+        if (data.expires_at && data.expires_at !== '') {
+            const expiresAt = parseInt(data.expires_at);
+            if (expiresAt > 0 && Date.now() > expiresAt) {
+                await redis.del(`snap:${id}`);
+                return null;
+            }
+        }
+
         return {
             ...data,
             id,
+            user_id: data.user_id || undefined,
             views: parseInt(data.views || '0'),
             downloads: parseInt(data.downloads || '0'),
             created_at: parseInt(data.created_at),
+            expires_at: data.expires_at ? parseInt(data.expires_at) || undefined : undefined,
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
         } as ImageRecord;
     }
@@ -207,19 +235,24 @@ export async function incrementDownloads(id: string): Promise<void> {
     }
 }
 
-// Delete an image record
+// Delete an image record (with ownership verification)
 export async function deleteImage(id: string, userId: string): Promise<boolean> {
     if (useCloud() && redis) {
-        // Check if image exists
-        const exists = await redis.exists(`snap:${id}`);
-        if (!exists) return false;
+        const data: any = await redis.hgetall(`snap:${id}`);
+        if (!data || Object.keys(data).length === 0) return false;
 
-        // Delete the image record
+        // Ownership check
+        if (data.user_id && data.user_id !== '') {
+            // New record: user_id is stored directly on the snap
+            if (data.user_id !== userId) return false;
+        } else {
+            // Legacy record (uploaded before this fix): verify via user's upload list
+            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 49);
+            if (!userUploads.includes(id)) return false;
+        }
+
         await redis.del(`snap:${id}`);
-        
-        // Remove from user's upload list
         await redis.lrem(`user:${userId}:uploads`, 0, id);
-        
         return true;
     }
 

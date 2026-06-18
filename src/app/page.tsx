@@ -21,6 +21,8 @@ import {
     MessageSquare,
     AlertCircle,
     X,
+    Clock,
+    BarChart2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -50,6 +52,7 @@ export default function Home() {
     const [theme, setTheme] = useState<"dark" | "light">("dark");
     const [idError, setIdError] = useState<{ message: string; suggestions: string[] } | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [expiresIn, setExpiresIn] = useState<string>("");
 
     // Load history and theme from localStorage
     useEffect(() => {
@@ -133,6 +136,7 @@ export default function Home() {
         const formData = new FormData();
         formData.append("file", file);
         if (customId) formData.append("customId", customId);
+        if (expiresIn) formData.append("expiresIn", expiresIn);
 
         try {
             // Use XMLHttpRequest for progress tracking
@@ -240,6 +244,7 @@ export default function Home() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("customId", id);
+        if (expiresIn) formData.append("expiresIn", expiresIn);
 
         try {
             const result = await new Promise<any>((resolve, reject) => {
@@ -382,6 +387,23 @@ export default function Home() {
                 >
                     <Code2 size={16} />
                     <span className="nav-docs-text">API Docs</span>
+                </Link>
+                <Link
+                    href="/stats"
+                    className="nav-docs-link"
+                    style={{
+                        color: "var(--text-muted)",
+                        textDecoration: "none",
+                        fontSize: "0.95rem",
+                        fontWeight: "600",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        transition: "color 0.2s",
+                    }}
+                >
+                    <BarChart2 size={16} />
+                    <span className="nav-docs-text">Stats</span>
                 </Link>
 
                 <button
@@ -560,6 +582,49 @@ export default function Home() {
                                 (e.target.style.borderColor = idError ? "rgba(239, 68, 68, 0.5)" : "var(--border-color)")
                             }
                         />
+                    </div>
+
+                    {/* Expiry Selector */}
+                    <div style={{ marginBottom: "1.5rem", position: "relative" }}>
+                        <div
+                            style={{
+                                position: "absolute",
+                                left: "12px",
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                color: "var(--text-muted)",
+                                display: "flex",
+                                alignItems: "center",
+                                pointerEvents: "none",
+                            }}
+                        >
+                            <Clock size={14} />
+                        </div>
+                        <select
+                            value={expiresIn}
+                            onChange={(e) => setExpiresIn(e.target.value)}
+                            style={{
+                                width: "100%",
+                                background: "var(--input-bg)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "16px",
+                                padding: "12px 12px 12px 40px",
+                                color: expiresIn ? "var(--text-main)" : "var(--text-muted)",
+                                fontSize: "0.9rem",
+                                outline: "none",
+                                appearance: "none" as const,
+                                WebkitAppearance: "none" as const,
+                                cursor: "pointer",
+                                transition: "all 0.2s",
+                                fontFamily: "inherit",
+                            }}
+                        >
+                            <option value="">Link Expiry: Never (Default)</option>
+                            <option value="3600">Expires in 1 Hour</option>
+                            <option value="86400">Expires in 24 Hours</option>
+                            <option value="604800">Expires in 7 Days</option>
+                            <option value="2592000">Expires in 30 Days</option>
+                        </select>
                     </div>
 
                     {/* ID Error with Suggestions */}
