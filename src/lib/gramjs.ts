@@ -17,7 +17,8 @@ import { CustomFile } from 'telegram/client/uploads';
 // ─── Singleton state ──────────────────────────────────────────────────────────
 
 let _client: TelegramClient | null = null;
-let _channelEntity: ReturnType<TelegramClient['getInputEntity']> | null = null;
+type InputEntity = Awaited<ReturnType<TelegramClient['getInputEntity']>>;
+let _channelEntity: InputEntity | null = null;
 let _connecting = false;
 
 // ─── Configuration check ──────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ export async function getGramClient(): Promise<TelegramClient> {
 }
 
 /** Resolves (and caches) the storage channel entity once. */
-async function getChannel(client: TelegramClient): Promise<Api.InputChannel | Api.InputPeerChannel | any> {
+async function getChannel(client: TelegramClient): Promise<InputEntity> {
     if (_channelEntity) return _channelEntity;
     _channelEntity = await client.getInputEntity(process.env.TELEGRAM_CHAT_ID!);
     return _channelEntity;
