@@ -18,6 +18,8 @@ export interface ImageRecord {
     id: string;
     user_id?: string;
     telegram_file_id: string;
+    /** MTProto channel message ID — present on v2 uploads (gramjs). */
+    message_id?: number;
     created_at: number;
     expires_at?: number;
     views: number;
@@ -25,6 +27,7 @@ export interface ImageRecord {
     metadata: {
         size: number;
         type: string;
+        /** 'v1' = Bot API upload, 'v2' = gramjs MTProto upload */
         version?: string;
     };
 }
@@ -110,6 +113,7 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
             return {
                 ...data,
                 id: ids[index],
+                message_id: data.message_id ? parseInt(data.message_id) : undefined,
                 views: parseInt(data.views || '0'),
                 downloads: parseInt(data.downloads || '0'),
                 created_at: parseInt(data.created_at),
@@ -174,6 +178,7 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             ...data,
             id,
             user_id: data.user_id || undefined,
+            message_id: data.message_id ? parseInt(data.message_id) : undefined,
             views: parseInt(data.views || '0'),
             downloads: parseInt(data.downloads || '0'),
             created_at: parseInt(data.created_at),

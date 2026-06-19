@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImage, incrementViews, incrementDownloads } from '@/lib/db';
 import { getTelegramFileUrl } from '@/lib/telegram';
+import { isGramConfigured, streamFileViaGram } from '@/lib/gramjs';
 
 export const runtime = 'nodejs';
+export const maxDuration = 300; // allow long streaming for large files
 
 export async function GET(
     req: NextRequest,
@@ -23,14 +25,43 @@ export async function GET(
         // Detect TelegramBot to serve raw content for better previews
         const userAgent = req.headers.get('user-agent') || '';
         const isTelegramBot = userAgent.toLowerCase().includes('telegrambot');
+        const accept = req.headers.get('accept') || '';
+        const serveRaw = hasExtension || (!accept.includes('text/html') && !isTelegramBot);
 
+        // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming) ──────
+        if (record.message_id && isGramConfigured()) {
+            if (serveRaw) {
+                if (hasExtension) await incrementDownloads(id);
+
+                try {
+                    const { stream, contentType, fileSize, fileName } =
+                        await streamFileViaGram(record.message_id);
+
+                    const headers = new Headers({
+                        'Content-Type': contentType,
+                        'Cache-Control': 'public, max-age=31536000, immutable',
+                    });
+                    if (fileSize) headers.set('Content-Length', fileSize.toString());
+                    if (fileName) {
+                        headers.set(
+                            'Content-Disposition',
+                            `inline; filename="${fileName}"`
+                        );
+                    }
+
+                    return new Response(stream, { headers });
+                } catch (gramErr) {
+                    console.error('[gramjs] stream error, falling back to Bot API:', gramErr);
+                    // fall through to Bot API below
+                }
+            }
+        }
+
+        // ── v1 path: Bot API redirect / proxy (original behaviour) ───────────
         const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
 
         const proxyImage = async (isDownload: boolean = false) => {
-            // Only increment downloads for direct file access (with extension)
-            if (isDownload) {
-                await incrementDownloads(id);
-            }
+            if (isDownload) await incrementDownloads(id);
             const response = await fetch(fileUrl);
             const blob = await response.blob();
             const headers = new Headers();
@@ -39,8 +70,7 @@ export async function GET(
             return new NextResponse(blob, { headers });
         };
 
-        const accept = req.headers.get('accept') || '';
-        if (hasExtension || (!accept.includes('text/html') && !isTelegramBot)) {
+        if (serveRaw) {
             return proxyImage(hasExtension);
         }
 

@@ -1,12 +1,13 @@
 {
   "name": "pixedge",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "generate:session": "node scripts/generate-session.mjs"
   },
   "dependencies": {
     "@auth/core": "^0.34.3",
@@ -22,7 +23,8 @@
     "next-auth": "^4.24.13",
     "qrcode.react": "^4.2.0",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToTelegram, sendLog } from '@/lib/telegram';
 import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/db';
+import { isGramConfigured, uploadFileViaGram } from '@/lib/gramjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+
+// Allow long-running uploads (Vercel Pro / Northflank)
+export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
 
 // Resolve authenticated userId from session OR X-API-Key / Authorization header
 async function resolveUserId(req: NextRequest): Promise<string | undefined> {
@@ -109,21 +114,26 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
-        // Enforce 20MB limit (Telegram getFile API limit)
-        const MAX_SIZE = 20 * 1024 * 1024;
+        // Enforce size limit:
+        //   gramjs (MTProto) configured → up to MAX_UPLOAD_SIZE_MB (default 2000 MB = 2 GB)
+        //   Bot API fallback            → up to 50 MB (Telegram Bot API hard limit)
+        const gramReady = isGramConfigured();
+        const maxMB = gramReady
+            ? parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10)
+            : 50;
+        const MAX_SIZE = maxMB * 1024 * 1024;
+
         if (file.size > MAX_SIZE) {
             return NextResponse.json({
                 success: false,
-                error: { code: 'FILE_TOO_LARGE', message: 'File too large. Max size is 20MB.' }
+                error: {
+                    code: 'FILE_TOO_LARGE',
+                    message: `File too large. Max size is ${maxMB} MB.`,
+                }
             }, { status: 400 });
         }
 
-        // 1. Upload to Telegram
-        let mediaType: 'photo' | 'animation' | 'video' = 'photo';
-        if (file.type.startsWith('video/')) mediaType = 'video';
-        if (file.type === 'image/gif') mediaType = 'animation';
-
-        // 2. Generate or validate ID
+        // 1. Generate or validate ID (moved before upload so we fail fast on ID errors)
         let id: string;
         
         if (customId) {
@@ -154,18 +164,46 @@ export async function POST(req: NextRequest) {
             id = generateId();
         }
 
-        const telegramResult = await uploadToTelegram(file, 'upload', '📦 <b>Uploaded in web</b>', mediaType);
+        // 2. Upload — gramjs MTProto (v2) or Bot API fallback (v1)
+        let record: any;
 
-        const record = {
-            id,
-            telegram_file_id: telegramResult.file_id,
-            created_at: Date.now(),
-            metadata: {
-                size: file.size,
-                type: file.type,
-                version: 'v1'
-            }
-        };
+        if (gramReady) {
+            // ── v2: MTProto via gramjs — supports up to 2 GB ──
+            const fileObj = file as File;
+            const fileName = fileObj.name || `upload.${(file.type.split('/')[1] || 'bin')}`;
+            const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
+
+            const gramResult = await uploadFileViaGram(
+                fileBuffer,
+                fileName,
+                file.size,
+                `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+            );
+
+            record = {
+                id,
+                telegram_file_id: gramResult.telegram_file_id,
+                message_id: gramResult.message_id,
+                created_at: Date.now(),
+                metadata: { size: file.size, type: file.type, version: 'v2' },
+            };
+        } else {
+            // ── v1: Bot API fallback — max 50 MB ──
+            let mediaType: 'photo' | 'animation' | 'video' = 'photo';
+            if (file.type.startsWith('video/')) mediaType = 'video';
+            if (file.type === 'image/gif') mediaType = 'animation';
+
+            const telegramResult = await uploadToTelegram(
+                file, 'upload', '📦 <b>Uploaded in web</b>', mediaType
+            );
+
+            record = {
+                id,
+                telegram_file_id: telegramResult.file_id,
+                created_at: Date.now(),
+                metadata: { size: file.size, type: file.type, version: 'v1' },
+            };
+        }
 
         // Save to DB (with user tracking if logged in, and optional expiry)
         await saveImage(record, 'web', userId, expiresIn);
@@ -176,7 +214,13 @@ export async function POST(req: NextRequest) {
         const publicUrl = `${baseUrl}/i/${id}`;
 
         // Log to Telegram
-        await sendLog(`🌐 <b>New Web Upload</b>\n\nType: ${file.type}\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB\nLink: ${publicUrl}`);
+        await sendLog(
+            `🌐 <b>New Web Upload</b>\n\n` +
+            `Type: ${file.type}\n` +
+            `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n` +
+            `Mode: ${gramReady ? 'MTProto v2' : 'Bot API v1'}\n` +
+            `Link: ${publicUrl}`
+        );
 
         return NextResponse.json({
             success: true,
@@ -185,7 +229,8 @@ export async function POST(req: NextRequest) {
                 url: `${baseUrl}/i/${id}`,
                 direct_url: `${baseUrl}/i/${id}.jpg`,
                 timestamp: record.created_at,
-                expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null
+                expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null,
+                upload_mode: gramReady ? 'mtproto_v2' : 'botapi_v1',
             }
         });
 
