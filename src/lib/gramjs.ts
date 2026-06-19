@@ -20,16 +20,38 @@ let _client: TelegramClient | null = null;
 type InputEntity = Awaited<ReturnType<TelegramClient['getInputEntity']>>;
 let _channelEntity: InputEntity | null = null;
 let _connecting = false;
+function sanitizeEnv(value?: string): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    if (
+        (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+        (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    ) {
+        const unwrapped = trimmed.slice(1, -1).trim();
+        return unwrapped || undefined;
+    }
+
+    return trimmed;
+}
+
+function getGramConfig() {
+    return {
+        apiIdRaw: sanitizeEnv(process.env.TELEGRAM_API_ID),
+        apiHash: sanitizeEnv(process.env.TELEGRAM_API_HASH),
+        sessionString: sanitizeEnv(process.env.TELEGRAM_SESSION_STRING),
+        chatId: sanitizeEnv(process.env.TELEGRAM_CHAT_ID),
+    };
+}
 
 // ─── Configuration check ──────────────────────────────────────────────────────
 
 /** Returns true when all three MTProto env vars are present. */
 export function isGramConfigured(): boolean {
-    return !!(
-        process.env.TELEGRAM_API_ID &&
-        process.env.TELEGRAM_API_HASH &&
-        process.env.TELEGRAM_SESSION_STRING
-    );
+    const { apiIdRaw, apiHash, sessionString } = getGramConfig();
+    const apiId = apiIdRaw ? parseInt(apiIdRaw, 10) : NaN;
+    return Number.isFinite(apiId) && apiId > 0 && !!apiHash && !!sessionString;
 }
 
 // ─── Client management ────────────────────────────────────────────────────────
@@ -44,6 +66,17 @@ export async function getGramClient(): Promise<TelegramClient> {
             '[gramjs] MTProto not configured. ' +
             'Set TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING.'
         );
+    }
+
+    const { apiIdRaw, apiHash, sessionString } = getGramConfig();
+    const apiId = apiIdRaw ? parseInt(apiIdRaw, 10) : NaN;
+
+    if (!Number.isFinite(apiId) || apiId <= 0) {
+        throw new Error('[gramjs] TELEGRAM_API_ID must be a positive integer.');
+    }
+
+    if (!apiHash || !sessionString) {
+        throw new Error('[gramjs] TELEGRAM_API_HASH and TELEGRAM_SESSION_STRING are required.');
     }
 
     // Already connected — return immediately
@@ -61,10 +94,18 @@ export async function getGramClient(): Promise<TelegramClient> {
 
     _connecting = true;
     try {
+        let stringSession: StringSession;
+        try {
+            stringSession = new StringSession(sessionString);
+        } catch (error: any) {
+            throw new Error(
+                `[gramjs] Invalid TELEGRAM_SESSION_STRING. Regenerate it with "npm run generate:session". (${error?.message || error})`
+            );
+        }
         _client = new TelegramClient(
-            new StringSession(process.env.TELEGRAM_SESSION_STRING!),
-            parseInt(process.env.TELEGRAM_API_ID!, 10),
-            process.env.TELEGRAM_API_HASH!,
+            stringSession,
+            apiId,
+            apiHash,
             {
                 connectionRetries: 5,
                 retryDelay: 1_000,
@@ -82,7 +123,11 @@ export async function getGramClient(): Promise<TelegramClient> {
 /** Resolves (and caches) the storage channel entity once. */
 async function getChannel(client: TelegramClient): Promise<InputEntity> {
     if (_channelEntity) return _channelEntity;
-    _channelEntity = await client.getInputEntity(process.env.TELEGRAM_CHAT_ID!);
+    const { chatId } = getGramConfig();
+    if (!chatId) {
+        throw new Error('[gramjs] TELEGRAM_CHAT_ID is required when MTProto is enabled.');
+    }
+    _channelEntity = await client.getInputEntity(chatId);
     return _channelEntity;
 }
 

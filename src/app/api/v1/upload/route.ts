@@ -69,6 +69,15 @@ function generateSuggestions(baseId: string): string[] {
     return suggestions;
 }
 
+// Logging must never fail the upload response path
+async function safeSendLog(text: string): Promise<void> {
+    try {
+        await sendLog(text);
+    } catch (error) {
+        console.error('sendLog failed:', error);
+    }
+}
+
 export async function POST(req: NextRequest) {
     // Resolve authenticated userId (session or API key)
     const userId = await resolveUserId(req);
@@ -97,29 +106,34 @@ export async function POST(req: NextRequest) {
 
     try {
         const formData = await req.formData();
-        const file = formData.get('file') as Blob;
-        const customId = formData.get('customId') as string;
+        const fileEntry = formData.get('file');
+        const customIdEntry = formData.get('customId');
+        const customId = typeof customIdEntry === 'string' ? customIdEntry : '';
 
         // Optional expiry in seconds (3600=1h, 86400=24h, 604800=7d, 2592000=30d)
-        const expiresInRaw = formData.get('expiresIn') as string | null;
+        const expiresInEntry = formData.get('expiresIn');
+        const expiresInRaw = typeof expiresInEntry === 'string' ? expiresInEntry : null;
         const VALID_EXPIRY = [3600, 86400, 604800, 2592000];
-        const expiresIn = expiresInRaw
-            ? VALID_EXPIRY.includes(parseInt(expiresInRaw)) ? parseInt(expiresInRaw) : undefined
+        const expiresInParsed = expiresInRaw ? parseInt(expiresInRaw, 10) : NaN;
+        const expiresIn = Number.isFinite(expiresInParsed) && VALID_EXPIRY.includes(expiresInParsed)
+            ? expiresInParsed
             : undefined;
 
-        if (!file) {
+        if (!(fileEntry instanceof Blob)) {
             return NextResponse.json({
                 success: false,
                 error: { code: 'MISSING_FILE', message: 'No file provided in request' }
             }, { status: 400 });
         }
+        const file = fileEntry;
 
         // Enforce size limit:
         //   gramjs (MTProto) configured → up to MAX_UPLOAD_SIZE_MB (default 2000 MB = 2 GB)
         //   Bot API fallback            → up to 50 MB (Telegram Bot API hard limit)
-        const gramReady = isGramConfigured();
+        let gramReady = isGramConfigured();
+        const configuredMaxMB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10);
         const maxMB = gramReady
-            ? parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10)
+            ? (Number.isFinite(configuredMaxMB) && configuredMaxMB > 0 ? configuredMaxMB : 2000)
             : 50;
         const MAX_SIZE = maxMB * 1024 * 1024;
 
@@ -166,28 +180,49 @@ export async function POST(req: NextRequest) {
 
         // 2. Upload — gramjs MTProto (v2) or Bot API fallback (v1)
         let record: any;
+        let usedGram = false;
 
         if (gramReady) {
             // ── v2: MTProto via gramjs — supports up to 2 GB ──
-            const fileObj = file as File;
-            const fileName = fileObj.name || `upload.${(file.type.split('/')[1] || 'bin')}`;
-            const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
+            try {
+                const fileObj = file as File;
+                const fileMime = file.type || 'application/octet-stream';
+                const extension = (fileMime.split('/')[1] || 'bin').toLowerCase();
+                const fileName = fileObj.name || `upload.${extension}`;
+                const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
 
-            const gramResult = await uploadFileViaGram(
-                fileBuffer,
-                fileName,
-                file.size,
-                `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
-            );
+                const gramResult = await uploadFileViaGram(
+                    fileBuffer,
+                    fileName,
+                    file.size,
+                    `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+                );
 
-            record = {
-                id,
-                telegram_file_id: gramResult.telegram_file_id,
-                message_id: gramResult.message_id,
-                created_at: Date.now(),
-                metadata: { size: file.size, type: file.type, version: 'v2' },
-            };
-        } else {
+                record = {
+                    id,
+                    telegram_file_id: gramResult.telegram_file_id,
+                    message_id: gramResult.message_id,
+                    created_at: Date.now(),
+                    metadata: { size: file.size, type: file.type, version: 'v2' },
+                };
+                usedGram = true;
+            } catch (gramError: any) {
+                console.error('MTProto upload failed, falling back to Bot API:', gramError);
+
+                const BOT_API_MAX_SIZE = 50 * 1024 * 1024;
+                if (file.size > BOT_API_MAX_SIZE) {
+                    return NextResponse.json({
+                        success: false,
+                        error: {
+                            code: 'MTPROTO_UNAVAILABLE',
+                            message: 'Large uploads currently require MTProto. Fix TELEGRAM_SESSION_STRING and retry.',
+                        }
+                    }, { status: 503 });
+                }
+            }
+        }
+
+        if (!record) {
             // ── v1: Bot API fallback — max 50 MB ──
             let mediaType: 'photo' | 'animation' | 'video' = 'photo';
             if (file.type.startsWith('video/')) mediaType = 'video';
@@ -203,6 +238,7 @@ export async function POST(req: NextRequest) {
                 created_at: Date.now(),
                 metadata: { size: file.size, type: file.type, version: 'v1' },
             };
+            usedGram = false;
         }
 
         // Save to DB (with user tracking if logged in, and optional expiry)
@@ -214,11 +250,11 @@ export async function POST(req: NextRequest) {
         const publicUrl = `${baseUrl}/i/${id}`;
 
         // Log to Telegram
-        await sendLog(
+        await safeSendLog(
             `🌐 <b>New Web Upload</b>\n\n` +
             `Type: ${file.type}\n` +
             `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n` +
-            `Mode: ${gramReady ? 'MTProto v2' : 'Bot API v1'}\n` +
+            `Mode: ${usedGram ? 'MTProto v2' : 'Bot API v1'}\n` +
             `Link: ${publicUrl}`
         );
 
@@ -230,13 +266,13 @@ export async function POST(req: NextRequest) {
                 direct_url: `${baseUrl}/i/${id}.jpg`,
                 timestamp: record.created_at,
                 expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null,
-                upload_mode: gramReady ? 'mtproto_v2' : 'botapi_v1',
+                upload_mode: usedGram ? 'mtproto_v2' : 'botapi_v1',
             }
         });
 
     } catch (error: any) {
         console.error('Upload API Error:', error);
-        await sendLog(`❌ <b>Web Upload Error</b>\n\nError: ${error.message || error}`);
+        await safeSendLog(`❌ <b>Web Upload Error</b>\n\nError: ${error.message || error}`);
         return NextResponse.json({
             success: false,
             error: { code: 'INTERNAL_ERROR', message: error.message || 'Server processed request failed' }
