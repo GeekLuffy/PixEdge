@@ -349,8 +349,8 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         // 1. Forward to DB Channel with caption
         try {
             const channelResult = await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
-            if (channelResult && 'message_id' in channelResult) {
-                messageId = channelResult.message_id;
+            if (channelResult && 'message_id' in (channelResult as any)) {
+                messageId = (channelResult as any).message_id;
             }
         } catch (channelError: any) {
             console.error('Channel forward error:', channelError);
