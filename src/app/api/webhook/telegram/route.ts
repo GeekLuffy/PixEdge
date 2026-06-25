@@ -321,10 +321,19 @@ export async function POST(req: NextRequest) {
 
 async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, telegramUserId: number | string, mediaType: 'photo' | 'animation' | 'video' | 'document') {
     try {
-        // Enforce 20MB limit (Telegram getFile API limit)
-        const MAX_SIZE = 20 * 1024 * 1024;
+        const { isGramConfigured } = await import('@/lib/gramjs');
+        const gramReady = isGramConfigured();
+
+        // If MTProto is configured, we can stream via gramjs up to 2GB (or MAX_UPLOAD_SIZE_MB)
+        // If not configured, we must restrict to 20MB because getFile API will fail to download.
+        const configuredMaxMB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10);
+        const maxMB = gramReady
+            ? (Number.isFinite(configuredMaxMB) && configuredMaxMB > 0 ? configuredMaxMB : 2000)
+            : 20;
+        const MAX_SIZE = maxMB * 1024 * 1024;
+
         if (fileSize > MAX_SIZE) {
-            await sendMessage(chatId, "❌ File too large. Max size is 20MB.");
+            await sendMessage(chatId, `❌ File too large. Max size is ${maxMB}MB.`);
             return;
         }
 
@@ -335,9 +344,14 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         const linkedWebAccount = await getLinkedWebAccount(telegramUserId);
         const trackingUserId = linkedWebAccount || telegramUserId.toString();
 
+        let messageId: number | undefined = undefined;
+
         // 1. Forward to DB Channel with caption
         try {
-            await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
+            const channelResult = await sendMediaToChannel(fileId, `👤 <b>Uploaded by:</b> ${userLink}`, mediaType);
+            if (channelResult && 'message_id' in channelResult) {
+                messageId = channelResult.message_id;
+            }
         } catch (channelError: any) {
             console.error('Channel forward error:', channelError);
             await sendLog(`⚠️ <b>Channel Forward Failed</b>\n\nUser: ${userLink}\nError: ${channelError.message || channelError}`);
@@ -348,10 +362,12 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
         await saveImage({
             id,
             telegram_file_id: fileId,
+            message_id: messageId,
             created_at: Date.now(),
             metadata: {
                 size: fileSize,
-                type: mimeType
+                type: mimeType,
+                version: messageId && gramReady ? 'v2' : 'v1'
             }
         }, 'bot', trackingUserId);
 
