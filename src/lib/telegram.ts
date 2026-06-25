@@ -99,6 +99,36 @@ export interface TelegramUpdate {
   };
 }
 
+// Bot API hard limits:
+//   sendPhoto     → ~10 MB (Telegram rejects larger photos silently or with error)
+//   sendVideo     → 50 MB
+//   sendAnimation → 50 MB
+//   sendDocument  → 50 MB (safe fallback for any file type)
+const BOT_PHOTO_MAX = 10 * 1024 * 1024; // 10 MB
+
+async function sendViaBotApi(
+  token: string,
+  chatId: string,
+  method: string,
+  fieldName: string,
+  file: Blob,
+  fileName: string,
+  caption?: string
+): Promise<any> {
+  const formData = new FormData();
+  formData.append('chat_id', chatId);
+  formData.append(fieldName, file, fileName);
+  if (caption) {
+    formData.append('caption', caption);
+    formData.append('parse_mode', 'HTML');
+  }
+  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST',
+    body: formData,
+  });
+  return response.json();
+}
+
 export async function uploadToTelegram(file: Blob, fileName: string, caption?: string, mediaType: 'photo' | 'animation' | 'video' = 'photo'): Promise<TelegramFileResult> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
@@ -107,60 +137,62 @@ export async function uploadToTelegram(file: Blob, fileName: string, caption?: s
     throw new Error('Telegram credentials not configured');
   }
 
-  const formData = new FormData();
-  formData.append('chat_id', chatId);
+  // For photos larger than 10 MB, skip sendPhoto and go straight to sendDocument
+  // to avoid Telegram silently failing or returning an error.
+  const useDocumentDirectly = mediaType === 'photo' && file.size > BOT_PHOTO_MAX;
 
-  let method = 'sendPhoto';
-  let fieldName = 'photo';
-  if (mediaType === 'animation') {
-    method = 'sendAnimation';
-    fieldName = 'animation';
-  } else if (mediaType === 'video') {
-    method = 'sendVideo';
-    fieldName = 'video';
+  let data: any;
+  let usedDocument = useDocumentDirectly;
+
+  if (!useDocumentDirectly) {
+    // Try the natural media method first (sendPhoto / sendVideo / sendAnimation)
+    const methodMap: Record<string, { method: string; field: string }> = {
+      photo:     { method: 'sendPhoto',     field: 'photo' },
+      animation: { method: 'sendAnimation', field: 'animation' },
+      video:     { method: 'sendVideo',     field: 'video' },
+    };
+    const { method, field } = methodMap[mediaType];
+    data = await sendViaBotApi(token, chatId, method, field, file, fileName, caption);
+
+    // If Telegram rejects it (e.g. file too large for the media type), fall back to document
+    if (!data.ok) {
+      console.warn(`[telegram] ${method} failed (${data.description}), retrying as sendDocument`);
+      usedDocument = true;
+    }
   }
 
-  formData.append(fieldName, file, fileName);
-  if (caption) {
-    formData.append('caption', caption);
-    formData.append('parse_mode', 'HTML');
+  if (usedDocument) {
+    data = await sendViaBotApi(token, chatId, 'sendDocument', 'document', file, fileName, caption);
   }
-
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  const data = await response.json();
 
   if (!data.ok) {
     throw new Error(`Telegram API error: ${data.description}`);
   }
 
+  // Extract file_id from whichever field Telegram returned
+  const result = data.result;
   let fileId = '';
   let fileUniqueId = '';
 
-  if (mediaType === 'animation') {
-    // For animations, it's a single object in 'animation' or 'document' field
-    const fileInfo = data.result.animation || data.result.document;
-    fileId = fileInfo.file_id;
-    fileUniqueId = fileInfo.file_unique_id;
-  } else if (mediaType === 'video') {
-    const fileInfo = data.result.video || data.result.document;
-    fileId = fileInfo.file_id;
-    fileUniqueId = fileInfo.file_unique_id;
+  if (usedDocument || result.document) {
+    fileId = result.document.file_id;
+    fileUniqueId = result.document.file_unique_id;
+  } else if (result.animation) {
+    fileId = result.animation.file_id;
+    fileUniqueId = result.animation.file_unique_id;
+  } else if (result.video) {
+    fileId = result.video.file_id;
+    fileUniqueId = result.video.file_unique_id;
+  } else if (result.photo) {
+    // Photos are returned as an array of sizes — pick the largest
+    const largest = result.photo[result.photo.length - 1];
+    fileId = largest.file_id;
+    fileUniqueId = largest.file_unique_id;
   } else {
-    // For photos, it's an array of sizes
-    const photos = data.result.photo;
-    const largestPhoto = photos[photos.length - 1];
-    fileId = largestPhoto.file_id;
-    fileUniqueId = largestPhoto.file_unique_id;
+    throw new Error('Telegram response did not contain a recognisable file field');
   }
 
-  return {
-    file_id: fileId,
-    file_unique_id: fileUniqueId,
-  };
+  return { file_id: fileId, file_unique_id: fileUniqueId };
 }
 
 export async function getTelegramFileUrl(fileId: string): Promise<string> {
