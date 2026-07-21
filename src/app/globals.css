@@ -40,6 +40,17 @@
   --card-shadow: rgba(0, 0, 0, 0.05);
 }
 
+select option {
+  background-color: #121215;
+  color: #f4f4f5;
+  padding: 10px;
+}
+
+[data-theme='light'] select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

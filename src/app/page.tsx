@@ -619,11 +619,11 @@ export default function Home() {
                                 fontFamily: "inherit",
                             }}
                         >
-                            <option value="">Link Expiry: Never (Default)</option>
-                            <option value="3600">Expires in 1 Hour</option>
-                            <option value="86400">Expires in 24 Hours</option>
-                            <option value="604800">Expires in 7 Days</option>
-                            <option value="2592000">Expires in 30 Days</option>
+                            <option value="" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Link Expiry: Never (Default)</option>
+                            <option value="3600" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 1 Hour</option>
+                            <option value="86400" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 24 Hours</option>
+                            <option value="604800" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 7 Days</option>
+                            <option value="2592000" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 30 Days</option>
                         </select>
                     </div>
 
