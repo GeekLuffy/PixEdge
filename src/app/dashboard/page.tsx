@@ -33,6 +33,12 @@ import {
     Download,
     Video,
     Check,
+    Folder,
+    FolderPlus,
+    Tag,
+    Filter,
+    Search,
+    X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -555,6 +561,14 @@ export default function DashboardPage() {
     const [deleting, setDeleting] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
+    // Keep track of active folder filter, search query, and modal popup state
+    const [selectedFolder, setSelectedFolder] = useState<string>("all");
+    const [searchFilter, setSearchFilter] = useState<string>("");
+    const [organizingItem, setOrganizingItem] = useState<any | null>(null);
+    const [folderInput, setFolderInput] = useState<string>("");
+    const [tagsInput, setTagsInput] = useState<string>("");
+    const [savingOrg, setSavingOrg] = useState<boolean>(false);
+
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     // Simple copy link
@@ -563,6 +577,71 @@ export default function DashboardPage() {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
     };
+
+    // Save folder category and tags for a specific upload
+    const handleSaveOrganization = async () => {
+        if (!organizingItem) return;
+        setSavingOrg(true);
+        try {
+            const parsedTags = tagsInput
+                .split(',')
+                .map(t => t.trim())
+                .filter(Boolean);
+
+            const res = await fetch('/api/user/organize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: organizingItem.id,
+                    folder: folderInput.trim(),
+                    tags: parsedTags,
+                }),
+            });
+
+            if (res.ok) {
+                // Instantly update the dashboard list so the UI stays snappy
+                setUploads(prev => prev.map(item => {
+                    if (item.id === organizingItem.id) {
+                        return {
+                            ...item,
+                            folder: folderInput.trim() || undefined,
+                            tags: parsedTags,
+                        };
+                    }
+                    return item;
+                }));
+                setOrganizingItem(null);
+                setSuccess("Saved folder & tags!");
+                setTimeout(() => setSuccess(""), 3000);
+            }
+        } catch (e) {
+            console.error("Oops, couldn't save folder and tags:", e);
+        }
+        setSavingOrg(false);
+    };
+
+    // Extract unique folders created across all user uploads
+    const uniqueFolders = Array.from(
+        new Set(uploads.map(u => u.folder).filter(Boolean))
+    ) as string[];
+
+    // Filter uploads dynamically based on selected folder and search term
+    const filteredUploads = uploads.filter(u => {
+        if (selectedFolder !== "all") {
+            if (selectedFolder === "__none__" && u.folder) return false;
+            if (selectedFolder !== "__none__" && u.folder !== selectedFolder) return false;
+        }
+
+        if (searchFilter.trim()) {
+            const q = searchFilter.toLowerCase().trim();
+            const matchId = u.id.toLowerCase().includes(q);
+            const matchFolder = u.folder?.toLowerCase().includes(q);
+            const matchTags = Array.isArray(u.tags) && u.tags.some((t: string) => t.toLowerCase().includes(q));
+            if (!matchId && !matchFolder && !matchTags) return false;
+        }
+
+        return true;
+    });
 
     // Delete upload
     const handleDelete = async (id: string) => {
@@ -898,16 +977,95 @@ export default function DashboardPage() {
                                 <div className="dashboard-section-icon" style={styles.sectionIcon}>
                                     <ImageIcon size={18} />
                                 </div>
-                                <h2 className="dashboard-section-title" style={styles.sectionTitle}>My Uploads ({uploads.length})</h2>
+                                <h2 className="dashboard-section-title" style={styles.sectionTitle}>
+                                    My Uploads ({filteredUploads.length}{filteredUploads.length !== uploads.length ? ` of ${uploads.length}` : ''})
+                                </h2>
                             </div>
+
+                            {/* Search and Folder filter controls */}
+                            {uploads.length > 0 && (
+                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center' }}>
+                                    <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                                        <Search size={14} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search by ID, folder, or tag..."
+                                            value={searchFilter}
+                                            onChange={(e) => setSearchFilter(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                background: 'var(--panel-bg)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '14px',
+                                                padding: '9px 36px 9px 36px',
+                                                color: 'var(--text-main)',
+                                                fontSize: '0.85rem',
+                                                outline: 'none',
+                                                fontFamily: 'inherit',
+                                            }}
+                                        />
+                                        {searchFilter && (
+                                            <X
+                                                size={14}
+                                                onClick={() => setSearchFilter('')}
+                                                style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                            />
+                                        )}
+                                    </div>
+
+                                    {/* Folder Pills */}
+                                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%' }}>
+                                        <button
+                                            onClick={() => setSelectedFolder('all')}
+                                            style={{
+                                                padding: '7px 14px',
+                                                borderRadius: '12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 500,
+                                                cursor: 'pointer',
+                                                border: `1px solid ${selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
+                                                background: selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
+                                                color: selectedFolder === 'all' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                fontFamily: 'inherit',
+                                                whiteSpace: 'nowrap',
+                                            }}
+                                        >
+                                            All ({uploads.length})
+                                        </button>
+                                        {uniqueFolders.map(folderName => (
+                                            <button
+                                                key={folderName}
+                                                onClick={() => setSelectedFolder(folderName)}
+                                                style={{
+                                                    padding: '7px 14px',
+                                                    borderRadius: '12px',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 500,
+                                                    cursor: 'pointer',
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '5px',
+                                                    border: `1px solid ${selectedFolder === folderName ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
+                                                    background: selectedFolder === folderName ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
+                                                    color: selectedFolder === folderName ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                    fontFamily: 'inherit',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                            >
+                                                <Folder size={12} /> {folderName} ({uploads.filter(u => u.folder === folderName).length})
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {loadingUploads ? (
                                 <div style={styles.loadingContainer}>
                                     <Loader2 size={32} className="animate-spin" style={{ color: "var(--accent-primary)" }} />
                                 </div>
-                            ) : uploads.length > 0 ? (
+                            ) : filteredUploads.length > 0 ? (
                                 <div className="dashboard-uploads" style={styles.uploadsGrid}>
-                                    {uploads.map((upload, idx) => {
+                                    {filteredUploads.map((upload, idx) => {
                                         const isVideo = upload.metadata?.type?.startsWith('video/');
                                         return (
                                         <motion.div
@@ -968,6 +1126,42 @@ export default function DashboardPage() {
                                                     <Link2 size={12} style={{ color: "var(--accent-primary)" }} />
                                                     /{upload.id}
                                                 </div>
+
+                                                {/* Folder & Tag Pills */}
+                                                {(upload.folder || (Array.isArray(upload.tags) && upload.tags.length > 0)) && (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '4px 0 8px' }}>
+                                                        {upload.folder && (
+                                                            <span style={{
+                                                                background: 'rgba(139, 92, 246, 0.15)',
+                                                                border: '1px solid rgba(139, 92, 246, 0.25)',
+                                                                color: '#c4b5fd',
+                                                                fontSize: '0.68rem',
+                                                                padding: '2px 7px',
+                                                                borderRadius: '6px',
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                gap: '3px',
+                                                                fontWeight: 500,
+                                                            }}>
+                                                                <Folder size={10} /> {upload.folder}
+                                                            </span>
+                                                        )}
+                                                        {Array.isArray(upload.tags) && upload.tags.map((t: string) => (
+                                                            <span key={t} style={{
+                                                                background: 'rgba(255, 255, 255, 0.06)',
+                                                                border: '1px solid var(--border-color)',
+                                                                color: 'var(--text-muted)',
+                                                                fontSize: '0.68rem',
+                                                                padding: '2px 7px',
+                                                                borderRadius: '6px',
+                                                                fontWeight: 500,
+                                                            }}>
+                                                                #{t}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <div style={styles.uploadMeta}>
                                                     <span style={styles.uploadDate}>{new Date(upload.created_at).toLocaleDateString()}</span>
                                                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -1004,6 +1198,29 @@ export default function DashboardPage() {
                                                         }}
                                                     >
                                                         {copiedId === upload.id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOrganizingItem(upload);
+                                                            setFolderInput(upload.folder || '');
+                                                            setTagsInput(Array.isArray(upload.tags) ? upload.tags.join(', ') : '');
+                                                        }}
+                                                        title="Organize Folder & Tags"
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            background: 'rgba(139, 92, 246, 0.1)',
+                                                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--accent-primary)',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <FolderPlus size={12} />
                                                     </button>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setDeleteConfirm(upload.id); }}
@@ -1272,6 +1489,167 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                         </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Organize Modal Popover */}
+                <AnimatePresence>
+                    {organizingItem && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.75)',
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 999,
+                                padding: '1rem',
+                            }}
+                            onClick={() => setOrganizingItem(null)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '24px',
+                                    padding: '1.75rem',
+                                    width: '100%',
+                                    maxWidth: '440px',
+                                    boxShadow: '0 25px 50px rgba(0,0,0,0.6)',
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                                        <FolderPlus size={18} style={{ color: 'var(--accent-primary)' }} />
+                                        Organize File (/{organizingItem.id})
+                                    </h3>
+                                    <button
+                                        onClick={() => setOrganizingItem(null)}
+                                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                {/* Folder Name Field */}
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Folder Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Work, Screenshots, Vacation"
+                                        value={folderInput}
+                                        onChange={(e) => setFolderInput(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '10px 14px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                    {uniqueFolders.length > 0 && (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '2px' }}>Pick existing:</span>
+                                            {uniqueFolders.map(f => (
+                                                <button
+                                                    key={f}
+                                                    type="button"
+                                                    onClick={() => setFolderInput(f)}
+                                                    style={{
+                                                        background: folderInput === f ? 'rgba(139, 92, 246, 0.25)' : 'rgba(255,255,255,0.06)',
+                                                        border: `1px solid ${folderInput === f ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
+                                                        color: folderInput === f ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                        fontSize: '0.72rem',
+                                                        padding: '3px 9px',
+                                                        borderRadius: '8px',
+                                                        cursor: 'pointer',
+                                                        fontFamily: 'inherit',
+                                                    }}
+                                                >
+                                                    {f}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Tags Field */}
+                                <div style={{ marginBottom: '1.75rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Tags (comma-separated)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. wallpaper, design, urgent"
+                                        value={tagsInput}
+                                        onChange={(e) => setTagsInput(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '10px 14px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => setOrganizingItem(null)}
+                                        style={{
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            color: 'var(--text-muted)',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSaveOrganization}
+                                        disabled={savingOrg}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                            border: 'none',
+                                            color: '#fff',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        {savingOrg ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Changes
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
                     )}
                 </AnimatePresence>
             </div>

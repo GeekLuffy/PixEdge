@@ -24,6 +24,10 @@ export interface ImageRecord {
     expires_at?: number;
     views: number;
     downloads: number;
+    // User-created folder name for dashboard organization
+    folder?: string;
+    // List of custom tags added by the user
+    tags?: string[];
     metadata: {
         size: number;
         type: string;
@@ -110,6 +114,17 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
     return results
         .map((data: any, index) => {
             if (!data || Object.keys(data).length === 0) return null;
+            
+            // Parse tags safely whether stored as string or array
+            let parsedTags: string[] = [];
+            if (data.tags) {
+                try {
+                    parsedTags = typeof data.tags === 'string' ? JSON.parse(data.tags) : data.tags;
+                } catch {
+                    parsedTags = [];
+                }
+            }
+
             return {
                 ...data,
                 id: ids[index],
@@ -117,10 +132,52 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
                 views: parseInt(data.views || '0'),
                 downloads: parseInt(data.downloads || '0'),
                 created_at: parseInt(data.created_at),
+                folder: data.folder || undefined,
+                tags: Array.isArray(parsedTags) ? parsedTags : [],
                 metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
             } as ImageRecord;
         })
         .filter((item): item is ImageRecord => item !== null);
+}
+
+// Save or update folder category & custom tags for an upload
+export async function updateImageOrganization(
+    id: string,
+    userId: string,
+    folder?: string,
+    tags?: string[]
+): Promise<boolean> {
+    const cleanFolder = folder ? folder.trim() : '';
+    const cleanTags = Array.isArray(tags)
+        ? tags.map(t => t.trim().toLowerCase()).filter(Boolean)
+        : [];
+
+    if (useCloud() && redis) {
+        // Confirm the current user owns this upload before editing
+        const data: any = await redis.hgetall(`snap:${id}`);
+        if (!data || data.user_id !== userId) return false;
+
+        await redis.hset(`snap:${id}`, {
+            folder: cleanFolder,
+            tags: JSON.stringify(cleanTags),
+        });
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const image = db.images.find((img: any) => img.id === id && img.user_id === userId);
+        if (!image) return false;
+
+        image.folder = cleanFolder || undefined;
+        image.tags = cleanTags;
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 export async function getStats() {
@@ -174,6 +231,15 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             }
         }
 
+        let parsedTags: string[] = [];
+        if (data.tags) {
+            try {
+                parsedTags = typeof data.tags === 'string' ? JSON.parse(data.tags) : data.tags;
+            } catch {
+                parsedTags = [];
+            }
+        }
+
         return {
             ...data,
             id,
@@ -183,6 +249,8 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             downloads: parseInt(data.downloads || '0'),
             created_at: parseInt(data.created_at),
             expires_at: data.expires_at ? parseInt(data.expires_at) || undefined : undefined,
+            folder: data.folder || undefined,
+            tags: Array.isArray(parsedTags) ? parsedTags : [],
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
         } as ImageRecord;
     }
