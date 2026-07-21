@@ -835,6 +835,7 @@ export default function DashboardPage() {
     const tabs = [
         { id: "overview", label: "Overview", icon: BarChart3 },
         { id: "uploads", label: "My Uploads", icon: ImageIcon },
+        { id: "folders", label: "Folders", icon: Folder },
         { id: "api", label: "API Keys", icon: Key },
         { id: "settings", label: "Settings", icon: Settings },
     ];
@@ -1081,7 +1082,16 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Folder Pills & Create Folder Button */}
-                                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%', alignItems: 'center' }}>
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '8px',
+                                    overflowX: 'auto',
+                                    paddingBottom: '6px',
+                                    maxWidth: '100%',
+                                    alignItems: 'center',
+                                    scrollbarWidth: 'thin',
+                                    WebkitOverflowScrolling: 'touch',
+                                }}>
                                     <button
                                         onClick={() => setSelectedFolder('all')}
                                         style={{
@@ -1095,6 +1105,7 @@ export default function DashboardPage() {
                                             color: selectedFolder === 'all' ? 'var(--accent-primary)' : 'var(--text-muted)',
                                             fontFamily: 'inherit',
                                             whiteSpace: 'nowrap',
+                                            flexShrink: 0,
                                         }}
                                     >
                                         All ({uploads.length})
@@ -1102,6 +1113,7 @@ export default function DashboardPage() {
 
                                     {allUserFolders.map(folderName => {
                                         const count = uploads.filter(u => u.folder === folderName).length;
+                                        const isSelected = selectedFolder === folderName;
                                         return (
                                             <div
                                                 key={folderName}
@@ -1109,13 +1121,13 @@ export default function DashboardPage() {
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
                                                     borderRadius: '12px',
-                                                    border: `1px solid ${selectedFolder === folderName ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
-                                                    background: selectedFolder === folderName ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
-                                                    color: selectedFolder === folderName ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                    border: `1px solid ${isSelected ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
+                                                    background: isSelected ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
+                                                    color: isSelected ? 'var(--accent-primary)' : 'var(--text-muted)',
                                                     fontSize: '0.8rem',
                                                     fontWeight: 500,
                                                     whiteSpace: 'nowrap',
-                                                    overflow: 'hidden',
+                                                    flexShrink: 0,
                                                 }}
                                             >
                                                 <button
@@ -1130,11 +1142,12 @@ export default function DashboardPage() {
                                                         cursor: 'pointer',
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
-                                                        gap: '5px',
+                                                        gap: '6px',
                                                         fontFamily: 'inherit',
+                                                        whiteSpace: 'nowrap',
                                                     }}
                                                 >
-                                                    <Folder size={12} /> {folderName} ({count})
+                                                    <Folder size={13} /> {folderName} ({count})
                                                 </button>
                                                 <button
                                                     onClick={(e) => handleDeleteFolder(folderName, e)}
@@ -1147,9 +1160,12 @@ export default function DashboardPage() {
                                                         cursor: 'pointer',
                                                         display: 'inline-flex',
                                                         alignItems: 'center',
+                                                        transition: 'color 0.2s',
                                                     }}
+                                                    onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
+                                                    onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
                                                 >
-                                                    <X size={12} />
+                                                    <X size={13} />
                                                 </button>
                                             </div>
                                         );
@@ -1171,7 +1187,8 @@ export default function DashboardPage() {
                                             whiteSpace: 'nowrap',
                                             display: 'inline-flex',
                                             alignItems: 'center',
-                                            gap: '5px',
+                                            gap: '6px',
+                                            flexShrink: 0,
                                         }}
                                     >
                                         <FolderPlus size={13} /> + New Folder
@@ -1434,6 +1451,157 @@ export default function DashboardPage() {
                                             Upload Now
                                         </motion.button>
                                     </Link>
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* FOLDERS TAB */}
+                    {activeTab === "folders" && (
+                        <motion.div
+                            key="folders"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                        >
+                            <div className="dashboard-section-header" style={{ ...styles.sectionHeader, justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div className="dashboard-section-icon" style={styles.sectionIcon}>
+                                        <Folder size={18} />
+                                    </div>
+                                    <h2 className="dashboard-section-title" style={styles.sectionTitle}>
+                                        My Folders ({allUserFolders.length})
+                                    </h2>
+                                </div>
+
+                                <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => setShowCreateFolderModal(true)}
+                                    style={{
+                                        background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                        border: 'none',
+                                        color: '#fff',
+                                        padding: '8px 16px',
+                                        borderRadius: '12px',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        fontFamily: 'inherit',
+                                    }}
+                                >
+                                    <FolderPlus size={16} />
+                                    + New Folder
+                                </motion.button>
+                            </div>
+
+                            {allUserFolders.length > 0 ? (
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+                                    gap: '1rem',
+                                    marginTop: '1.25rem'
+                                }}>
+                                    {allUserFolders.map((folderName) => {
+                                        const count = uploads.filter(u => u.folder === folderName).length;
+                                        return (
+                                            <motion.div
+                                                key={folderName}
+                                                whileHover={{ y: -3, borderColor: 'rgba(139, 92, 246, 0.4)' }}
+                                                style={{
+                                                    background: 'var(--panel-bg)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '18px',
+                                                    padding: '1.25rem',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'space-between',
+                                                    transition: 'all 0.2s',
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                                                        <div style={{
+                                                            width: '40px',
+                                                            height: '40px',
+                                                            borderRadius: '12px',
+                                                            background: 'rgba(139, 92, 246, 0.15)',
+                                                            color: 'var(--accent-primary)',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}>
+                                                            <Folder size={22} />
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => handleDeleteFolder(folderName, e)}
+                                                            title={`Delete folder "${folderName}"`}
+                                                            style={{
+                                                                background: 'transparent',
+                                                                border: 'none',
+                                                                color: 'var(--text-muted)',
+                                                                cursor: 'pointer',
+                                                                padding: '4px',
+                                                            }}
+                                                            onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
+                                                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
+
+                                                    <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
+                                                        {folderName}
+                                                    </h3>
+                                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                                                        {count} {count === 1 ? 'upload' : 'uploads'}
+                                                    </p>
+                                                </div>
+
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedFolder(folderName);
+                                                        setActiveTab('uploads');
+                                                    }}
+                                                    style={{
+                                                        marginTop: '1.25rem',
+                                                        width: '100%',
+                                                        padding: '8px',
+                                                        background: 'rgba(139, 92, 246, 0.1)',
+                                                        border: '1px solid rgba(139, 92, 246, 0.2)',
+                                                        borderRadius: '10px',
+                                                        color: 'var(--accent-primary)',
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 500,
+                                                        cursor: 'pointer',
+                                                        fontFamily: 'inherit',
+                                                    }}
+                                                >
+                                                    View Files →
+                                                </button>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={styles.emptyState}>
+                                    <div style={styles.emptyIcon}>
+                                        <FolderPlus size={36} />
+                                    </div>
+                                    <h3 style={styles.emptyTitle}>No folders created yet</h3>
+                                    <p style={styles.emptyText}>Organize your uploads into custom folders to keep everything neat</p>
+                                    <motion.button
+                                        whileHover={{ scale: 1.02 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => setShowCreateFolderModal(true)}
+                                        style={styles.uploadButton}
+                                    >
+                                        <FolderPlus size={18} />
+                                        Create First Folder
+                                    </motion.button>
                                 </div>
                             )}
                         </motion.div>
