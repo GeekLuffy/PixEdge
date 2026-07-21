@@ -6,6 +6,68 @@ import { isGramConfigured, streamFileViaGram } from '@/lib/gramjs';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // allow long streaming for large files
 
+function parseRangeHeader(rangeHeader: string | null, fileSize: number): { start: number; end: number } | null {
+    if (!rangeHeader || !rangeHeader.startsWith('bytes=')) return null;
+    const parts = rangeHeader.replace('bytes=', '').split('-');
+    const startStr = parts[0].trim();
+    const endStr = parts[1].trim();
+
+    let start: number;
+    let end: number;
+
+    if (startStr === '' && endStr !== '') {
+        const suffixLength = parseInt(endStr, 10);
+        if (isNaN(suffixLength) || suffixLength <= 0) return null;
+        start = Math.max(0, fileSize - suffixLength);
+        end = fileSize - 1;
+    } else if (startStr !== '' && endStr === '') {
+        start = parseInt(startStr, 10);
+        end = fileSize - 1;
+    } else {
+        start = parseInt(startStr, 10);
+        end = parseInt(endStr, 10);
+    }
+
+    if (isNaN(start) || isNaN(end) || start < 0 || start > end || (fileSize > 0 && start >= fileSize)) {
+        return null;
+    }
+
+    if (fileSize > 0) {
+        end = Math.min(end, fileSize - 1);
+    }
+
+    return { start, end };
+}
+
+export async function HEAD(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id: rawId } = await params;
+    const hasExtension = rawId.includes('.');
+    const id = hasExtension ? rawId.split('.')[0] : rawId;
+
+    try {
+        const record = await getImage(id);
+        if (!record) return new NextResponse(null, { status: 404 });
+
+        const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
+        const contentType = record.metadata?.type || (ext === '.mp4' ? 'video/mp4' : 'image/jpeg');
+        const fileSize = record.metadata?.size || 0;
+
+        const headers = new Headers({
+            'Content-Type': contentType,
+            'Accept-Ranges': 'bytes',
+            'Cache-Control': 'public, max-age=31536000, immutable',
+        });
+        if (fileSize) headers.set('Content-Length', fileSize.toString());
+
+        return new NextResponse(null, { status: 200, headers });
+    } catch {
+        return new NextResponse(null, { status: 500 });
+    }
+}
+
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -28,28 +90,43 @@ export async function GET(
         const accept = req.headers.get('accept') || '';
         const serveRaw = hasExtension || (!accept.includes('text/html') && !isTelegramBot);
 
-        // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming) ──────
+        const rangeHeader = req.headers.get('range');
+
+        // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
         if (record.message_id && isGramConfigured()) {
             if (serveRaw) {
                 if (hasExtension) await incrementDownloads(id);
 
                 try {
-                    const { stream, contentType, fileSize, fileName } =
-                        await streamFileViaGram(record.message_id);
+                    const fileSizeHint = record.metadata?.size || 0;
+                    const parsedRange = fileSizeHint ? parseRangeHeader(rangeHeader, fileSizeHint) : null;
 
+                    const gramInfo = await streamFileViaGram(
+                        record.message_id,
+                        parsedRange || undefined
+                    );
+
+                    const { stream, contentType, fileSize, fileName, isPartial, start, end, contentLength } = gramInfo;
+
+                    const status = isPartial ? 206 : 200;
                     const headers = new Headers({
                         'Content-Type': contentType,
+                        'Accept-Ranges': 'bytes',
                         'Cache-Control': 'public, max-age=31536000, immutable',
                     });
-                    if (fileSize) headers.set('Content-Length', fileSize.toString());
-                    if (fileName) {
-                        headers.set(
-                            'Content-Disposition',
-                            `inline; filename="${fileName}"`
-                        );
+
+                    if (isPartial && start !== undefined && end !== undefined) {
+                        headers.set('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+                        headers.set('Content-Length', (contentLength ?? (end - start + 1)).toString());
+                    } else {
+                        if (fileSize) headers.set('Content-Length', fileSize.toString());
                     }
 
-                    return new Response(stream, { headers });
+                    if (fileName) {
+                        headers.set('Content-Disposition', `inline; filename="${fileName}"`);
+                    }
+
+                    return new Response(stream, { status, headers });
                 } catch (gramErr) {
                     console.error('[gramjs] stream error, falling back to Bot API:', gramErr);
                     // fall through to Bot API below
@@ -57,17 +134,30 @@ export async function GET(
             }
         }
 
-        // ── v1 path: Bot API redirect / proxy (original behaviour) ───────────
+        // ── v1 path: Bot API redirect / proxy (original behaviour with Range support) ───────────
         const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
 
         const proxyImage = async (isDownload: boolean = false) => {
             if (isDownload) await incrementDownloads(id);
-            const response = await fetch(fileUrl);
+
+            const fetchHeaders: Record<string, string> = {};
+            if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
+
+            const response = await fetch(fileUrl, { headers: fetchHeaders });
             const blob = await response.blob();
             const headers = new Headers();
             headers.set('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
+            headers.set('Accept-Ranges', 'bytes');
             headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-            return new NextResponse(blob, { headers });
+
+            if (response.headers.get('Content-Range')) {
+                headers.set('Content-Range', response.headers.get('Content-Range')!);
+            }
+            if (response.headers.get('Content-Length')) {
+                headers.set('Content-Length', response.headers.get('Content-Length')!);
+            }
+
+            return new NextResponse(blob, { status: response.status, headers });
         };
 
         if (serveRaw) {

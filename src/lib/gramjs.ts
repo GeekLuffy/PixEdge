@@ -203,6 +203,14 @@ export interface GramFileInfo {
     fileSize: number;
     /** Original filename, if available. */
     fileName?: string;
+    /** Is this a partial byte range response (206)? */
+    isPartial?: boolean;
+    /** Start byte (inclusive) if range was requested. */
+    start?: number;
+    /** End byte (inclusive) if range was requested. */
+    end?: number;
+    /** Length of the byte stream served. */
+    contentLength?: number;
     /**
      * True-streaming ReadableStream.
      * For documents this uses iterDownload so only 1 MB is in RAM at a time.
@@ -215,10 +223,15 @@ export interface GramFileInfo {
  * Fetches a file stored by uploadFileViaGram and returns a streaming response.
  * Documents are streamed in 1 MB chunks — RAM usage stays flat regardless of
  * file size, making it safe to serve multi-GB files.
+ * Supports HTTP Range requests for video seeking/scrubbing.
  *
  * @param messageId  The message_id value stored in Redis.
+ * @param range      Optional start and end byte offsets.
  */
-export async function streamFileViaGram(messageId: number): Promise<GramFileInfo> {
+export async function streamFileViaGram(
+    messageId: number,
+    range?: { start: number; end: number }
+): Promise<GramFileInfo> {
     const client = await getGramClient();
     const channel = await getChannel(client);
 
@@ -247,6 +260,19 @@ export async function streamFileViaGram(messageId: number): Promise<GramFileInfo
             }
         }
 
+        // Handle Byte Range parameters
+        let start = 0;
+        let end = fileSize - 1;
+        let isPartial = false;
+
+        if (range && fileSize > 0) {
+            start = Math.max(0, Math.min(range.start, fileSize - 1));
+            end = Math.max(start, Math.min(range.end, fileSize - 1));
+            isPartial = true;
+        }
+
+        const contentLength = end - start + 1;
+
         // Build the InputFileLocation required by iterDownload
         const fileLocation = new Api.InputDocumentFileLocation({
             id: doc.id,
@@ -255,37 +281,87 @@ export async function streamFileViaGram(messageId: number): Promise<GramFileInfo
             thumbSize: '',
         });
 
+        // 4 KB alignment calculation for Telegram MTProto
+        const alignedStart = Math.floor(start / 4096) * 4096;
+        let skipFirst = start - alignedStart;
+        let remainingToSend = contentLength;
+
         // True streaming — 1 MB per Telegram API round-trip, flat RAM usage
         const stream = new ReadableStream<Uint8Array>({
             async start(controller) {
                 try {
-                    for await (const chunk of (client as any).iterDownload({
+                    for await (const chunkRaw of (client as any).iterDownload({
                         file: fileLocation,
+                        offset: BigInt(alignedStart),
                         requestSize: 1024 * 1024, // 1 MB chunks
                         dcId: doc.dcId,
                     })) {
-                        controller.enqueue(new Uint8Array(chunk as Buffer));
+                        let chunk = Buffer.from(chunkRaw as Buffer);
+
+                        if (skipFirst > 0) {
+                            if (chunk.length <= skipFirst) {
+                                skipFirst -= chunk.length;
+                                continue;
+                            }
+                            chunk = chunk.subarray(skipFirst);
+                            skipFirst = 0;
+                        }
+
+                        if (chunk.length >= remainingToSend) {
+                            controller.enqueue(new Uint8Array(chunk.subarray(0, remainingToSend)));
+                            remainingToSend = 0;
+                            controller.close();
+                            break;
+                        } else {
+                            controller.enqueue(new Uint8Array(chunk));
+                            remainingToSend -= chunk.length;
+                        }
                     }
-                    controller.close();
+
+                    if (remainingToSend > 0) {
+                        controller.close();
+                    }
                 } catch (err) {
                     controller.error(err);
                 }
             },
         });
 
-        return { contentType, fileSize, fileName, stream };
+        return {
+            contentType,
+            fileSize,
+            fileName,
+            isPartial,
+            start,
+            end,
+            contentLength,
+            stream
+        };
     }
 
     // ── Photo path (legacy v1 uploads sent without forceDocument) ──
     if (message.media instanceof Api.MessageMediaPhoto) {
         const buffer = (await client.downloadMedia(message, {})) as Buffer;
+        const fileSize = buffer.length;
+
+        let start = 0;
+        let end = fileSize - 1;
+        let isPartial = false;
+
+        if (range && fileSize > 0) {
+            start = Math.max(0, Math.min(range.start, fileSize - 1));
+            end = Math.max(start, Math.min(range.end, fileSize - 1));
+            isPartial = true;
+        }
+
+        const contentLength = end - start + 1;
+        const slicedBuffer = buffer.subarray(start, end + 1);
 
         const stream = new ReadableStream<Uint8Array>({
             start(controller) {
-                // Split into 64 KB chunks so we don't block the event loop
                 const CHUNK = 64 * 1024;
-                for (let offset = 0; offset < buffer.length; offset += CHUNK) {
-                    controller.enqueue(new Uint8Array(buffer.buffer, offset, Math.min(CHUNK, buffer.length - offset)));
+                for (let offset = 0; offset < slicedBuffer.length; offset += CHUNK) {
+                    controller.enqueue(new Uint8Array(slicedBuffer.buffer, slicedBuffer.byteOffset + offset, Math.min(CHUNK, slicedBuffer.length - offset)));
                 }
                 controller.close();
             },
@@ -293,8 +369,12 @@ export async function streamFileViaGram(messageId: number): Promise<GramFileInfo
 
         return {
             contentType: 'image/jpeg',
-            fileSize: buffer.length,
+            fileSize,
             fileName: undefined,
+            isPartial,
+            start,
+            end,
+            contentLength,
             stream,
         };
     }
