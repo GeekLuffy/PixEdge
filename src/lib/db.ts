@@ -59,8 +59,14 @@ export async function saveImage(
             views: 0,
             downloads: 0,
             expires_at: expiresAt ? expiresAt.toString() : '',
+            folder: (record as any).folder || '',
+            tags: JSON.stringify((record as any).tags || []),
             metadata: JSON.stringify(record.metadata)
         });
+
+        if ((record as any).folder && userId) {
+            pipeline.sadd(`user:${userId}:folders`, ((record as any).folder as string).trim());
+        }
 
         if (expiresIn) {
             // Auto-delete the Redis key when the link expires
@@ -161,6 +167,9 @@ export async function updateImageOrganization(
             folder: cleanFolder,
             tags: JSON.stringify(cleanTags),
         });
+        if (cleanFolder) {
+            await redis.sadd(`user:${userId}:folders`, cleanFolder);
+        }
         return true;
     }
 
@@ -173,7 +182,80 @@ export async function updateImageOrganization(
 
         image.folder = cleanFolder || undefined;
         image.tags = cleanTags;
+        if (cleanFolder) {
+            if (!db.folders) db.folders = {};
+            if (!db.folders[userId]) db.folders[userId] = [];
+            if (!db.folders[userId].includes(cleanFolder)) db.folders[userId].push(cleanFolder);
+        }
         await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Fetch all explicit folders created by a user
+export async function getUserFolders(userId: string): Promise<string[]> {
+    if (useCloud() && redis) {
+        const folders = await redis.smembers(`user:${userId}:folders`);
+        return Array.isArray(folders) ? (folders as string[]).sort() : [];
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const userFolders = db.folders?.[userId] || [];
+        return Array.isArray(userFolders) ? userFolders.sort() : [];
+    } catch {
+        return [];
+    }
+}
+
+// Create a brand new folder for organizing uploads
+export async function createFolder(userId: string, folderName: string): Promise<boolean> {
+    const cleanName = folderName.trim();
+    if (!cleanName) return false;
+
+    if (useCloud() && redis) {
+        await redis.sadd(`user:${userId}:folders`, cleanName);
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (!db.folders) db.folders = {};
+        if (!db.folders[userId]) db.folders[userId] = [];
+        if (!db.folders[userId].includes(cleanName)) {
+            db.folders[userId].push(cleanName);
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+// Delete an empty or unused folder from the user's list
+export async function deleteFolder(userId: string, folderName: string): Promise<boolean> {
+    const cleanName = folderName.trim();
+    if (!cleanName) return false;
+
+    if (useCloud() && redis) {
+        await redis.srem(`user:${userId}:folders`, cleanName);
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (db.folders && db.folders[userId]) {
+            db.folders[userId] = db.folders[userId].filter((f: string) => f !== cleanName);
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        }
         return true;
     } catch {
         return false;

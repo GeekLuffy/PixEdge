@@ -620,10 +620,77 @@ export default function DashboardPage() {
         setSavingOrg(false);
     };
 
-    // Extract unique folders created across all user uploads
-    const uniqueFolders = Array.from(
-        new Set(uploads.map(u => u.folder).filter(Boolean))
-    ) as string[];
+    // Keep track of explicit saved folders and folder creation modal state
+    const [savedFolders, setSavedFolders] = useState<string[]>([]);
+    const [showCreateFolderModal, setShowCreateFolderModal] = useState<boolean>(false);
+    const [newFolderName, setNewFolderName] = useState<string>("");
+    const [creatingFolder, setCreatingFolder] = useState<boolean>(false);
+
+    // Fetch custom folders saved by the user
+    const fetchFolders = async () => {
+        try {
+            const res = await fetch("/api/user/folders");
+            const data = await res.json();
+            if (Array.isArray(data.folders)) {
+                setSavedFolders(data.folders);
+            }
+        } catch (e) {
+            console.error("Failed to fetch folders");
+        }
+    };
+
+    // Create a brand new folder
+    const handleCreateFolder = async () => {
+        const name = newFolderName.trim();
+        if (!name) return;
+        setCreatingFolder(true);
+        try {
+            const res = await fetch("/api/user/folders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name }),
+            });
+            if (res.ok) {
+                if (!savedFolders.includes(name)) {
+                    setSavedFolders(prev => [...prev, name].sort());
+                }
+                setSelectedFolder(name);
+                setShowCreateFolderModal(false);
+                setNewFolderName("");
+                setSuccess(`Created folder "${name}"`);
+                setTimeout(() => setSuccess(""), 3000);
+            }
+        } catch (e) {
+            console.error("Failed to create folder", e);
+        }
+        setCreatingFolder(false);
+    };
+
+    // Delete a saved folder
+    const handleDeleteFolder = async (folderName: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        if (!confirm(`Remove folder "${folderName}"? Uploaded files in this folder will remain intact.`)) return;
+        try {
+            const res = await fetch("/api/user/folders", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: folderName }),
+            });
+            if (res.ok) {
+                setSavedFolders(prev => prev.filter(f => f !== folderName));
+                if (selectedFolder === folderName) setSelectedFolder("all");
+                setSuccess(`Removed folder "${folderName}"`);
+                setTimeout(() => setSuccess(""), 3000);
+            }
+        } catch (e) {
+            console.error("Failed to delete folder", e);
+        }
+    };
+
+    // Extract unique folders created across all user uploads and saved folders
+    const allUserFolders = Array.from(
+        new Set([...savedFolders, ...uploads.map(u => u.folder).filter(Boolean)])
+    ).sort() as string[];
 
     // Filter uploads dynamically based on selected folder and search term
     const filteredUploads = uploads.filter(u => {
@@ -731,6 +798,7 @@ export default function DashboardPage() {
             setName(session.user.name);
             fetchApiKey();
             fetchUploads();
+            fetchFolders();
         }
     }, [session, status, router]);
 
@@ -983,81 +1051,133 @@ export default function DashboardPage() {
                             </div>
 
                             {/* Search and Folder filter controls */}
-                            {uploads.length > 0 && (
-                                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center' }}>
-                                    <div style={{ position: 'relative', flex: '1 1 240px' }}>
-                                        <Search size={14} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                        <input
-                                            type="text"
-                                            placeholder="Search by ID, folder, or tag..."
-                                            value={searchFilter}
-                                            onChange={(e) => setSearchFilter(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                background: 'var(--panel-bg)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '14px',
-                                                padding: '9px 36px 9px 36px',
-                                                color: 'var(--text-main)',
-                                                fontSize: '0.85rem',
-                                                outline: 'none',
-                                                fontFamily: 'inherit',
-                                            }}
+                            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '1.5rem', alignItems: 'center' }}>
+                                <div style={{ position: 'relative', flex: '1 1 240px' }}>
+                                    <Search size={14} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by ID, folder, or tag..."
+                                        value={searchFilter}
+                                        onChange={(e) => setSearchFilter(e.target.value)}
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--panel-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '9px 36px 9px 36px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                    {searchFilter && (
+                                        <X
+                                            size={14}
+                                            onClick={() => setSearchFilter('')}
+                                            style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', cursor: 'pointer' }}
                                         />
-                                        {searchFilter && (
-                                            <X
-                                                size={14}
-                                                onClick={() => setSearchFilter('')}
-                                                style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                                            />
-                                        )}
-                                    </div>
+                                    )}
+                                </div>
 
-                                    {/* Folder Pills */}
-                                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%' }}>
-                                        <button
-                                            onClick={() => setSelectedFolder('all')}
-                                            style={{
-                                                padding: '7px 14px',
-                                                borderRadius: '12px',
-                                                fontSize: '0.8rem',
-                                                fontWeight: 500,
-                                                cursor: 'pointer',
-                                                border: `1px solid ${selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
-                                                background: selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
-                                                color: selectedFolder === 'all' ? 'var(--accent-primary)' : 'var(--text-muted)',
-                                                fontFamily: 'inherit',
-                                                whiteSpace: 'nowrap',
-                                            }}
-                                        >
-                                            All ({uploads.length})
-                                        </button>
-                                        {uniqueFolders.map(folderName => (
-                                            <button
+                                {/* Folder Pills & Create Folder Button */}
+                                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%', alignItems: 'center' }}>
+                                    <button
+                                        onClick={() => setSelectedFolder('all')}
+                                        style={{
+                                            padding: '7px 14px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 500,
+                                            cursor: 'pointer',
+                                            border: `1px solid ${selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
+                                            background: selectedFolder === 'all' ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
+                                            color: selectedFolder === 'all' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                            fontFamily: 'inherit',
+                                            whiteSpace: 'nowrap',
+                                        }}
+                                    >
+                                        All ({uploads.length})
+                                    </button>
+
+                                    {allUserFolders.map(folderName => {
+                                        const count = uploads.filter(u => u.folder === folderName).length;
+                                        return (
+                                            <div
                                                 key={folderName}
-                                                onClick={() => setSelectedFolder(folderName)}
                                                 style={{
-                                                    padding: '7px 14px',
-                                                    borderRadius: '12px',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 500,
-                                                    cursor: 'pointer',
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: '5px',
+                                                    borderRadius: '12px',
                                                     border: `1px solid ${selectedFolder === folderName ? 'rgba(139, 92, 246, 0.4)' : 'var(--border-color)'}`,
                                                     background: selectedFolder === folderName ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
                                                     color: selectedFolder === folderName ? 'var(--accent-primary)' : 'var(--text-muted)',
-                                                    fontFamily: 'inherit',
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 500,
                                                     whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
                                                 }}
                                             >
-                                                <Folder size={12} /> {folderName} ({uploads.filter(u => u.folder === folderName).length})
-                                            </button>
-                                        ))}
-                                    </div>
+                                                <button
+                                                    onClick={() => setSelectedFolder(folderName)}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: 'inherit',
+                                                        padding: '7px 10px 7px 14px',
+                                                        fontSize: 'inherit',
+                                                        fontWeight: 'inherit',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                        gap: '5px',
+                                                        fontFamily: 'inherit',
+                                                    }}
+                                                >
+                                                    <Folder size={12} /> {folderName} ({count})
+                                                </button>
+                                                <button
+                                                    onClick={(e) => handleDeleteFolder(folderName, e)}
+                                                    title={`Delete folder "${folderName}"`}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: 'none',
+                                                        color: 'var(--text-muted)',
+                                                        padding: '7px 10px 7px 2px',
+                                                        cursor: 'pointer',
+                                                        display: 'inline-flex',
+                                                        alignItems: 'center',
+                                                    }}
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* + New Folder Button */}
+                                    <button
+                                        onClick={() => setShowCreateFolderModal(true)}
+                                        style={{
+                                            padding: '7px 14px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            border: '1px dashed rgba(139, 92, 246, 0.5)',
+                                            background: 'rgba(139, 92, 246, 0.08)',
+                                            color: 'var(--accent-primary)',
+                                            fontFamily: 'inherit',
+                                            whiteSpace: 'nowrap',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '5px',
+                                        }}
+                                    >
+                                        <FolderPlus size={13} /> + New Folder
+                                    </button>
                                 </div>
-                            )}
+                            </div>
 
                             {loadingUploads ? (
                                 <div style={styles.loadingContainer}>
@@ -1561,10 +1681,10 @@ export default function DashboardPage() {
                                             fontFamily: 'inherit',
                                         }}
                                     />
-                                    {uniqueFolders.length > 0 && (
+                                    {allUserFolders.length > 0 && (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '8px' }}>
                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', alignSelf: 'center', marginRight: '2px' }}>Pick existing:</span>
-                                            {uniqueFolders.map(f => (
+                                            {allUserFolders.map(f => (
                                                 <button
                                                     key={f}
                                                     type="button"
@@ -1646,6 +1766,121 @@ export default function DashboardPage() {
                                         }}
                                     >
                                         {savingOrg ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} Save Changes
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Create Folder Modal */}
+                <AnimatePresence>
+                    {showCreateFolderModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.75)',
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 999,
+                                padding: '1rem',
+                            }}
+                            onClick={() => setShowCreateFolderModal(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '24px',
+                                    padding: '1.75rem',
+                                    width: '100%',
+                                    maxWidth: '400px',
+                                    boxShadow: '0 25px 50px rgba(0,0,0,0.6)',
+                                }}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+                                        <FolderPlus size={18} style={{ color: 'var(--accent-primary)' }} />
+                                        Create New Folder
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowCreateFolderModal(false)}
+                                        style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Folder Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Work, Wallpapers, Personal"
+                                        value={newFolderName}
+                                        onChange={(e) => setNewFolderName(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); }}
+                                        autoFocus
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '10px 14px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => setShowCreateFolderModal(false)}
+                                        style={{
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            color: 'var(--text-muted)',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleCreateFolder}
+                                        disabled={creatingFolder || !newFolderName.trim()}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                            border: 'none',
+                                            color: '#fff',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                            opacity: (!newFolderName.trim() || creatingFolder) ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {creatingFolder ? <Loader2 size={15} className="animate-spin" /> : <FolderPlus size={15} />} Create Folder
                                     </button>
                                 </div>
                             </motion.div>

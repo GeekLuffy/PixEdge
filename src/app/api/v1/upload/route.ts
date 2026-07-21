@@ -110,6 +110,10 @@ export async function POST(req: NextRequest) {
         const customIdEntry = formData.get('customId');
         const customId = typeof customIdEntry === 'string' ? customIdEntry : '';
 
+        // Optional target folder for organizing the upload
+        const folderEntry = formData.get('folder');
+        const folder = typeof folderEntry === 'string' && folderEntry.trim() ? folderEntry.trim() : undefined;
+
         // Optional expiry in seconds (3600=1h, 86400=24h, 604800=7d, 2592000=30d)
         const expiresInEntry = formData.get('expiresIn');
         const expiresInRaw = typeof expiresInEntry === 'string' ? expiresInEntry : null;
@@ -203,6 +207,7 @@ export async function POST(req: NextRequest) {
                     telegram_file_id: gramResult.telegram_file_id,
                     message_id: gramResult.message_id,
                     created_at: Date.now(),
+                    folder,
                     metadata: { size: file.size, type: file.type, version: 'v2' },
                 };
                 usedGram = true;
@@ -236,6 +241,7 @@ export async function POST(req: NextRequest) {
                 id,
                 telegram_file_id: telegramResult.file_id,
                 created_at: Date.now(),
+                folder,
                 metadata: { size: file.size, type: file.type, version: 'v1' },
             };
             usedGram = false;
