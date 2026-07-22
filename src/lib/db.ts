@@ -2,6 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { Redis } from '@upstash/redis';
+import { deleteChannelMediaMessage } from '@/lib/telegram';
 
 const DB_PATH = path.join(process.cwd(), 'db.json');
 
@@ -308,7 +309,11 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
         if (data.expires_at && data.expires_at !== '') {
             const expiresAt = parseInt(data.expires_at);
             if (expiresAt > 0 && Date.now() > expiresAt) {
+                const messageId = data.message_id ? parseInt(data.message_id) : undefined;
                 await redis.del(`snap:${id}`);
+                if (messageId) {
+                    deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion on expiry error:', err));
+                }
                 return null;
             }
         }
@@ -390,7 +395,7 @@ export async function incrementDownloads(id: string): Promise<void> {
     }
 }
 
-// Delete an image record (with ownership verification)
+// Delete an image record (with ownership verification and Telegram channel auto-deletion)
 export async function deleteImage(id: string, userId: string): Promise<boolean> {
     if (useCloud() && redis) {
         const data: any = await redis.hgetall(`snap:${id}`);
@@ -406,8 +411,13 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
             if (!userUploads.includes(id)) return false;
         }
 
+        const messageId = data.message_id ? parseInt(data.message_id) : undefined;
         await redis.del(`snap:${id}`);
         await redis.lrem(`user:${userId}:uploads`, 0, id);
+
+        if (messageId) {
+            deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+        }
         return true;
     }
 
@@ -417,8 +427,14 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const db = JSON.parse(content);
         const index = db.images.findIndex((img: any) => img.id === id);
         if (index !== -1) {
+            const image = db.images[index];
+            const messageId = image?.message_id;
             db.images.splice(index, 1);
             await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+
+            if (messageId) {
+                deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+            }
             return true;
         }
         return false;

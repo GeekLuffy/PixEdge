@@ -317,3 +317,45 @@ export async function editMessageText(chatId: number | string, messageId: number
     }),
   });
 }
+
+// Automatically removes a media file message from the Telegram channel when an upload expires or gets deleted
+export async function deleteChannelMediaMessage(messageId?: number): Promise<boolean> {
+  if (!messageId) return false;
+
+  // Try MTProto deletion first if configured
+  try {
+    const { isGramConfigured, deleteMessageViaGram } = await import('@/lib/gramjs');
+    if (isGramConfigured()) {
+      const ok = await deleteMessageViaGram(messageId);
+      if (ok) return true;
+    }
+  } catch (err) {
+    console.warn('[telegram] MTProto delete unavailable, trying Bot API');
+  }
+
+  // Fall back to Telegram Bot API deleteMessage
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) return false;
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.ok) {
+      console.log(`[telegram] Successfully deleted channel message ${messageId} via Bot API`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error(`[telegram] Failed to delete channel message ${messageId}:`, error);
+    return false;
+  }
+}

@@ -47,6 +47,18 @@ function getGramConfig() {
 
 // ─── Configuration check ──────────────────────────────────────────────────────
 
+// ─── Connection Pool State ──────────────────────────────────────────────────
+
+interface PoolSlot {
+    client: TelegramClient | null;
+    channel: InputEntity | null;
+    connectingPromise: Promise<{ client: TelegramClient; channel: InputEntity }> | null;
+}
+
+const DEFAULT_POOL_SIZE = 3;
+let _pool: PoolSlot[] = [];
+let _poolIndex = 0;
+
 /** Returns true when all three MTProto env vars are present. */
 export function isGramConfigured(): boolean {
     const { apiIdRaw, apiHash, sessionString } = getGramConfig();
@@ -54,13 +66,14 @@ export function isGramConfigured(): boolean {
     return Number.isFinite(apiId) && apiId > 0 && !!apiHash && !!sessionString;
 }
 
-// ─── Client management ────────────────────────────────────────────────────────
+// ─── Connection Pool & Auto-Reconnect ────────────────────────────────────────
 
 /**
- * Returns a connected TelegramClient singleton.
- * Safe to call on every request — reconnects automatically if needed.
+ * Resolves a connected MTProto client and channel peer from the connection pool.
+ * Distributes concurrent requests across pooled connections (round-robin) and
+ * automatically reconnects any connection if it drops or gets disconnected.
  */
-export async function getGramClient(): Promise<TelegramClient> {
+export async function getGramClientWithChannel(): Promise<{ client: TelegramClient; channel: InputEntity }> {
     if (!isGramConfigured()) {
         throw new Error(
             '[gramjs] MTProto not configured. ' +
@@ -68,67 +81,104 @@ export async function getGramClient(): Promise<TelegramClient> {
         );
     }
 
-    const { apiIdRaw, apiHash, sessionString } = getGramConfig();
+    const { apiIdRaw, apiHash, sessionString, chatId } = getGramConfig();
     const apiId = apiIdRaw ? parseInt(apiIdRaw, 10) : NaN;
 
-    if (!Number.isFinite(apiId) || apiId <= 0) {
-        throw new Error('[gramjs] TELEGRAM_API_ID must be a positive integer.');
+    if (!Number.isFinite(apiId) || apiId <= 0 || !apiHash || !sessionString || !chatId) {
+        throw new Error('[gramjs] TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_SESSION_STRING, and TELEGRAM_CHAT_ID are required.');
     }
 
-    if (!apiHash || !sessionString) {
-        throw new Error('[gramjs] TELEGRAM_API_HASH and TELEGRAM_SESSION_STRING are required.');
+    const configuredSize = parseInt(process.env.TELEGRAM_POOL_SIZE || `${DEFAULT_POOL_SIZE}`, 10);
+    const poolSize = Number.isFinite(configuredSize) && configuredSize > 0 ? Math.min(8, configuredSize) : DEFAULT_POOL_SIZE;
+
+    // Initialize pool slots
+    while (_pool.length < poolSize) {
+        _pool.push({ client: null, channel: null, connectingPromise: null });
     }
 
-    // Already connected — return immediately
-    if (_client?.connected) return _client;
+    // Pick slot via round-robin to balance load across pooled sockets
+    const slotIdx = _poolIndex % poolSize;
+    _poolIndex = (_poolIndex + 1) % poolSize;
+    const slot = _pool[slotIdx];
 
-    // Another coroutine is connecting — wait for it
-    if (_connecting) {
-        let waited = 0;
-        while (_connecting && waited < 12_000) {
-            await new Promise(r => setTimeout(r, 250));
-            waited += 250;
-        }
-        if (_client?.connected) return _client;
+    // If slot is healthy and connected, return instantly
+    if (slot.client?.connected && slot.channel) {
+        return { client: slot.client, channel: slot.channel };
     }
 
-    _connecting = true;
-    try {
-        let stringSession: StringSession;
+    // If slot is currently connecting/reconnecting, wait for it
+    if (slot.connectingPromise) {
+        return await slot.connectingPromise;
+    }
+
+    // Auto-reconnect / Initialize slot
+    slot.connectingPromise = (async () => {
         try {
-            stringSession = new StringSession(sessionString);
-        } catch (error: any) {
-            throw new Error(
-                `[gramjs] Invalid TELEGRAM_SESSION_STRING. Regenerate it with "npm run generate:session". (${error?.message || error})`
-            );
-        }
-        _client = new TelegramClient(
-            stringSession,
-            apiId,
-            apiHash,
-            {
-                connectionRetries: 5,
-                retryDelay: 1_000,
-                autoReconnect: true,
+            if (slot.client && !slot.client.connected) {
+                // Reconnect dropped connection socket
+                console.log(`[gramjs] Auto-reconnecting connection pool slot #${slotIdx + 1}...`);
+                await slot.client.connect();
+            } else if (!slot.client) {
+                // Spawn new connection socket
+                let stringSession: StringSession;
+                try {
+                    stringSession = new StringSession(sessionString);
+                } catch (error: any) {
+                    throw new Error(`[gramjs] Invalid TELEGRAM_SESSION_STRING: (${error?.message || error})`);
+                }
+
+                const client = new TelegramClient(stringSession, apiId, apiHash, {
+                    connectionRetries: 5,
+                    retryDelay: 1000,
+                    autoReconnect: true,
+                });
+                await client.connect();
+                slot.client = client;
+                console.log(`[gramjs] MTProto pool connection #${slotIdx + 1} online ✓`);
             }
-        );
-        await _client.connect();
-        console.log('[gramjs] MTProto connected ✓');
-        return _client;
-    } finally {
-        _connecting = false;
-    }
+
+            if (!slot.channel && slot.client) {
+                slot.channel = await slot.client.getInputEntity(chatId);
+            }
+
+            return { client: slot.client!, channel: slot.channel! };
+        } catch (err) {
+            console.error(`[gramjs] Pool connection #${slotIdx + 1} failed:`, err);
+            slot.client = null;
+            slot.channel = null;
+            throw err;
+        } finally {
+            slot.connectingPromise = null;
+        }
+    })();
+
+    return await slot.connectingPromise;
 }
 
-/** Resolves (and caches) the storage channel entity once. */
+/** Legacy singleton getter — wraps the pool for backwards compatibility. */
+export async function getGramClient(): Promise<TelegramClient> {
+    const { client } = await getGramClientWithChannel();
+    return client;
+}
+
+/** Legacy channel getter — wraps the pool for backwards compatibility. */
 async function getChannel(client: TelegramClient): Promise<InputEntity> {
-    if (_channelEntity) return _channelEntity;
-    const { chatId } = getGramConfig();
-    if (!chatId) {
-        throw new Error('[gramjs] TELEGRAM_CHAT_ID is required when MTProto is enabled.');
+    const { channel } = await getGramClientWithChannel();
+    return channel;
+}
+
+/** Deletes a stored file message from the Telegram channel using MTProto */
+export async function deleteMessageViaGram(messageId: number): Promise<boolean> {
+    if (!messageId || !isGramConfigured()) return false;
+    try {
+        const { client, channel } = await getGramClientWithChannel();
+        await client.deleteMessages(channel, [messageId], { revoke: true });
+        console.log(`[gramjs] Auto-deleted channel message ${messageId} ✓`);
+        return true;
+    } catch (error) {
+        console.error(`[gramjs] Failed to delete channel message ${messageId}:`, error);
+        return false;
     }
-    _channelEntity = await client.getInputEntity(chatId);
-    return _channelEntity;
 }
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
@@ -155,8 +205,7 @@ export async function uploadFileViaGram(
     fileSize: number,
     caption = ''
 ): Promise<GramUploadResult> {
-    const client = await getGramClient();
-    const channel = await getChannel(client);
+    const { client, channel } = await getGramClientWithChannel();
 
     // Scale parallel workers with file size (more workers = faster large uploads)
     const workers =
@@ -232,8 +281,7 @@ export async function streamFileViaGram(
     messageId: number,
     range?: { start: number; end: number }
 ): Promise<GramFileInfo> {
-    const client = await getGramClient();
-    const channel = await getChannel(client);
+    const { client, channel } = await getGramClientWithChannel();
 
     const messages = await client.getMessages(channel, { ids: [messageId] });
     const message = messages[0];
