@@ -25,49 +25,7 @@ async function resolveUserId(req: NextRequest): Promise<string | undefined> {
     return undefined;
 }
 
-// Validate custom ID format
-function validateCustomId(id: string): { valid: boolean; error?: string; sanitized?: string } {
-    if (!id || id.trim().length === 0) {
-        return { valid: false, error: 'Custom ID cannot be empty' };
-    }
-    
-    // Sanitize: lowercase, replace spaces and invalid chars with hyphens
-    const sanitized = id.toLowerCase()
-        .trim()
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-    
-    if (sanitized.length < 2) {
-        return { valid: false, error: 'Custom ID must be at least 2 characters' };
-    }
-    
-    if (sanitized.length > 32) {
-        return { valid: false, error: 'Custom ID must be 32 characters or less' };
-    }
-    
-    // Reserved IDs
-    const reserved = ['api', 'admin', 'dashboard', 'login', 'docs', 'upload', 'i', 'static'];
-    if (reserved.includes(sanitized)) {
-        return { valid: false, error: 'This ID is reserved' };
-    }
-    
-    return { valid: true, sanitized };
-}
-
-// Generate alternative suggestions
-function generateSuggestions(baseId: string): string[] {
-    const suggestions: string[] = [];
-    const timestamp = Date.now().toString(36).slice(-4);
-    const random = () => Math.random().toString(36).slice(-3);
-    
-    suggestions.push(`${baseId}-${timestamp}`);
-    suggestions.push(`${baseId}-${random()}`);
-    suggestions.push(`${baseId}${Math.floor(Math.random() * 999)}`);
-    
-    return suggestions;
-}
+import { validateCustomId, generateSuggestions } from '@/lib/slugs';
 
 // Logging must never fail the upload response path
 async function safeSendLog(text: string): Promise<void> {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog } from '@/lib/telegram';
-import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount, unlinkTelegramAccount } from '@/lib/db';
+import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount, unlinkTelegramAccount, getImage } from '@/lib/db';
+import { validateCustomId, generateSuggestions } from '@/lib/slugs';
 
 export async function POST(req: NextRequest) {
     try {
@@ -226,35 +227,37 @@ export async function POST(req: NextRequest) {
                 return new NextResponse('OK');
             }
 
-            if (command === '/upload' || command === '/tgm') {
-                // Check if it's a reply to an image
+            if (command === '/upload' || command === '/tgm' || command === '/slug') {
+                const parts = text.split(' ').slice(1).join(' ').trim();
+                const customSlug = parts.length > 0 ? parts : undefined;
+
+                // Check if it's a reply to an image/video/document
                 if (replyTo) {
                     if (replyTo.photo && replyTo.photo.length > 0) {
                         const largestPhoto = replyTo.photo[replyTo.photo.length - 1];
-                        await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo');
+                        await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo', customSlug);
                         return new NextResponse('OK');
                     }
                     if (replyTo.animation) {
-                        await processFile(chatId, replyTo.animation.file_id, replyTo.animation.file_size, replyTo.animation.mime_type || 'image/gif', userLink, from.id, 'animation');
+                        await processFile(chatId, replyTo.animation.file_id, replyTo.animation.file_size, replyTo.animation.mime_type || 'image/gif', userLink, from.id, 'animation', customSlug);
                         return new NextResponse('OK');
                     }
                     if (replyTo.video) {
-                        await processFile(chatId, replyTo.video.file_id, replyTo.video.file_size, replyTo.video.mime_type || 'video/mp4', userLink, from.id, 'video');
+                        await processFile(chatId, replyTo.video.file_id, replyTo.video.file_size, replyTo.video.mime_type || 'video/mp4', userLink, from.id, 'video', customSlug);
                         return new NextResponse('OK');
                     }
                     if (replyTo.document && (replyTo.document.mime_type?.startsWith('image/') || replyTo.document.mime_type?.startsWith('video/'))) {
-                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, 'document');
+                        await processFile(chatId, replyTo.document.file_id, replyTo.document.file_size, replyTo.document.mime_type, userLink, from.id, 'document', customSlug);
                         return new NextResponse('OK');
                     }
                 }
 
-                // If not a reply, show instructions
+                // If not a reply, show instructions with custom slug help
                 await sendMessage(chatId,
-                    `<b>PixEdge Upload Mode:</b>\n\n` +
-                    `1. Directly send a photo to this bot.\n` +
-                    `2. Or send an image as a "File/Document".\n` +
-                    `3. Or <b>reply</b> to an image with /upload.\n\n` +
-                    `I will instantly return a high-speed PixEdge link!`
+                    `<b>PixEdge Upload & Custom Vanity Slug Mode:</b>\n\n` +
+                    `1. Directly send a photo/video to this bot with an optional custom slug caption (e.g. <code>my-cool-link</code>).\n` +
+                    `2. Or <b>reply</b> to an image with <code>/upload my-custom-link</code> or <code>/slug my-custom-link</code>.\n\n` +
+                    `I will instantly generate a high-speed vanity link!`
                 );
                 return new NextResponse('OK');
             }
@@ -263,18 +266,30 @@ export async function POST(req: NextRequest) {
             if (body.message.chat.type === 'private') {
                 await sendMessage(chatId,
                     `❓ <b>I'm not sure what you mean.</b>\n\n` +
-                    `Just send me any <b>Photo</b> or <b>Video/GIF</b> and I will host it for you instantly! Or type /help for commands.`,
+                    `Just send me any <b>Photo</b> or <b>Video/GIF</b> (or reply with <code>/upload custom-slug</code>) and I will host it for you! Type /help for options.`,
                     'HTML'
                 );
             }
             return new NextResponse('OK');
         }
 
+        // Extract caption if present for custom vanity slug
+        const rawCaption = body.message.caption?.trim();
+        let captionSlug: string | undefined = undefined;
+        if (rawCaption) {
+            if (rawCaption.startsWith('/upload') || rawCaption.startsWith('/tgm') || rawCaption.startsWith('/slug')) {
+                const afterCmd = rawCaption.split(' ').slice(1).join(' ').trim();
+                if (afterCmd) captionSlug = afterCmd;
+            } else {
+                captionSlug = rawCaption.split('\n')[0].trim();
+            }
+        }
+
         // Handle Photo
         if (photo && photo.length > 0) {
             if (body.message.chat.type === 'private') {
                 const largestPhoto = photo[photo.length - 1];
-                await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo');
+                await processFile(chatId, largestPhoto.file_id, largestPhoto.file_size, 'image/jpeg', userLink, from.id, 'photo', captionSlug);
             }
             return new NextResponse('OK');
         }
@@ -282,7 +297,7 @@ export async function POST(req: NextRequest) {
         // Handle Animation (GIF)
         if (animation) {
             if (body.message.chat.type === 'private') {
-                await processFile(chatId, animation.file_id, animation.file_size, animation.mime_type || 'image/gif', userLink, from.id, 'animation');
+                await processFile(chatId, animation.file_id, animation.file_size, animation.mime_type || 'image/gif', userLink, from.id, 'animation', captionSlug);
             }
             return new NextResponse('OK');
         }
@@ -290,7 +305,7 @@ export async function POST(req: NextRequest) {
         // Handle Video
         if (video) {
             if (body.message.chat.type === 'private') {
-                await processFile(chatId, video.file_id, video.file_size, video.mime_type || 'video/mp4', userLink, from.id, 'video');
+                await processFile(chatId, video.file_id, video.file_size, video.mime_type || 'video/mp4', userLink, from.id, 'video', captionSlug);
             }
             return new NextResponse('OK');
         }
@@ -301,9 +316,9 @@ export async function POST(req: NextRequest) {
             if (body.message.chat.type === 'private') {
                 const mimeType = document.mime_type || '';
                 if (mimeType.startsWith('image/')) {
-                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document');
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document', captionSlug);
                 } else if (mimeType.startsWith('video/')) {
-                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document');
+                    await processFile(chatId, document.file_id, document.file_size, mimeType, userLink, from.id, 'document', captionSlug);
                 } else {
                     await sendMessage(chatId, "❌ Please send only image, video or GIF files.");
                 }
@@ -319,7 +334,16 @@ export async function POST(req: NextRequest) {
     }
 }
 
-async function processFile(chatId: number, fileId: string, fileSize: number, mimeType: string, userLink: string, telegramUserId: number | string, mediaType: 'photo' | 'animation' | 'video' | 'document') {
+async function processFile(
+    chatId: number,
+    fileId: string,
+    fileSize: number,
+    mimeType: string,
+    userLink: string,
+    telegramUserId: number | string,
+    mediaType: 'photo' | 'animation' | 'video' | 'document',
+    customSlug?: string
+) {
     try {
         const { isGramConfigured } = await import('@/lib/gramjs');
         const gramReady = isGramConfigured();
@@ -337,7 +361,36 @@ async function processFile(chatId: number, fileId: string, fileSize: number, mim
             return;
         }
 
-        const id = generateId();
+        let id = generateId();
+
+        // Custom Vanity Slug Validation & Availability Check
+        if (customSlug) {
+            const validation = validateCustomId(customSlug);
+            if (!validation.valid || !validation.sanitized) {
+                await sendMessage(chatId,
+                    `❌ <b>Invalid Custom Vanity Slug:</b>\n` +
+                    `<i>${validation.error || 'Must be 2-32 alphanumeric characters.'}</i>`,
+                    'HTML'
+                );
+                return;
+            }
+
+            const requestedSlug = validation.sanitized;
+            const existing = await getImage(requestedSlug);
+            if (existing) {
+                const suggestions = generateSuggestions(requestedSlug);
+                const suggestionsText = suggestions.map(s => `• <code>${s}</code>`).join('\n');
+                await sendMessage(chatId,
+                    `❌ <b>Vanity Slug Already Taken!</b>\n\n` +
+                    `The custom link <code>${requestedSlug}</code> is already in use.\n\n` +
+                    `💡 <b>Try one of these available options:</b>\n${suggestionsText}`,
+                    'HTML'
+                );
+                return;
+            }
+
+            id = requestedSlug;
+        }
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
         // Check if user has linked web account
