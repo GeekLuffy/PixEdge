@@ -40,6 +40,9 @@ export default function Home() {
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [uploadStatus, setUploadStatus] = useState<string>("");
+    const [uploadSpeed, setUploadSpeed] = useState<string>("0 MB/s");
+    const [uploadTransferred, setUploadTransferred] = useState<string>("");
+    const [uploadEta, setUploadEta] = useState<string>("");
     const [result, setResult] = useState<{ id: string; url: string } | null>(
         null,
     );
@@ -119,14 +122,22 @@ export default function Home() {
             return;
         }
 
-        // 20MB Limit Check (Telegram getFile API limit)
-        if (file.size > 20 * 1024 * 1024) {
-            alert("File too large. Max size is 20MB.");
+        // 2 GB Limit Check for MTProto Telegram storage layer
+        const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024;
+        if (file.size > MAX_FILE_SIZE) {
+            alert("File too large. Maximum supported file size is 2 GB.");
             return;
         }
 
+        const startTime = Date.now();
+        let lastLoaded = 0;
+        let lastTime = startTime;
+
         setUploading(true);
         setUploadProgress(0);
+        setUploadSpeed("0 MB/s");
+        setUploadTransferred(`0 MB / ${(file.size / (1024 * 1024)).toFixed(1)} MB`);
+        setUploadEta("Calculating...");
         setUploadStatus("Preparing upload...");
         setResult(null);
         setShowQr(false);
@@ -139,25 +150,57 @@ export default function Home() {
         if (expiresIn) formData.append("expiresIn", expiresIn);
 
         try {
-            // Use XMLHttpRequest for progress tracking
+            // Use XMLHttpRequest for chunk upload progress tracking
             const result = await new Promise<any>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
 
                 xhr.upload.addEventListener("progress", (e) => {
                     if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
+                        const percent = Math.min(100, Math.round((e.loaded / e.total) * 100));
                         setUploadProgress(percent);
+
+                        const now = Date.now();
+                        const timeDiff = (now - lastTime) / 1000;
+
+                        if (timeDiff >= 0.2 || percent === 100) {
+                            const loadedDiff = e.loaded - lastLoaded;
+                            const speedBytesPerSec = timeDiff > 0 ? loadedDiff / timeDiff : 0;
+
+                            let speedStr = "0 KB/s";
+                            if (speedBytesPerSec >= 1024 * 1024) {
+                                speedStr = `${(speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+                            } else if (speedBytesPerSec > 0) {
+                                speedStr = `${(speedBytesPerSec / 1024).toFixed(0)} KB/s`;
+                            }
+                            setUploadSpeed(speedStr);
+
+                            const transferredMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                            const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                            setUploadTransferred(`${transferredMB} MB / ${totalMB} MB`);
+
+                            if (speedBytesPerSec > 0 && e.loaded < e.total) {
+                                const remainingBytes = e.total - e.loaded;
+                                const remainingSeconds = Math.ceil(remainingBytes / speedBytesPerSec);
+                                setUploadEta(`ETA ${remainingSeconds}s`);
+                            } else {
+                                setUploadEta(percent === 100 ? "Processing..." : "Done");
+                            }
+
+                            lastTime = now;
+                            lastLoaded = e.loaded;
+                        }
+
                         if (percent < 100) {
                             setUploadStatus(`Uploading... ${percent}%`);
                         } else {
-                            setUploadStatus("Processing at edge...");
+                            setUploadStatus("Storing via MTProto Telegram Cloud...");
                         }
                     }
                 });
 
                 xhr.addEventListener("load", () => {
                     if (xhr.status === 413) {
-                        reject(new Error("File too large for server. Try a smaller file (under 4.5MB for free tier)."));
+                        reject(new Error("File too large for server limits."));
                         return;
                     }
                     try {
@@ -236,8 +279,15 @@ export default function Home() {
 
     // Upload with specific custom ID (for retries)
     const uploadFileWithId = async (file: File, id: string) => {
+        const startTime = Date.now();
+        let lastLoaded = 0;
+        let lastTime = startTime;
+
         setUploading(true);
         setUploadProgress(0);
+        setUploadSpeed("0 MB/s");
+        setUploadTransferred(`0 MB / ${(file.size / (1024 * 1024)).toFixed(1)} MB`);
+        setUploadEta("Calculating...");
         setUploadStatus("Retrying upload...");
         setIdError(null);
 
@@ -252,12 +302,44 @@ export default function Home() {
 
                 xhr.upload.addEventListener("progress", (e) => {
                     if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
+                        const percent = Math.min(100, Math.round((e.loaded / e.total) * 100));
                         setUploadProgress(percent);
+
+                        const now = Date.now();
+                        const timeDiff = (now - lastTime) / 1000;
+
+                        if (timeDiff >= 0.2 || percent === 100) {
+                            const loadedDiff = e.loaded - lastLoaded;
+                            const speedBytesPerSec = timeDiff > 0 ? loadedDiff / timeDiff : 0;
+
+                            let speedStr = "0 KB/s";
+                            if (speedBytesPerSec >= 1024 * 1024) {
+                                speedStr = `${(speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+                            } else if (speedBytesPerSec > 0) {
+                                speedStr = `${(speedBytesPerSec / 1024).toFixed(0)} KB/s`;
+                            }
+                            setUploadSpeed(speedStr);
+
+                            const transferredMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                            const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                            setUploadTransferred(`${transferredMB} MB / ${totalMB} MB`);
+
+                            if (speedBytesPerSec > 0 && e.loaded < e.total) {
+                                const remainingBytes = e.total - e.loaded;
+                                const remainingSeconds = Math.ceil(remainingBytes / speedBytesPerSec);
+                                setUploadEta(`ETA ${remainingSeconds}s`);
+                            } else {
+                                setUploadEta(percent === 100 ? "Processing..." : "Done");
+                            }
+
+                            lastTime = now;
+                            lastLoaded = e.loaded;
+                        }
+
                         if (percent < 100) {
                             setUploadStatus(`Uploading... ${percent}%`);
                         } else {
-                            setUploadStatus("Processing at edge...");
+                            setUploadStatus("Storing via MTProto Telegram Cloud...");
                         }
                     }
                 });
@@ -839,15 +921,27 @@ export default function Home() {
                                     ? uploadStatus
                                     : "Drop image or video here"}
                             </h3>
-                            <p
+                            <div
                                 style={{
                                     color: "var(--text-muted)",
-                                    opacity: 0.6,
-                                    fontSize: "0.8rem",
+                                    fontSize: "0.85rem",
+                                    marginTop: "6px",
                                 }}
                             >
-                                {uploading ? `${(uploadProgress).toFixed(0)}% complete` : "or click to browse your files"}
-                            </p>
+                                {uploading ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                        <span style={{ color: 'var(--accent-primary)', fontWeight: 700 }}>{uploadProgress}%</span>
+                                        <span style={{ opacity: 0.4 }}>•</span>
+                                        <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{uploadTransferred}</span>
+                                        <span style={{ opacity: 0.4 }}>•</span>
+                                        <span style={{ color: '#10b981', fontWeight: 600, background: 'rgba(16, 185, 129, 0.1)', padding: '2px 8px', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+                                            ⚡ {uploadSpeed}
+                                        </span>
+                                        <span style={{ opacity: 0.4 }}>•</span>
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{uploadEta}</span>
+                                    </div>
+                                ) : "or click to browse your files (up to 2 GB)"}
+                            </div>
                         </div>
 
                         {uploading && (

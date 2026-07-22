@@ -203,7 +203,8 @@ export async function uploadFileViaGram(
     fileBuffer: Buffer,
     fileName: string,
     fileSize: number,
-    caption = ''
+    caption = '',
+    onProgress?: (percent: number, uploadedBytes: number, totalBytes: number) => void
 ): Promise<GramUploadResult> {
     const { client, channel } = await getGramClientWithChannel();
 
@@ -216,6 +217,9 @@ export async function uploadFileViaGram(
 
     const file = new CustomFile(fileName, fileSize, '', fileBuffer);
 
+    let lastProgressTime = Date.now();
+    let lastUploadedBytes = 0;
+
     const message = await client.sendFile(channel, {
         file,
         caption,
@@ -224,6 +228,28 @@ export async function uploadFileViaGram(
         // and works consistently for every MIME type including video/gif.
         forceDocument: true,
         workers,
+        progressCallback: (progress: number) => {
+            const percent = Math.min(100, Math.max(0, Math.round(progress * 100)));
+            const uploadedBytes = Math.round(progress * fileSize);
+
+            const now = Date.now();
+            const timeDiff = (now - lastProgressTime) / 1000;
+
+            // Log chunk progress updates every 250ms for server diagnostic monitoring
+            if (timeDiff >= 0.25 || percent === 100) {
+                const bytesDiff = uploadedBytes - lastUploadedBytes;
+                const speedBytesPerSec = timeDiff > 0 ? bytesDiff / timeDiff : 0;
+                const speedMb = (speedBytesPerSec / (1024 * 1024)).toFixed(1);
+                console.log(`[gramjs] MTProto chunk upload: ${percent}% (${(uploadedBytes / (1024 * 1024)).toFixed(1)} MB / ${(fileSize / (1024 * 1024)).toFixed(1)} MB) @ ${speedMb} MB/s`);
+
+                lastProgressTime = now;
+                lastUploadedBytes = uploadedBytes;
+            }
+
+            if (onProgress) {
+                onProgress(percent, uploadedBytes, fileSize);
+            }
+        },
     }) as Api.Message;
 
     // Extract the document ID for display purposes
