@@ -881,34 +881,168 @@ export default function DashboardPage() {
                     </div>
                 </header>
 
-                {/* Profile Hero */}
+                {/* Profile Hero Banner */}
                 <motion.div
                     className="dashboard-hero"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    style={styles.heroCard}
+                    style={{
+                        position: "relative",
+                        background: "linear-gradient(135deg, rgba(20, 20, 30, 0.75) 0%, rgba(35, 20, 55, 0.65) 100%)",
+                        backdropFilter: "blur(30px)",
+                        WebkitBackdropFilter: "blur(30px)",
+                        border: "1px solid rgba(139, 92, 246, 0.25)",
+                        borderRadius: "28px",
+                        padding: "2rem",
+                        marginBottom: "2rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "1.75rem",
+                        flexWrap: "wrap",
+                        overflow: "hidden",
+                        boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+                    }}
                 >
-                    <div style={styles.avatarWrapper}>
-                        <img className="dashboard-hero-avatar" src={avatarUrl} alt={user?.name || "User"} style={styles.avatar} />
-                        <div style={styles.statusBadge}>
-                            <CheckCircle size={10} color="white" />
+                    {/* Ambient Glow Effect */}
+                    <div
+                        style={{
+                            position: "absolute",
+                            top: "-40px",
+                            left: "-40px",
+                            width: "200px",
+                            height: "200px",
+                            background: "rgba(139, 92, 246, 0.25)",
+                            borderRadius: "50%",
+                            filter: "blur(60px)",
+                            pointerEvents: "none",
+                        }}
+                    />
+
+                    <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap", zIndex: 1 }}>
+                        <div style={{ position: "relative" }}>
+                            <img
+                                className="dashboard-hero-avatar"
+                                src={avatarUrl}
+                                alt={user?.name || "User"}
+                                style={{
+                                    width: "80px",
+                                    height: "80px",
+                                    borderRadius: "50%",
+                                    border: "3px solid #8b5cf6",
+                                    boxShadow: "0 0 25px rgba(139, 92, 246, 0.4)",
+                                    objectFit: "cover",
+                                }}
+                            />
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    bottom: "2px",
+                                    right: "2px",
+                                    width: "22px",
+                                    height: "22px",
+                                    background: "#10b981",
+                                    borderRadius: "50%",
+                                    border: "3px solid var(--bg-color)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    boxShadow: "0 0 10px #10b981",
+                                }}
+                                title="Verified Account"
+                            >
+                                <CheckCircle size={12} color="white" />
+                            </div>
+                        </div>
+
+                        <div className="dashboard-hero-info">
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+                                <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-main)", margin: 0, letterSpacing: "-0.5px" }}>
+                                    {user?.name || "User"}
+                                </h1>
+                                <span
+                                    style={{
+                                        fontSize: "0.75rem",
+                                        fontWeight: 700,
+                                        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                                        color: "#fff",
+                                        padding: "3px 10px",
+                                        borderRadius: "20px",
+                                        boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                    }}
+                                >
+                                    <Sparkles size={11} /> PRO TIER
+                                </span>
+                            </div>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                                <p style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
+                                    <Mail size={14} style={{ color: "var(--accent-primary)" }} />
+                                    {user?.email}
+                                </p>
+
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                                    <span
+                                        style={{
+                                            fontSize: "0.75rem",
+                                            color: "#10b981",
+                                            background: "rgba(16, 185, 129, 0.1)",
+                                            border: "1px solid rgba(16, 185, 129, 0.2)",
+                                            padding: "2px 8px",
+                                            borderRadius: "12px",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        ⚡ 2 GB Edge Storage
+                                    </span>
+                                    <span
+                                        style={{
+                                            fontSize: "0.75rem",
+                                            color: "#3b82f6",
+                                            background: "rgba(59, 130, 246, 0.1)",
+                                            border: "1px solid rgba(59, 130, 246, 0.2)",
+                                            padding: "2px 8px",
+                                            borderRadius: "12px",
+                                            fontWeight: 500,
+                                        }}
+                                    >
+                                        🌐 Global CDN
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="dashboard-hero-info" style={styles.heroInfo}>
-                        <h1 className="dashboard-hero-name" style={styles.heroName}>{user?.name || "User"}</h1>
-                        <p className="dashboard-hero-email" style={styles.heroEmail}>
-                            <Mail size={14} />
-                            {user?.email}
-                        </p>
+                    {/* Hero Action Shortcuts */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", zIndex: 1, flexWrap: "wrap" }}>
+                        <Link href="/">
+                            <motion.button
+                                whileHover={{ scale: 1.03, y: -2 }}
+                                whileTap={{ scale: 0.97 }}
+                                style={{
+                                    background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                                    border: "none",
+                                    borderRadius: "14px",
+                                    color: "#fff",
+                                    padding: "10px 20px",
+                                    fontWeight: 700,
+                                    fontSize: "0.9rem",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    fontFamily: "inherit",
+                                    boxShadow: "0 8px 25px rgba(139, 92, 246, 0.35)",
+                                }}
+                            >
+                                <Upload size={18} />
+                                + New Upload
+                            </motion.button>
+                        </Link>
                     </div>
-
-                    <Link href="/">
-                        <motion.button className="dashboard-hero-btn" whileHover={{ scale: 1.02, y: -2 }} whileTap={{ scale: 0.98 }} style={styles.uploadButton}>
-                            <Upload size={18} />
-                            New Upload
-                        </motion.button>
-                    </Link>
                 </motion.div>
 
                 {/* Tabs */}
@@ -941,7 +1075,7 @@ export default function DashboardPage() {
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -20 }}
                         >
-                            {/* Stats */}
+                            {/* Upgraded Stats Cards */}
                             <div className="dashboard-stats" style={styles.statsGrid}>
                                 {stats.map((stat, idx) => (
                                     <motion.div
@@ -950,15 +1084,41 @@ export default function DashboardPage() {
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ delay: idx * 0.08 }}
-                                        whileHover={{ y: -3, borderColor: "rgba(139, 92, 246, 0.3)" }}
-                                        style={styles.statCard}
+                                        whileHover={{ y: -4, borderColor: "rgba(139, 92, 246, 0.4)" }}
+                                        style={{
+                                            ...styles.statCard,
+                                            background: "var(--panel-bg)",
+                                            backdropFilter: "blur(24px)",
+                                            border: "1px solid var(--border-color)",
+                                            borderRadius: "22px",
+                                            padding: "1.35rem",
+                                            boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+                                        }}
                                     >
-                                        <div className="dashboard-stat-icon" style={{ ...styles.statIcon, background: `${stat.color}15`, color: stat.color }}>
-                                            <stat.icon size={24} />
+                                        <div
+                                            className="dashboard-stat-icon"
+                                            style={{
+                                                width: "54px",
+                                                height: "54px",
+                                                borderRadius: "16px",
+                                                background: `linear-gradient(135deg, ${stat.color}25 0%, ${stat.color}10 100%)`,
+                                                border: `1px solid ${stat.color}40`,
+                                                color: stat.color,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <stat.icon size={26} />
                                         </div>
                                         <div>
-                                            <div className="dashboard-stat-value" style={styles.statValue}>{stat.value}</div>
-                                            <div className="dashboard-stat-label" style={styles.statLabel}>{stat.label}</div>
+                                            <div className="dashboard-stat-value" style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-main)", lineHeight: 1, marginBottom: "4px" }}>
+                                                {stat.value}
+                                            </div>
+                                            <div className="dashboard-stat-label" style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-muted)" }}>
+                                                {stat.label}
+                                            </div>
                                         </div>
                                     </motion.div>
                                 ))}
