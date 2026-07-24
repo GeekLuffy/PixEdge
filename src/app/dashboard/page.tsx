@@ -956,7 +956,7 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="dashboard-hero-info">
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "6px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "8px" }}>
                                 <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "var(--text-main)", margin: 0, letterSpacing: "-0.5px" }}>
                                     {user?.name || "User"}
                                 </h1>
@@ -965,35 +965,35 @@ export default function DashboardPage() {
                                         fontSize: "0.75rem",
                                         fontWeight: 700,
                                         background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-                                        color: "#fff",
-                                        padding: "3px 10px",
+                                        color: "#ffffff",
+                                        padding: "4px 12px",
                                         borderRadius: "20px",
                                         boxShadow: "0 4px 12px rgba(139, 92, 246, 0.3)",
-                                        display: "flex",
+                                        display: "inline-flex",
                                         alignItems: "center",
-                                        gap: "4px",
+                                        gap: "5px",
                                     }}
                                 >
-                                    <Sparkles size={11} /> PRO TIER
+                                    <Sparkles size={12} /> PRO TIER
                                 </span>
                             </div>
 
-                            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                                 <p style={{ display: "flex", alignItems: "center", gap: "6px", color: "var(--text-muted)", fontSize: "0.9rem", margin: 0 }}>
                                     <Mail size={14} style={{ color: "var(--accent-primary)" }} />
                                     {user?.email}
                                 </p>
 
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                                     <span
                                         style={{
                                             fontSize: "0.75rem",
                                             color: "#10b981",
-                                            background: "rgba(16, 185, 129, 0.1)",
-                                            border: "1px solid rgba(16, 185, 129, 0.2)",
-                                            padding: "2px 8px",
+                                            background: "rgba(16, 185, 129, 0.12)",
+                                            border: "1px solid rgba(16, 185, 129, 0.25)",
+                                            padding: "3px 10px",
                                             borderRadius: "12px",
-                                            fontWeight: 500,
+                                            fontWeight: 600,
                                         }}
                                     >
                                         ⚡ 2 GB Edge Storage
@@ -1002,11 +1002,11 @@ export default function DashboardPage() {
                                         style={{
                                             fontSize: "0.75rem",
                                             color: "#3b82f6",
-                                            background: "rgba(59, 130, 246, 0.1)",
-                                            border: "1px solid rgba(59, 130, 246, 0.2)",
-                                            padding: "2px 8px",
+                                            background: "rgba(59, 130, 246, 0.12)",
+                                            border: "1px solid rgba(59, 130, 246, 0.25)",
+                                            padding: "3px 10px",
                                             borderRadius: "12px",
-                                            fontWeight: 500,
+                                            fontWeight: 600,
                                         }}
                                     >
                                         🌐 Global CDN
@@ -1855,10 +1855,14 @@ export default function DashboardPage() {
                                             style={{
                                                 ...styles.primaryButton,
                                                 background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
-                                                boxShadow: '0 8px 20px rgba(6, 182, 212, 0.3)',
+                                                color: '#ffffff',
+                                                fontWeight: 700,
+                                                fontSize: '0.92rem',
+                                                border: 'none',
+                                                boxShadow: '0 8px 22px rgba(6, 182, 212, 0.35)',
                                             }}
                                         >
-                                            <Download size={18} />
+                                            <Download size={18} color="#ffffff" />
                                             Download ShareX Config (.sxcu)
                                         </motion.button>
                                     </a>
@@ -1876,9 +1880,21 @@ export default function DashboardPage() {
                                     </div>
                                     <h2 style={styles.cardTitleText}>Quick Links</h2>
                                 </div>
-                                <Link href="/docs">
-                                    <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} style={styles.primaryButton}>
-                                        <Sparkles size={18} />
+                                <Link href="/docs" style={{ textDecoration: 'none' }}>
+                                    <motion.button
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        style={{
+                                            ...styles.primaryButton,
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                            color: '#ffffff',
+                                            fontWeight: 700,
+                                            fontSize: '0.92rem',
+                                            border: 'none',
+                                            boxShadow: '0 8px 22px rgba(139, 92, 246, 0.35)',
+                                        }}
+                                    >
+                                        <Sparkles size={18} color="#ffffff" />
                                         View API Documentation
                                     </motion.button>
                                 </Link>
