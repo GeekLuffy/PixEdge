@@ -1266,7 +1266,201 @@ export default function Home() {
                     </div>
                 )}
 
-                <div className="features-grid">
+                {/* How It Works Section */}
+                <div style={{ marginTop: "4rem", width: "100%", maxWidth: "1000px" }}>
+                    <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            Simple & Fast
+                        </span>
+                        <h2 style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-main)", margin: "0.5rem 0 0 0" }}>
+                            How PixEdge Works
+                        </h2>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            style={{
+                                background: "var(--panel-bg)",
+                                backdropFilter: "blur(20px)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "24px",
+                                padding: "1.75rem",
+                                position: "relative",
+                            }}
+                        >
+                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                                <Upload size={24} />
+                            </div>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--accent-primary)", textTransform: "uppercase" }}>Step 01</span>
+                            <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
+                                Drop or Select Media
+                            </h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                Drag & drop any photo, GIF, or 4K video up to 2 GB. Set an optional custom vanity URL or link expiry duration.
+                            </p>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: 0.1 }}
+                            style={{
+                                background: "var(--panel-bg)",
+                                backdropFilter: "blur(20px)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "24px",
+                                padding: "1.75rem",
+                                position: "relative",
+                            }}
+                        >
+                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                                <Zap size={24} />
+                            </div>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#06b6d4", textTransform: "uppercase" }}>Step 02</span>
+                            <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
+                                MTProto Edge Stream
+                            </h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                High-speed chunked streaming via pooled Telegram sockets with live speed tracking (MB/s) & progress indicators.
+                            </p>
+                        </motion.div>
+
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: 0.2 }}
+                            style={{
+                                background: "var(--panel-bg)",
+                                backdropFilter: "blur(20px)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "24px",
+                                padding: "1.75rem",
+                                position: "relative",
+                            }}
+                        >
+                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                                <Globe size={24} />
+                            </div>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#10b981", textTransform: "uppercase" }}>Step 03</span>
+                            <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
+                                Instant Global Sharing
+                            </h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                Share your custom vanity link with in-browser video scrubbing, volume persistence, and auto-deletion channel sync.
+                            </p>
+                        </motion.div>
+                    </div>
+                </div>
+
+                {/* Developer & Integration Hub */}
+                <div style={{ marginTop: "4rem", width: "100%", maxWidth: "1000px" }}>
+                    <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#eab308", textTransform: "uppercase", letterSpacing: "1px" }}>
+                            Developer Ready
+                        </span>
+                        <h2 style={{ fontSize: "2rem", fontWeight: 800, color: "var(--text-main)", margin: "0.5rem 0 0 0" }}>
+                            Integrate PixEdge Anywhere
+                        </h2>
+                    </div>
+
+                    <div
+                        style={{
+                            background: "var(--panel-bg)",
+                            backdropFilter: "blur(24px)",
+                            border: "1px solid var(--border-color)",
+                            borderRadius: "28px",
+                            padding: "2rem",
+                            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
+                        }}
+                    >
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.5rem" }}>
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                    <Code2 size={20} color="#8b5cf6" />
+                                    REST API Upload
+                                </div>
+                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                    Programmatically upload media via simple POST requests with API key authentication.
+                                </p>
+                                <Link
+                                    href="/docs"
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        color: "var(--accent-primary)",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 600,
+                                        textDecoration: "none",
+                                        marginTop: "8px",
+                                    }}
+                                >
+                                    View API Docs <ArrowRight size={14} />
+                                </Link>
+                            </div>
+
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                    <ImageIcon size={20} color="#06b6d4" />
+                                    ShareX 1-Click Integration
+                                </div>
+                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                    Take desktop screenshots on Windows and automatically upload them to PixEdge using ShareX.
+                                </p>
+                                <Link
+                                    href="/dashboard"
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        color: "#06b6d4",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 600,
+                                        textDecoration: "none",
+                                        marginTop: "8px",
+                                    }}
+                                >
+                                    Get API Key in Dashboard <ArrowRight size={14} />
+                                </Link>
+                            </div>
+
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                    <MessageSquare size={20} color="#10b981" />
+                                    Telegram Bot Uploads
+                                </div>
+                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                    Send media directly to our bot or reply with <code>/upload custom-slug</code> to host on the edge.
+                                </p>
+                                <a
+                                    href="https://t.me/PixEdgeBot"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "6px",
+                                        color: "#10b981",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 600,
+                                        textDecoration: "none",
+                                        marginTop: "8px",
+                                    }}
+                                >
+                                    Open Telegram Bot <ExternalLink size={14} />
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Features Grid */}
+                <div className="features-grid" style={{ marginTop: "4rem" }}>
                     <motion.div
                         className="feature-card"
                         initial={{ opacity: 0, scale: 0.95 }}
@@ -1282,7 +1476,7 @@ export default function Home() {
                                 lineHeight: "1.5",
                             }}
                         >
-                            Direct-to-CDN redirection ensures your images load instantly for
+                            Direct-to-CDN redirection ensures your images and 4K videos load instantly for
                             users globally.
                         </p>
                     </motion.div>
@@ -1330,13 +1524,13 @@ export default function Home() {
                                 lineHeight: "1.5",
                             }}
                         >
-                            Fully document REST API for programmatic uploads and metadata
+                            Fully documented REST API for programmatic uploads, custom vanity slugs, and metadata
                             retrieval.
                         </p>
                     </motion.div>
                 </div>
 
-                <footer className="footer">
+                <footer className="footer" style={{ marginTop: "4rem", width: "100%" }}>
                     <div
                         style={{
                             display: "flex",
@@ -1347,26 +1541,30 @@ export default function Home() {
                         }}
                     >
                         <Link href="/docs" style={{ color: "var(--text-muted)" }}>
-                            API
+                            API Docs
+                        </Link>
+                        <Link href="/stats" style={{ color: "var(--text-muted)" }}>
+                            Platform Stats
                         </Link>
                         <a
-                            href="https://github.com/GeekLuffy"
+                            href="https://github.com/GeekLuffy/PixEdge"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{ color: "var(--text-muted)" }}
                         >
                             GitHub
                         </a>
                         <a
                             href="https://t.me/EdgeBots"
+                            target="_blank"
+                            rel="noopener noreferrer"
                             style={{ color: "var(--text-muted)" }}
                         >
-                            Channel
+                            Telegram Channel
                         </a>
-                        <a
-                            href="https://t.me/EdgeBotSupport"
-                            style={{ color: "var(--text-muted)" }}
-                        >
-                            Support
-                        </a>
+                    </div>
+                    <div style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                        PixEdge v2.0 · Open Source Edge Media Host
                     </div>
                 </footer>
 
