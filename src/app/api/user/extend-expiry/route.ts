@@ -19,13 +19,7 @@ async function resolveUserId(req: NextRequest): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
-    const userId = await resolveUserId(req);
-    if (!userId) {
-        return NextResponse.json({
-            success: false,
-            error: { code: 'UNAUTHORIZED', message: 'Authentication required to extend upload expiry.' }
-        }, { status: 401 });
-    }
+    const userId = (await resolveUserId(req)) || undefined;
 
     try {
         const body = await req.json();
@@ -44,7 +38,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 success: false,
                 error: { code: 'EXTEND_FAILED', message: result.error || 'Failed to extend expiry.' }
-            }, { status: 400 });
+            }, { status: result.error?.includes('owner') ? 401 : 400 });
         }
 
         return NextResponse.json({

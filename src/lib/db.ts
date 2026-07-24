@@ -592,8 +592,10 @@ export async function extendImageExpiry(
         }
 
         // Ownership verification (if upload is owned by a specific user)
-        if (userId && data.user_id && data.user_id !== '' && data.user_id !== userId) {
-            return { success: false, error: 'Unauthorized to modify expiry for this upload' };
+        if (data.user_id && data.user_id !== '') {
+            if (!userId || data.user_id !== userId) {
+                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+            }
         }
 
         if (extraSeconds === -1) {
