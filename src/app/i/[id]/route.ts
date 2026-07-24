@@ -173,6 +173,7 @@ export async function GET(
         const downloads = record.downloads || 0;
         const formattedDate = new Date(record.created_at).toLocaleDateString();
         const formattedSize = record.metadata?.size ? (record.metadata.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
+        const expiresAt = record.expires_at || 0;
 
         return new NextResponse(
             `<!DOCTYPE html>
@@ -256,6 +257,33 @@ export async function GET(
                         border: 1px solid rgba(255, 255, 255, 0.12);
                         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
                         z-index: 100;
+                    }
+                    .expiry-pill {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: rgba(245, 158, 11, 0.15);
+                        border: 1px solid rgba(245, 158, 11, 0.3);
+                        color: #fbbf24;
+                        padding: 4px 10px;
+                        border-radius: 50px;
+                        font-size: 12px;
+                        font-weight: 600;
+                    }
+                    .btn-extend-trigger {
+                        background: rgba(245, 158, 11, 0.2);
+                        border: 1px solid rgba(245, 158, 11, 0.4);
+                        color: #fbbf24;
+                        font-size: 11px;
+                        font-weight: 700;
+                        padding: 2px 8px;
+                        border-radius: 20px;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .btn-extend-trigger:hover {
+                        background: rgba(245, 158, 11, 0.35);
+                        color: #fff;
                     }
                     .info-bar {
                         position: fixed;
@@ -361,6 +389,65 @@ export async function GET(
                         opacity: 1;
                         transform: translateX(-50%) translateY(0);
                     }
+
+                    /* Extend Expiry Modal Overlay */
+                    .modal-backdrop {
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(0, 0, 0, 0.75);
+                        backdrop-filter: blur(8px);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 999;
+                        opacity: 0;
+                        pointer-events: none;
+                        transition: opacity 0.25s ease;
+                    }
+                    .modal-backdrop.active {
+                        opacity: 1;
+                        pointer-events: auto;
+                    }
+                    .modal-card {
+                        background: #18181b;
+                        border: 1px solid rgba(255, 255, 255, 0.15);
+                        border-radius: 20px;
+                        padding: 24px;
+                        width: 90%;
+                        max-width: 380px;
+                        box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+                        text-align: center;
+                    }
+                    .modal-card h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #fff; }
+                    .modal-card p { margin: 0 0 18px 0; font-size: 0.85rem; color: #a1a1aa; }
+                    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+                    .modal-option {
+                        background: rgba(255, 255, 255, 0.06);
+                        border: 1px solid rgba(255, 255, 255, 0.1);
+                        color: #fff;
+                        padding: 10px;
+                        border-radius: 12px;
+                        font-size: 0.85rem;
+                        font-weight: 500;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .modal-option:hover {
+                        background: rgba(139, 92, 246, 0.2);
+                        border-color: rgba(139, 92, 246, 0.4);
+                        color: #c4b5fd;
+                    }
+                    .modal-option-never {
+                        grid-column: span 2;
+                        background: rgba(16, 185, 129, 0.15);
+                        border-color: rgba(16, 185, 129, 0.3);
+                        color: #34d399;
+                        font-weight: 600;
+                    }
+                    .modal-option-never:hover {
+                        background: rgba(16, 185, 129, 0.3);
+                        color: #fff;
+                    }
                     
                     @media (max-width: 640px) {
                         .info-bar { font-size: 11px; gap: 12px; padding: 8px 16px; }
@@ -372,11 +459,34 @@ export async function GET(
             <body>
                 <div class="toast" id="toast">Copied to clipboard!</div>
 
+                <!-- Extend Expiry Modal -->
+                <div class="modal-backdrop" id="extendModal">
+                    <div class="modal-card">
+                        <h3>⏳ Extend Link Expiry</h3>
+                        <p>Select duration to extend this upload link:</p>
+                        <div class="modal-grid">
+                            <button class="modal-option" onclick="extendExpiry(3600)">+ 1 Hour</button>
+                            <button class="modal-option" onclick="extendExpiry(86400)">+ 24 Hours</button>
+                            <button class="modal-option" onclick="extendExpiry(604800)">+ 7 Days</button>
+                            <button class="modal-option" onclick="extendExpiry(2592000)">+ 30 Days</button>
+                            <button class="modal-option modal-option-never" onclick="extendExpiry(-1)">✨ Set to Never Expire</button>
+                        </div>
+                        <button class="btn btn-secondary" style="width: 100%; justify-content: center;" onclick="closeExtendModal()">Cancel</button>
+                    </div>
+                </div>
+
                 <div class="toolbar">
                     <a href="/" class="btn btn-secondary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
                         Upload
                     </a>
+
+                    <!-- Live Ticking Expiry Badge -->
+                    <div className="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
+                        <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
+                        <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
+                    </div>
+
                     <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         Copy Link
@@ -411,6 +521,79 @@ export async function GET(
                     const media = document.getElementById('mediaElement');
                     const resVal = document.getElementById('resolutionVal');
                     const isVideo = media.tagName.toLowerCase() === 'video';
+                    let targetExpiresAt = ${expiresAt || 0};
+
+                    // ── Live Countdown Ticking Timer ──────────────────────────────────────────
+                    function updateCountdown() {
+                        const badge = document.getElementById('expiryBadge');
+                        if (!targetExpiresAt || targetExpiresAt <= 0) {
+                            if (badge) badge.style.display = 'none';
+                            return;
+                        }
+
+                        const now = Date.now();
+                        const diff = targetExpiresAt - now;
+
+                        if (diff <= 0) {
+                            document.getElementById('countdownTimer').textContent = 'EXPIRED';
+                            location.reload();
+                            return;
+                        }
+
+                        if (badge) badge.style.display = 'inline-flex';
+
+                        const seconds = Math.floor((diff / 1000) % 60);
+                        const minutes = Math.floor((diff / (1000 * 60)) % 60);
+                        const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+                        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+                        let str = '';
+                        if (days > 0) str += \`\${days}d \`;
+                        str += \`\${hours.toString().padStart(2, '0')}:\${minutes.toString().padStart(2, '0')}:\${seconds.toString().padStart(2, '0')}\`;
+
+                        const timerEl = document.getElementById('countdownTimer');
+                        if (timerEl) timerEl.textContent = str;
+                    }
+
+                    if (targetExpiresAt > 0) {
+                        updateCountdown();
+                        setInterval(updateCountdown, 1000);
+                    }
+
+                    // ── Extend Expiry Modal Handlers ─────────────────────────────────────
+                    function openExtendModal() {
+                        document.getElementById('extendModal').classList.add('active');
+                    }
+
+                    function closeExtendModal() {
+                        document.getElementById('extendModal').classList.remove('active');
+                    }
+
+                    async function extendExpiry(seconds) {
+                        try {
+                            const res = await fetch('/api/user/extend-expiry', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: '${id}', durationSeconds: seconds })
+                            });
+                            const json = await res.json();
+                            if (json.success) {
+                                if (seconds === -1) {
+                                    targetExpiresAt = 0;
+                                    showToast('Upload set to Never Expire!');
+                                } else if (json.newExpiresAt) {
+                                    targetExpiresAt = json.newExpiresAt;
+                                    showToast('Expiry extended successfully!');
+                                }
+                                updateCountdown();
+                                closeExtendModal();
+                            } else {
+                                showToast(json.error?.message || 'Must be logged in as owner to extend.');
+                            }
+                        } catch {
+                            showToast('Failed to extend expiry.');
+                        }
+                    }
 
                     // ── 1. Resolution & Metadata Detection ──────────────────────
                     if (isVideo) {

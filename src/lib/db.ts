@@ -578,3 +578,71 @@ export async function unlinkTelegramAccount(telegramId: string | number): Promis
     }
     return false;
 }
+
+// Extends or removes link expiration duration for a given upload
+export async function extendImageExpiry(
+    id: string,
+    userId?: string,
+    extraSeconds: number = 86400
+): Promise<{ success: boolean; newExpiresAt?: number; error?: string }> {
+    if (useCloud() && redis) {
+        const data: any = await redis.hgetall(`snap:${id}`);
+        if (!data || Object.keys(data).length === 0) {
+            return { success: false, error: 'Upload record not found' };
+        }
+
+        // Ownership verification (if upload is owned by a specific user)
+        if (userId && data.user_id && data.user_id !== '' && data.user_id !== userId) {
+            return { success: false, error: 'Unauthorized to modify expiry for this upload' };
+        }
+
+        if (extraSeconds === -1) {
+            // Remove expiration: set to Never expire!
+            await redis.hdel(`snap:${id}`, 'expires_at');
+            await redis.persist(`snap:${id}`);
+            return { success: true };
+        }
+
+        const now = Date.now();
+        const currentExpiresAt = data.expires_at ? parseInt(data.expires_at, 10) : now;
+        const baseTime = currentExpiresAt > now ? currentExpiresAt : now;
+        const newExpiresAt = baseTime + extraSeconds * 1000;
+
+        await redis.hset(`snap:${id}`, { expires_at: newExpiresAt.toString() });
+        const remainingSeconds = Math.ceil((newExpiresAt - now) / 1000);
+        await redis.expire(`snap:${id}`, Math.max(1, remainingSeconds));
+
+        return { success: true, newExpiresAt };
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const index = db.images.findIndex((img: any) => img.id === id);
+        if (index === -1) return { success: false, error: 'Upload not found' };
+
+        const image = db.images[index];
+        if (userId && image.user_id && image.user_id !== userId) {
+            return { success: false, error: 'Unauthorized' };
+        }
+
+        if (extraSeconds === -1) {
+            delete image.expires_at;
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+            return { success: true };
+        }
+
+        const now = Date.now();
+        const currentExpiresAt = image.expires_at || now;
+        const baseTime = currentExpiresAt > now ? currentExpiresAt : now;
+        const newExpiresAt = baseTime + extraSeconds * 1000;
+
+        image.expires_at = newExpiresAt;
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+
+        return { success: true, newExpiresAt };
+    } catch {
+        return { success: false, error: 'Failed to update database' };
+    }
+}
