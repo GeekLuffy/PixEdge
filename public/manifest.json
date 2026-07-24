@@ -1,0 +1,29 @@
+{
+  "name": "PixEdge Media Host",
+  "short_name": "PixEdge",
+  "description": "Scalable edge-based media hosting & instant link sharing",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "file",
+          "accept": ["image/*", "video/*"]
+        }
+      ]
+    }
+  }
+}
