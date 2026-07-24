@@ -1832,6 +1832,43 @@ export default function DashboardPage() {
                                 )}
                             </div>
 
+                            {/* ShareX Desktop Integration Card */}
+                            <div style={styles.card}>
+                                <div style={styles.cardTitle}>
+                                    <div style={{ ...styles.cardIcon, background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4" }}>
+                                        <Download size={22} />
+                                    </div>
+                                    <h2 style={styles.cardTitleText}>ShareX Desktop Integration</h2>
+                                </div>
+                                <p style={styles.cardDescription}>
+                                    Take screenshots on Windows and automatically upload them to PixEdge in 1-click. Download the pre-configured ShareX destination file (.sxcu) for your account.
+                                </p>
+                                {apiKey ? (
+                                    <a
+                                        href={`/api/sharex?key=${encodeURIComponent(apiKey)}`}
+                                        download="PixEdge.sxcu"
+                                        style={{ textDecoration: 'none' }}
+                                    >
+                                        <motion.button
+                                            whileHover={{ scale: 1.01 }}
+                                            whileTap={{ scale: 0.99 }}
+                                            style={{
+                                                ...styles.primaryButton,
+                                                background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+                                                boxShadow: '0 8px 20px rgba(6, 182, 212, 0.3)',
+                                            }}
+                                        >
+                                            <Download size={18} />
+                                            Download ShareX Config (.sxcu)
+                                        </motion.button>
+                                    </a>
+                                ) : (
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', background: 'rgba(255, 255, 255, 0.04)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                        🔑 Generate an API Key above to unlock 1-click ShareX config download.
+                                    </div>
+                                )}
+                            </div>
+
                             <div style={styles.card}>
                                 <div style={styles.cardTitle}>
                                     <div style={styles.cardIcon}>
