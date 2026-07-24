@@ -248,11 +248,11 @@ export async function GET(
                         transform: translateX(-50%); 
                         display: flex; 
                         align-items: center;
-                        gap: 10px; 
+                        gap: 8px; 
                         background: rgba(18, 18, 22, 0.75); 
                         backdrop-filter: blur(16px); 
                         -webkit-backdrop-filter: blur(16px);
-                        padding: 8px 14px; 
+                        padding: 6px 10px; 
                         border-radius: 100px; 
                         border: 1px solid rgba(255, 255, 255, 0.12);
                         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
@@ -261,29 +261,42 @@ export async function GET(
                     .expiry-pill {
                         display: inline-flex;
                         align-items: center;
-                        gap: 6px;
-                        background: rgba(245, 158, 11, 0.15);
-                        border: 1px solid rgba(245, 158, 11, 0.3);
-                        color: #fbbf24;
-                        padding: 4px 10px;
+                        gap: 8px;
+                        background: rgba(139, 92, 246, 0.12);
+                        border: 1px solid rgba(139, 92, 246, 0.28);
+                        color: #c4b5fd;
+                        padding: 4px 12px;
                         border-radius: 50px;
                         font-size: 12px;
-                        font-weight: 600;
+                        font-weight: 500;
+                        height: 32px;
+                        white-space: nowrap;
+                    }
+                    .expiry-pill b {
+                        color: #ffffff;
+                        font-weight: 700;
+                        letter-spacing: 0.5px;
                     }
                     .btn-extend-trigger {
-                        background: rgba(245, 158, 11, 0.2);
-                        border: 1px solid rgba(245, 158, 11, 0.4);
-                        color: #fbbf24;
+                        background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(124, 58, 237, 0.3) 100%);
+                        border: 1px solid rgba(139, 92, 246, 0.5);
+                        color: #e9d5ff;
                         font-size: 11px;
                         font-weight: 700;
-                        padding: 2px 8px;
+                        padding: 3px 10px;
                         border-radius: 20px;
                         cursor: pointer;
-                        transition: all 0.2s;
+                        transition: all 0.2s ease;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        font-family: inherit;
                     }
                     .btn-extend-trigger:hover {
-                        background: rgba(245, 158, 11, 0.35);
-                        color: #fff;
+                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+                        color: #ffffff;
+                        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+                        transform: translateY(-1px);
                     }
                     .info-bar {
                         position: fixed;
@@ -323,7 +336,7 @@ export async function GET(
                         text-decoration: none; 
                         font-size: 13px; 
                         font-weight: 500;
-                        padding: 8px 16px; 
+                        padding: 7px 16px; 
                         border-radius: 50px; 
                         transition: all 0.2s ease;
                         display: inline-flex;
@@ -333,11 +346,13 @@ export async function GET(
                         background: transparent;
                         cursor: pointer;
                         font-family: inherit;
+                        height: 32px;
                     }
                     a.btn-primary, button.btn-primary { 
                         background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); 
                         color: white; 
                         box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+                        font-weight: 600;
                     }
                     a.btn-primary:hover, button.btn-primary:hover { 
                         transform: translateY(-1px);
@@ -352,8 +367,8 @@ export async function GET(
                         color: #ffffff; 
                     }
                     .icon-btn {
-                        width: 34px;
-                        height: 34px;
+                        width: 32px;
+                        height: 32px;
                         padding: 0;
                         border-radius: 50%;
                         display: inline-flex;
@@ -394,8 +409,9 @@ export async function GET(
                     .modal-backdrop {
                         position: fixed;
                         inset: 0;
-                        background: rgba(0, 0, 0, 0.75);
-                        backdrop-filter: blur(8px);
+                        background: rgba(9, 9, 11, 0.82);
+                        backdrop-filter: blur(12px);
+                        -webkit-backdrop-filter: blur(12px);
                         display: flex;
                         align-items: center;
                         justify-content: center;
@@ -409,44 +425,58 @@ export async function GET(
                         pointer-events: auto;
                     }
                     .modal-card {
-                        background: #18181b;
-                        border: 1px solid rgba(255, 255, 255, 0.15);
-                        border-radius: 20px;
-                        padding: 24px;
+                        background: linear-gradient(145deg, rgba(22, 22, 29, 0.96) 0%, rgba(32, 24, 50, 0.96) 100%);
+                        border: 1px solid rgba(139, 92, 246, 0.3);
+                        border-radius: 24px;
+                        padding: 28px 24px;
                         width: 90%;
                         max-width: 380px;
-                        box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+                        box-shadow: 0 25px 60px rgba(0,0,0,0.7), 0 0 40px rgba(139, 92, 246, 0.2);
                         text-align: center;
                     }
-                    .modal-card h3 { margin: 0 0 8px 0; font-size: 1.1rem; color: #fff; }
-                    .modal-card p { margin: 0 0 18px 0; font-size: 0.85rem; color: #a1a1aa; }
-                    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+                    .modal-card h3 { 
+                        margin: 0 0 6px 0; 
+                        font-size: 1.25rem; 
+                        font-weight: 800; 
+                        color: #ffffff; 
+                        letter-spacing: -0.5px;
+                    }
+                    .modal-card p { 
+                        margin: 0 0 20px 0; 
+                        font-size: 0.88rem; 
+                        color: #a1a1aa; 
+                    }
+                    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
                     .modal-option {
-                        background: rgba(255, 255, 255, 0.06);
+                        background: rgba(255, 255, 255, 0.05);
                         border: 1px solid rgba(255, 255, 255, 0.1);
-                        color: #fff;
-                        padding: 10px;
-                        border-radius: 12px;
-                        font-size: 0.85rem;
-                        font-weight: 500;
+                        color: #f4f4f5;
+                        padding: 11px;
+                        border-radius: 14px;
+                        font-size: 0.88rem;
+                        font-weight: 600;
                         cursor: pointer;
-                        transition: all 0.2s;
+                        transition: all 0.2s ease;
+                        font-family: inherit;
                     }
                     .modal-option:hover {
-                        background: rgba(139, 92, 246, 0.2);
-                        border-color: rgba(139, 92, 246, 0.4);
-                        color: #c4b5fd;
+                        background: rgba(139, 92, 246, 0.22);
+                        border-color: rgba(139, 92, 246, 0.45);
+                        color: #e9d5ff;
+                        transform: translateY(-2px);
                     }
                     .modal-option-never {
                         grid-column: span 2;
-                        background: rgba(16, 185, 129, 0.15);
-                        border-color: rgba(16, 185, 129, 0.3);
+                        background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(5, 150, 105, 0.18) 100%);
+                        border: 1px solid rgba(16, 185, 129, 0.35);
                         color: #34d399;
-                        font-weight: 600;
+                        font-weight: 700;
                     }
                     .modal-option-never:hover {
-                        background: rgba(16, 185, 129, 0.3);
-                        color: #fff;
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                        color: #ffffff;
+                        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+                        transform: translateY(-2px);
                     }
                     
                     @media (max-width: 640px) {
@@ -471,7 +501,7 @@ export async function GET(
                             <button class="modal-option" onclick="extendExpiry(2592000)">+ 30 Days</button>
                             <button class="modal-option modal-option-never" onclick="extendExpiry(-1)">✨ Set to Never Expire</button>
                         </div>
-                        <button class="btn btn-secondary" style="width: 100%; justify-content: center;" onclick="closeExtendModal()">Cancel</button>
+                        <button class="btn btn-secondary" style="width: 100%; justify-content: center; height: 38px;" onclick="closeExtendModal()">Cancel</button>
                     </div>
                 </div>
 
@@ -482,7 +512,7 @@ export async function GET(
                     </a>
 
                     <!-- Live Ticking Expiry Badge -->
-                    <div className="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
+                    <div class="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
                         <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
                         <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
                     </div>
