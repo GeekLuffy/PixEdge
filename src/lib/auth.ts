@@ -163,12 +163,27 @@ export const authOptions: NextAuthOptions = {
             if (session.user && token.sub) {
                 // @ts-ignore
                 session.user.id = token.sub;
+                
+                // Fetch custom avatar or saved Telegram image if available in Redis
+                try {
+                    const customAvatar: string | null = await redis.get(`user:custom_avatar:${token.sub}`);
+                    if (customAvatar) {
+                        session.user.image = customAvatar;
+                    } else if (token.picture) {
+                        session.user.image = token.picture;
+                    }
+                } catch (e) {
+                    // Fallback to token picture
+                }
             }
             return session;
         },
         async jwt({ token, user, account }) {
             if (account && user) {
                 token.sub = user.id;
+                if (user.image) {
+                    token.picture = user.image;
+                }
             }
             return token;
         }

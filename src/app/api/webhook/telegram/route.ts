@@ -137,6 +137,10 @@ export async function POST(req: NextRequest) {
                 const pin = Math.floor(100000 + Math.random() * 900000).toString();
                 const pinKey = `telegram:login_pin:${pin}`;
                 
+                // Fetch user's Telegram profile photo URL
+                const { getTelegramUserProfilePhoto } = await import('@/lib/telegram');
+                const photoUrl = await getTelegramUserProfilePhoto(from.id);
+
                 // Store in Redis if cloud is enabled
                 try {
                     const { Redis } = await import('@upstash/redis');
@@ -148,7 +152,7 @@ export async function POST(req: NextRequest) {
                         id: from.id,
                         first_name: from.first_name,
                         username: from.username,
-                        photo_url: null
+                        photo_url: photoUrl || null
                     }), { ex: 300 });
                 } catch (e) {
                     console.error('Failed to store PIN in Redis:', e);

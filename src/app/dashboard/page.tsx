@@ -549,6 +549,8 @@ export default function DashboardPage() {
 
     const [activeTab, setActiveTab] = useState("overview");
     const [name, setName] = useState("");
+    const [avatarInput, setAvatarInput] = useState("");
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState("");
     const [apiKey, setApiKey] = useState<string | null>(null);
@@ -796,24 +798,63 @@ export default function DashboardPage() {
         }
         if (session?.user?.name) {
             setName(session.user.name);
+            if (session.user.image) {
+                setAvatarInput(session.user.image);
+            }
             fetchApiKey();
             fetchUploads();
             fetchFolders();
         }
     }, [session, status, router]);
 
-    // Save profile
+    // Save profile with custom avatar
     const handleSaveProfile = async () => {
         setSaving(true);
         setSuccess("");
         try {
-            await update({ name });
-            setSuccess("Profile updated successfully!");
+            await fetch("/api/user/profile", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name, image: avatarInput }),
+            });
+            await update({ name, image: avatarInput });
+            setSuccess("Profile settings & avatar updated!");
             setTimeout(() => setSuccess(""), 3000);
         } catch (err) {
             console.error(err);
         }
         setSaving(false);
+    };
+
+    const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploadingAvatar(true);
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+            const res = await fetch("/api/v1/upload", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await res.json();
+            if (data.success && data.data?.direct_url) {
+                const newAvatarUrl = data.data.direct_url;
+                setAvatarInput(newAvatarUrl);
+                await fetch("/api/user/profile", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, image: newAvatarUrl }),
+                });
+                await update({ name, image: newAvatarUrl });
+                setSuccess("New profile picture uploaded & saved!");
+                setTimeout(() => setSuccess(""), 3000);
+            }
+        } catch (err) {
+            console.error("Avatar upload failed:", err);
+        }
+        setUploadingAvatar(false);
     };
 
     // Loading state
@@ -1945,6 +1986,58 @@ export default function DashboardPage() {
                                     <div style={styles.inputWrapper}>
                                         <Mail size={18} style={styles.inputIcon} />
                                         <input className="dashboard-input" type="email" value={user?.email || ""} disabled style={{ ...styles.input, opacity: 0.6 }} />
+                                    </div>
+                                </div>
+
+                                {/* Profile Picture Settings */}
+                                <div style={{ ...styles.inputGroup, marginBottom: "1.5rem" }}>
+                                    <label style={styles.inputLabel}>Profile Picture (PFP)</label>
+                                    <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+                                        <img
+                                            src={avatarInput || avatarUrl}
+                                            alt="PFP Preview"
+                                            style={{
+                                                width: "56px",
+                                                height: "56px",
+                                                borderRadius: "50%",
+                                                border: "2px solid var(--accent-primary)",
+                                                objectFit: "cover",
+                                            }}
+                                        />
+                                        <div style={{ flex: 1, minWidth: "220px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                                            <div style={styles.inputWrapper}>
+                                                <ImageIcon size={18} style={styles.inputIcon} />
+                                                <input
+                                                    className="dashboard-input"
+                                                    type="url"
+                                                    value={avatarInput}
+                                                    onChange={(e) => setAvatarInput(e.target.value)}
+                                                    placeholder="Paste Image URL or Upload below"
+                                                    style={styles.input}
+                                                />
+                                            </div>
+                                            <label
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: "6px",
+                                                    fontSize: "0.8rem",
+                                                    fontWeight: 600,
+                                                    color: "var(--accent-primary)",
+                                                    cursor: "pointer",
+                                                    width: "fit-content",
+                                                }}
+                                            >
+                                                {uploadingAvatar ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                                                Upload Avatar File...
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleAvatarFileUpload}
+                                                    style={{ display: "none" }}
+                                                />
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
 

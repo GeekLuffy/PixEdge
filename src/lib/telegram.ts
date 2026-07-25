@@ -360,3 +360,27 @@ export async function deleteChannelMediaMessage(messageId?: number): Promise<boo
     return false;
   }
 }
+
+// Fetches the user's current profile picture URL from Telegram Bot API
+export async function getTelegramUserProfilePhoto(userId: number | string): Promise<string | null> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${userId}&limit=1`);
+    const data = await res.json();
+    if (data.ok && data.result?.photos?.length > 0) {
+      const photos = data.result.photos[0];
+      // Pick highest resolution photo (last element)
+      const fileId = photos[photos.length - 1].file_id;
+      const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
+      const fileData = await fileRes.json();
+      if (fileData.ok && fileData.result?.file_path) {
+        return `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
+      }
+    }
+  } catch (err) {
+    console.error('[telegram] Failed to fetch user profile photo:', err);
+  }
+  return null;
+}
