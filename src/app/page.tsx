@@ -23,6 +23,7 @@ import {
     X,
     Clock,
     BarChart2,
+    Lock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -48,6 +49,7 @@ export default function Home() {
     );
     const [copied, setCopied] = useState(false);
     const [customId, setCustomId] = useState("");
+    const [password, setPassword] = useState("");
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [showQr, setShowQr] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -148,6 +150,7 @@ export default function Home() {
         formData.append("file", file);
         if (customId) formData.append("customId", customId);
         if (expiresIn) formData.append("expiresIn", expiresIn);
+        if (password) formData.append("password", password);
 
         try {
             // Use XMLHttpRequest for chunk upload progress tracking
@@ -707,6 +710,43 @@ export default function Home() {
                             <option value="604800" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 7 Days</option>
                             <option value="2592000" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 30 Days</option>
                         </select>
+                    </div>
+
+                    {/* Secret PIN / Password Protection (Optional) */}
+                    <div style={{ position: "relative", marginBottom: "1.5rem" }}>
+                        <div
+                            style={{
+                                position: "absolute",
+                                left: "14px",
+                                top: "50%",
+                                transform: "translateY(-50%)",
+                                color: password ? "var(--accent-primary)" : "var(--text-muted)",
+                                display: "flex",
+                                alignItems: "center",
+                                pointerEvents: "none",
+                            }}
+                        >
+                            <Lock size={14} />
+                        </div>
+                        <input
+                            type="password"
+                            placeholder="Secret PIN / Password Protection (Optional)"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            style={{
+                                width: "100%",
+                                background: "var(--input-bg)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "16px",
+                                padding: "12px 12px 12px 40px",
+                                color: "var(--text-main)",
+                                fontSize: "0.9rem",
+                                outline: "none",
+                                transition: "all 0.2s",
+                                fontFamily: "inherit",
+                                boxSizing: "border-box" as const,
+                            }}
+                        />
                     </div>
 
                     {/* ID Error with Suggestions */}

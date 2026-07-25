@@ -12,18 +12,19 @@ export async function POST(req: NextRequest) {
 
     try {
         const body = await req.json();
-        const { id, folder, tags } = body;
+        const { id, folder, tags, password } = body;
 
         if (!id || typeof id !== 'string') {
             return NextResponse.json({ error: 'Valid file ID is required' }, { status: 400 });
         }
 
-        // Apply folder and tags update to the file in the database
+        // Apply folder, tags, and password update to the file in the database
         const success = await updateImageOrganization(
             id,
             session.user.id,
             typeof folder === 'string' ? folder : undefined,
-            Array.isArray(tags) ? tags : undefined
+            Array.isArray(tags) ? tags : undefined,
+            typeof password === 'string' ? password : undefined
         );
 
         if (!success) {

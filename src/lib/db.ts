@@ -29,6 +29,8 @@ export interface ImageRecord {
     folder?: string;
     // List of custom tags added by the user
     tags?: string[];
+    // Hashed PIN or password for link protection
+    password_hash?: string;
     metadata: {
         size: number;
         type: string;
@@ -62,6 +64,7 @@ export async function saveImage(
             expires_at: expiresAt ? expiresAt.toString() : '',
             folder: (record as any).folder || '',
             tags: JSON.stringify((record as any).tags || []),
+            password_hash: record.password_hash || '',
             metadata: JSON.stringify(record.metadata)
         });
 
@@ -152,22 +155,38 @@ export async function updateImageOrganization(
     id: string,
     userId: string,
     folder?: string,
-    tags?: string[]
+    tags?: string[],
+    password?: string
 ): Promise<boolean> {
     const cleanFolder = folder ? folder.trim() : '';
     const cleanTags = Array.isArray(tags)
         ? tags.map(t => t.trim().toLowerCase()).filter(Boolean)
         : [];
 
+    let passwordHash: string | undefined = undefined;
+    if (typeof password === 'string') {
+        if (password.trim() === '') {
+            passwordHash = '';
+        } else {
+            const crypto = await import('crypto');
+            passwordHash = crypto.createHash('sha256').update(password.trim()).digest('hex');
+        }
+    }
+
     if (useCloud() && redis) {
         // Confirm the current user owns this upload before editing
         const data: any = await redis.hgetall(`snap:${id}`);
         if (!data || data.user_id !== userId) return false;
 
-        await redis.hset(`snap:${id}`, {
+        const updateData: any = {
             folder: cleanFolder,
             tags: JSON.stringify(cleanTags),
-        });
+        };
+        if (passwordHash !== undefined) {
+            updateData.password_hash = passwordHash;
+        }
+
+        await redis.hset(`snap:${id}`, updateData);
         if (cleanFolder) {
             await redis.sadd(`user:${userId}:folders`, cleanFolder);
         }

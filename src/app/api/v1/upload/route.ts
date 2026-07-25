@@ -81,6 +81,15 @@ export async function POST(req: NextRequest) {
             ? expiresInParsed
             : undefined;
 
+        // Optional Secret PIN or Password for link protection
+        const passwordEntry = formData.get('password');
+        const passwordRaw = typeof passwordEntry === 'string' ? passwordEntry.trim() : '';
+        let password_hash: string | undefined = undefined;
+        if (passwordRaw) {
+            const crypto = await import('crypto');
+            password_hash = crypto.createHash('sha256').update(passwordRaw).digest('hex');
+        }
+
         if (!(fileEntry instanceof Blob)) {
             return NextResponse.json({
                 success: false,
@@ -166,6 +175,7 @@ export async function POST(req: NextRequest) {
                     message_id: gramResult.message_id,
                     created_at: Date.now(),
                     folder,
+                    password_hash,
                     metadata: { size: file.size, type: file.type, version: 'v2' },
                 };
                 usedGram = true;
@@ -200,6 +210,7 @@ export async function POST(req: NextRequest) {
                 telegram_file_id: telegramResult.file_id,
                 created_at: Date.now(),
                 folder,
+                password_hash,
                 metadata: { size: file.size, type: file.type, version: 'v1' },
             };
             usedGram = false;

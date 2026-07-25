@@ -38,6 +38,7 @@ import {
     Tag,
     Filter,
     Search,
+    Lock,
     X,
 } from "lucide-react";
 import Link from "next/link";
@@ -569,6 +570,7 @@ export default function DashboardPage() {
     const [organizingItem, setOrganizingItem] = useState<any | null>(null);
     const [folderInput, setFolderInput] = useState<string>("");
     const [tagsInput, setTagsInput] = useState<string>("");
+    const [passwordInput, setPasswordInput] = useState<string>("");
     const [savingOrg, setSavingOrg] = useState<boolean>(false);
 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -580,7 +582,7 @@ export default function DashboardPage() {
         setTimeout(() => setCopiedId(null), 2000);
     };
 
-    // Save folder category and tags for a specific upload
+    // Save folder category, tags, and password protection for a specific upload
     const handleSaveOrganization = async () => {
         if (!organizingItem) return;
         setSavingOrg(true);
@@ -597,6 +599,7 @@ export default function DashboardPage() {
                     id: organizingItem.id,
                     folder: folderInput.trim(),
                     tags: parsedTags,
+                    password: passwordInput,
                 }),
             });
 
@@ -608,12 +611,13 @@ export default function DashboardPage() {
                             ...item,
                             folder: folderInput.trim() || undefined,
                             tags: parsedTags,
+                            password_hash: passwordInput.trim() ? 'protected' : (passwordInput === '' ? '' : item.password_hash),
                         };
                     }
                     return item;
                 }));
                 setOrganizingItem(null);
-                setSuccess("Saved folder & tags!");
+                setSuccess("Saved folder, tags & link protection!");
                 setTimeout(() => setSuccess(""), 3000);
             }
         } catch (e) {
@@ -1456,6 +1460,25 @@ export default function DashboardPage() {
                                                         <Video size={10} /> Video
                                                     </div>
                                                 )}
+                                                {upload.password_hash && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: '8px',
+                                                        right: '8px',
+                                                        background: 'rgba(139, 92, 246, 0.85)',
+                                                        backdropFilter: 'blur(8px)',
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        color: '#fff',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        <Lock size={10} /> Protected
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Info */}
@@ -2204,6 +2227,33 @@ export default function DashboardPage() {
                                         }}
                                     />
                                 </div>
+
+                                {/* Password Protection Field */}
+                                 <div style={{ marginBottom: '1.75rem' }}>
+                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                         Secret PIN / Password Protection
+                                     </label>
+                                     <div style={{ position: 'relative' }}>
+                                         <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                         <input
+                                             type="password"
+                                             placeholder={organizingItem?.password_hash ? "Protected (Type new PIN to update)" : "Add secret PIN or password"}
+                                             value={passwordInput}
+                                             onChange={(e) => setPasswordInput(e.target.value)}
+                                             style={{
+                                                 width: '100%',
+                                                 background: 'var(--input-bg)',
+                                                 border: '1px solid var(--border-color)',
+                                                 borderRadius: '14px',
+                                                 padding: '10px 14px 10px 38px',
+                                                 color: 'var(--text-main)',
+                                                 fontSize: '0.85rem',
+                                                 outline: 'none',
+                                                 fontFamily: 'inherit',
+                                             }}
+                                         />
+                                     </div>
+                                 </div>
 
                                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                     <button

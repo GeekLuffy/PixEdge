@@ -90,6 +90,167 @@ export async function GET(
         const accept = req.headers.get('accept') || '';
         const serveRaw = hasExtension || (!accept.includes('text/html') && !isTelegramBot);
 
+        // Password Protection Verification
+        if (record.password_hash) {
+            const cookiePass = req.cookies.get(`pe_pass_${id}`)?.value;
+            const queryPass = req.nextUrl.searchParams.get('password') || req.nextUrl.searchParams.get('pass');
+            const headerPass = req.headers.get('x-media-password');
+
+            const candidate = queryPass || headerPass || '';
+            let authorized = false;
+
+            if (cookiePass && cookiePass === record.password_hash) {
+                authorized = true;
+            } else if (candidate) {
+                const crypto = await import('crypto');
+                const candHash = crypto.createHash('sha256').update(candidate.trim()).digest('hex');
+                if (candHash === record.password_hash) {
+                    authorized = true;
+                }
+            }
+
+            if (!authorized) {
+                if (serveRaw) {
+                    return new NextResponse('Unauthorized: Password protected link', { status: 401 });
+                }
+
+                // Render Password Protection Lock Screen
+                const lockHtml = `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Protected Media | PixEdge</title>
+  <style>
+    :root {
+      --bg-color: #09090b;
+      --card-bg: rgba(22, 22, 29, 0.92);
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --border-color: rgba(139, 92, 246, 0.25);
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-color);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-main);
+      padding: 1.5rem;
+    }
+    .lock-card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 2.5rem;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+    .lock-icon {
+      width: 64px;
+      height: 64px;
+      background: rgba(139, 92, 246, 0.15);
+      color: #8b5cf6;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 0.5rem 0; }
+    p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.75rem; line-height: 1.5; }
+    .pin-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1.05rem;
+      letter-spacing: 2px;
+      text-align: center;
+      font-family: 'JetBrains Mono', monospace;
+      outline: none;
+      box-sizing: border-box;
+      margin-bottom: 1rem;
+    }
+    .btn-unlock {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(139, 92, 246, 0.35);
+    }
+    .error-msg {
+      color: #f87171;
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="lock-card">
+    <div class="lock-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+      </svg>
+    </div>
+    <h1>Protected Link</h1>
+    <p>This media link is protected with a secret PIN or password by the owner.</p>
+    <form id="unlockForm">
+      <input type="password" id="passInput" class="pin-input" placeholder="Enter PIN or Password" autofocus required />
+      <button type="submit" class="btn-unlock">Unlock & View Media</button>
+      <div id="errorMsg" class="error-msg">Incorrect PIN or password</div>
+    </form>
+  </div>
+  <script>
+    document.getElementById('unlockForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pass = document.getElementById('passInput').value.trim();
+      const err = document.getElementById('errorMsg');
+      err.style.display = 'none';
+      try {
+        const res = await fetch('/api/v1/info/${id}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          err.innerText = data.error || 'Incorrect password';
+          err.style.display = 'block';
+        }
+      } catch {
+        err.innerText = 'Unlock failed. Try again.';
+        err.style.display = 'block';
+      }
+    });
+  </script>
+</body>
+</html>`;
+
+                return new NextResponse(lockHtml, {
+                    status: 200,
+                    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+                });
+            }
+        }
+
         const rangeHeader = req.headers.get('range');
 
         // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
