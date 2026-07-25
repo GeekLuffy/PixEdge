@@ -128,6 +128,34 @@ export const authOptions: NextAuthOptions = {
                     email: `${credentials.id}@telegram.user`,
                 };
             }
+        }),
+        CredentialsProvider({
+            id: "telegram-pin",
+            name: "Telegram PIN",
+            credentials: {
+                pin: { label: "PIN", type: "text" }
+            },
+            async authorize(credentials) {
+                if (!credentials?.pin) return null;
+
+                const cleanPin = credentials.pin.trim();
+                const pinKey = `telegram:login_pin:${cleanPin}`;
+                const data: any = await redis.get(pinKey);
+
+                if (!data) return null;
+
+                // Delete PIN after single-use authentication
+                await redis.del(pinKey);
+
+                const userData = typeof data === 'string' ? JSON.parse(data) : data;
+
+                return {
+                    id: userData.id.toString(),
+                    name: userData.first_name || userData.name || 'Telegram User',
+                    image: userData.photo_url || null,
+                    email: `${userData.id}@telegram.user`,
+                };
+            }
         })
     ],
     callbacks: {

@@ -281,11 +281,15 @@ function LoginPageContent() {
         }
     };
 
+    const [pinCode, setPinCode] = useState('');
+    const [pinLoading, setPinLoading] = useState(false);
+
     useEffect(() => {
         if (telegramWrapperRef.current) {
+            const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "PixEdgeBot";
             const script = document.createElement('script');
             script.src = "https://telegram.org/js/telegram-widget.js?22";
-            script.setAttribute("data-telegram-login", "PixEdge_Bot");
+            script.setAttribute("data-telegram-login", botName);
             script.setAttribute("data-size", "large");
             script.setAttribute("data-radius", "8");
             script.setAttribute("data-request-access", "write");
@@ -304,6 +308,23 @@ function LoginPageContent() {
         const result = await signIn('telegram-login', { redirect: false, ...user });
         if (result?.error) setError('Telegram login failed.');
         setLoading(false);
+    };
+
+    const handlePinSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pinCode || pinCode.trim().length !== 6) {
+            setError('Please enter a valid 6-digit Telegram PIN');
+            return;
+        }
+        setPinLoading(true);
+        setError('');
+        const result = await signIn('telegram-pin', { pin: pinCode.trim(), redirect: false });
+        if (result?.error) {
+            setError('Invalid or expired Telegram PIN. Send /login in bot to get a new PIN.');
+        } else {
+            router.push('/dashboard');
+        }
+        setPinLoading(false);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -475,6 +496,77 @@ function LoginPageContent() {
 
                 {/* Telegram Widget */}
                 <div style={styles.telegramContainer} ref={telegramWrapperRef} />
+
+                {/* 1-Click Telegram PIN Login (Bypasses Widget / OTP Issues) */}
+                <div
+                    style={{
+                        background: "rgba(139, 92, 246, 0.06)",
+                        border: "1px solid rgba(139, 92, 246, 0.2)",
+                        borderRadius: "16px",
+                        padding: "1rem",
+                        marginBottom: "1.5rem",
+                    }}
+                >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                        <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--accent-primary)", display: "flex", alignItems: "center", gap: "6px" }}>
+                            🔑 Or Login via 6-Digit Telegram PIN
+                        </span>
+                        <a
+                            href="https://t.me/PixEdgeBot"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: "0.75rem", color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}
+                        >
+                            Open Bot ↗
+                        </a>
+                    </div>
+                    <form onSubmit={handlePinSubmit} style={{ display: "flex", gap: "8px" }}>
+                        <input
+                            type="text"
+                            maxLength={6}
+                            placeholder="Enter 6-digit PIN"
+                            value={pinCode}
+                            onChange={(e) => setPinCode(e.target.value.replace(/\D/g, ''))}
+                            style={{
+                                flex: 1,
+                                background: "var(--input-bg)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "10px",
+                                padding: "8px 12px",
+                                color: "var(--text-main)",
+                                fontSize: "0.85rem",
+                                letterSpacing: "2px",
+                                textAlign: "center",
+                                fontFamily: "'JetBrains Mono', monospace",
+                                outline: "none",
+                            }}
+                        />
+                        <button
+                            type="submit"
+                            disabled={pinLoading || pinCode.length !== 6}
+                            style={{
+                                background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                                border: "none",
+                                borderRadius: "10px",
+                                color: "#ffffff",
+                                padding: "0 16px",
+                                fontSize: "0.85rem",
+                                fontWeight: 600,
+                                cursor: pinCode.length === 6 ? "pointer" : "not-allowed",
+                                opacity: pinCode.length === 6 ? 1 : 0.6,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                fontFamily: "inherit",
+                            }}
+                        >
+                            {pinLoading ? <Loader2 size={14} className="animate-spin" /> : "Verify"}
+                        </button>
+                    </form>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", margin: "8px 0 0 0", textAlign: "center" }}>
+                        Send <code>/login</code> to <b>@PixEdgeBot</b> in Telegram to get your 6-digit PIN.
+                    </p>
+                </div>
 
                 {/* Divider */}
                 <div style={styles.divider}>

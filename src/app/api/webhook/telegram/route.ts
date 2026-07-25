@@ -133,35 +133,43 @@ export async function POST(req: NextRequest) {
             if (command === '/login') {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
-                // Check if already logged in
-                const alreadyLinked = await isAccountLinked(from.id);
-                if (alreadyLinked) {
-                    await sendMessage(chatId,
-                        `✅ <b>Already Logged In!</b>\n\n` +
-                        `Your Telegram account is already connected to your PixEdge web account.\n\n` +
-                        `All your bot uploads will appear in your dashboard.`,
-                        'HTML',
-                        {
-                            inline_keyboard: [[
-                                { text: "📊 Open Dashboard", url: `${baseUrl}/dashboard` }
-                            ]]
-                        }
-                    );
-                    return new NextResponse('OK');
+                // Generate 6-digit PIN
+                const pin = Math.floor(100000 + Math.random() * 900000).toString();
+                const pinKey = `telegram:login_pin:${pin}`;
+                
+                // Store in Redis if cloud is enabled
+                try {
+                    const { Redis } = await import('@upstash/redis');
+                    const redis = new Redis({
+                        url: process.env.UPSTASH_REDIS_REST_URL!,
+                        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+                    });
+                    await redis.set(pinKey, JSON.stringify({
+                        id: from.id,
+                        first_name: from.first_name,
+                        username: from.username,
+                        photo_url: null
+                    }), { ex: 300 });
+                } catch (e) {
+                    console.error('Failed to store PIN in Redis:', e);
                 }
 
-                // Generate link token
+                // Generate link token as fallback
                 const token = await createLinkToken(from.id);
                 const linkUrl = `${baseUrl}/login?link=${token}`;
 
                 await sendMessage(chatId,
-                    `🔗 <b>Link Your Account</b>\n\n` +
-                    `Click the button below to connect your Telegram to your PixEdge web account.\n\n` +
-                    `<i>This link expires in 5 minutes.</i>`,
+                    `🔑 <b>PixEdge Web Login</b>\n\n` +
+                    `1️⃣ <b>Option A (PIN Code):</b>\n` +
+                    `Your PIN: <code>${pin}</code>\n` +
+                    `<i>Enter this PIN on the login page.</i>\n\n` +
+                    `2️⃣ <b>Option B (Direct Link):</b>\n` +
+                    `Click the button below to authorize.\n\n` +
+                    `<i>Both options expire in 5 minutes.</i>`,
                     'HTML',
                     {
                         inline_keyboard: [[
-                            { text: "🔗 Link Account", url: linkUrl }
+                            { text: "🔗 1-Click Login to Website", url: linkUrl }
                         ]]
                     }
                 );
