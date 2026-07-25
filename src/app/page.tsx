@@ -1438,7 +1438,7 @@ export default function Home() {
                                     Send media directly to our bot or reply with <code>/upload custom-slug</code> to host on the edge.
                                 </p>
                                 <a
-                                    href="https://t.me/PixEdgeBot"
+                                    href="https://t.me/PixEdge_bot"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     style={{

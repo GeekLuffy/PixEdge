@@ -286,7 +286,7 @@ function LoginPageContent() {
 
     useEffect(() => {
         if (telegramWrapperRef.current) {
-            const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "PixEdgeBot";
+            const botName = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || "PixEdge_bot";
             const script = document.createElement('script');
             script.src = "https://telegram.org/js/telegram-widget.js?22";
             script.setAttribute("data-telegram-login", botName);
@@ -512,7 +512,7 @@ function LoginPageContent() {
                             🔑 Or Login via 6-Digit Telegram PIN
                         </span>
                         <a
-                            href="https://t.me/PixEdgeBot"
+                            href="https://t.me/PixEdge_bot"
                             target="_blank"
                             rel="noopener noreferrer"
                             style={{ fontSize: "0.75rem", color: "#3b82f6", textDecoration: "none", fontWeight: 600 }}
@@ -564,7 +564,7 @@ function LoginPageContent() {
                         </button>
                     </form>
                     <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", margin: "8px 0 0 0", textAlign: "center" }}>
-                        Send <code>/login</code> to <b>@PixEdgeBot</b> in Telegram to get your 6-digit PIN.
+                        Send <code>/login</code> to <b>@PixEdge_bot</b> in Telegram to get your 6-digit PIN.
                     </p>
                 </div>
 
