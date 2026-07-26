@@ -77,11 +77,16 @@ function SpotlightCard({
 
     return (
         <motion.div
+            initial="initial"
+            whileHover="hover"
             onMouseMove={handleMouseMove}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            whileHover={{ y: -6, scale: 1.015 }}
             transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            variants={{
+                initial: { y: 0, scale: 1 },
+                hover: { y: -6, scale: 1.015 },
+            }}
             style={{
                 position: "relative",
                 overflow: "hidden",
@@ -115,6 +120,11 @@ function SpotlightCard({
         </motion.div>
     );
 }
+
+const iconHoverVariant = {
+    initial: { scale: 1, rotate: 0 },
+    hover: { scale: 1.18, rotate: 10 },
+};
 
 export default function Home() {
     const { data: session } = useSession();
@@ -1782,9 +1792,13 @@ export default function Home() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
-                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                            <motion.div
+                                variants={iconHoverVariant}
+                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
+                            >
                                 <Upload size={24} />
-                            </div>
+                            </motion.div>
                             <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--accent-primary)", textTransform: "uppercase" }}>Step 01</span>
                             <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
                                 Drop or Select Media
@@ -1795,9 +1809,13 @@ export default function Home() {
                         </SpotlightCard>
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
-                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                            <motion.div
+                                variants={iconHoverVariant}
+                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
+                            >
                                 <Zap size={24} />
-                            </div>
+                            </motion.div>
                             <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#06b6d4", textTransform: "uppercase" }}>Step 02</span>
                             <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
                                 MTProto Edge Stream
@@ -1808,9 +1826,13 @@ export default function Home() {
                         </SpotlightCard>
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
-                            <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
+                            <motion.div
+                                variants={iconHoverVariant}
+                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
+                            >
                                 <Globe size={24} />
-                            </div>
+                            </motion.div>
                             <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#10b981", textTransform: "uppercase" }}>Step 03</span>
                             <h3 style={{ fontSize: "1.2rem", fontWeight: 700, color: "var(--text-main)", margin: "4px 0 8px 0" }}>
                                 Instant Global Sharing
@@ -1835,8 +1857,10 @@ export default function Home() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <Code2 size={20} color="#8b5cf6" />
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                    <Code2 size={22} color="#8b5cf6" />
+                                </motion.div>
                                 REST API Upload
                             </div>
                             <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
@@ -1860,8 +1884,10 @@ export default function Home() {
                         </SpotlightCard>
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <ImageIcon size={20} color="#06b6d4" />
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                    <ImageIcon size={22} color="#06b6d4" />
+                                </motion.div>
                                 ShareX 1-Click Integration
                             </div>
                             <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
@@ -1885,8 +1911,10 @@ export default function Home() {
                         </SpotlightCard>
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <MessageSquare size={20} color="#10b981" />
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                    <MessageSquare size={22} color="#10b981" />
+                                </motion.div>
                                 Telegram Bot Uploads
                             </div>
                             <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
@@ -1914,74 +1942,36 @@ export default function Home() {
                 </div>
 
                 {/* Features Grid */}
-                <div className="features-grid" style={{ marginTop: "4rem" }}>
-                    <motion.div
-                        className="feature-card"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                    >
-                        <Zap size={28} color="#8b5cf6" style={{ marginBottom: "1.5rem" }} />
-                        <h3 style={{ marginBottom: "0.8rem" }}>Edge Delivery</h3>
-                        <p
-                            style={{
-                                color: "var(--card-subtext)",
-                                fontSize: "0.9rem",
-                                lineHeight: "1.5",
-                            }}
-                        >
-                            Direct-to-CDN redirection ensures your images and 4K videos load instantly for
-                            users globally.
-                        </p>
-                    </motion.div>
-                    <motion.div
-                        className="feature-card"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.1 }}
-                    >
-                        <Shield
-                            size={28}
-                            color="#06b6d4"
-                            style={{ marginBottom: "1.5rem" }}
-                        />
-                        <h3 style={{ marginBottom: "0.8rem" }}>Privacy Shield</h3>
-                        <p
-                            style={{
-                                color: "var(--card-subtext)",
-                                fontSize: "0.9rem",
-                                lineHeight: "1.5",
-                            }}
-                        >
-                            Advanced privacy protection that keeps your data sources secure,
-                            ensuring clean and anonymous sharing links.
-                        </p>
-                    </motion.div>
-                    <motion.div
-                        className="feature-card"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        transition={{ delay: 0.2 }}
-                    >
-                        <Code2
-                            size={28}
-                            color="#eab308"
-                            style={{ marginBottom: "1.5rem" }}
-                        />
-                        <h3 style={{ marginBottom: "0.8rem" }}>Rich API</h3>
-                        <p
-                            style={{
-                                color: "var(--card-subtext)",
-                                fontSize: "0.9rem",
-                                lineHeight: "1.5",
-                            }}
-                        >
-                            Fully documented REST API for programmatic uploads, custom vanity slugs, and metadata
-                            retrieval.
-                        </p>
-                    </motion.div>
+                <div style={{ marginTop: "4rem", width: "100%", maxWidth: "1000px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
+                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                                <Zap size={28} color="#8b5cf6" />
+                            </motion.div>
+                            <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Edge Delivery</h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                Direct-to-CDN redirection ensures your images and 4K videos load instantly for users globally.
+                            </p>
+                        </SpotlightCard>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
+                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                                <Shield size={28} color="#06b6d4" />
+                            </motion.div>
+                            <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Privacy Shield</h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                Advanced privacy protection that keeps your data sources secure, ensuring clean and anonymous sharing links.
+                            </p>
+                        </SpotlightCard>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(234, 179, 8, 0.25)">
+                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                                <Code2 size={28} color="#eab308" />
+                            </motion.div>
+                            <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Rich API</h3>
+                            <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
+                                Fully documented REST API for programmatic uploads, custom vanity slugs, and metadata retrieval.
+                            </p>
+                        </SpotlightCard>
+                    </div>
                 </div>
 
                 <footer className="footer" style={{ marginTop: "4rem", width: "100%" }}>
