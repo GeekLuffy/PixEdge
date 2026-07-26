@@ -878,76 +878,127 @@ export default function Home() {
                     <AnimatePresence>
                         {batchQueue.length > 0 && (
                             <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.98 }}
                                 style={{
-                                    marginTop: "1.5rem",
+                                    marginBottom: "1.5rem",
                                     background: "rgba(139, 92, 246, 0.04)",
                                     border: "1px solid rgba(139, 92, 246, 0.2)",
                                     borderRadius: "20px",
                                     padding: "1.25rem",
+                                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.12)",
                                 }}
                             >
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                        <Layers size={18} color="#8b5cf6" />
-                                        <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-main)" }}>
-                                            Batch Queue ({batchQueue.filter(q => q.status === 'complete').length}/{batchQueue.length} Done)
-                                        </span>
+                                {/* Header Bar */}
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        flexWrap: "wrap",
+                                        gap: "12px",
+                                        marginBottom: "1rem",
+                                        paddingBottom: "12px",
+                                        borderBottom: "1px solid rgba(255, 255, 255, 0.06)",
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <div
+                                            style={{
+                                                background: "rgba(139, 92, 246, 0.15)",
+                                                border: "1px solid rgba(139, 92, 246, 0.3)",
+                                                padding: "6px",
+                                                borderRadius: "10px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                            }}
+                                        >
+                                            <Layers size={18} color="#8b5cf6" />
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-main)", display: "flex", alignItems: "center", gap: "8px" }}>
+                                                <span>Batch Queue</span>
+                                                <span
+                                                    style={{
+                                                        background: batchQueue.every(q => q.status === 'complete') ? "rgba(16, 185, 129, 0.15)" : "rgba(139, 92, 246, 0.15)",
+                                                        color: batchQueue.every(q => q.status === 'complete') ? "#10b981" : "#8b5cf6",
+                                                        border: batchQueue.every(q => q.status === 'complete') ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid rgba(139, 92, 246, 0.3)",
+                                                        borderRadius: "100px",
+                                                        fontSize: "0.75rem",
+                                                        padding: "2px 8px",
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {batchQueue.filter(q => q.status === 'complete').length}/{batchQueue.length} Done
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: "8px" }}>
+
+                                    {/* Action Buttons */}
+                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
                                         {batchQueue.some(q => q.status === 'complete') && (
                                             <>
                                                 <button
                                                     onClick={copyAllBatchLinks}
                                                     style={{
-                                                        background: "#8b5cf6",
+                                                        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
                                                         border: "none",
-                                                        borderRadius: "8px",
-                                                        padding: "6px 12px",
+                                                        borderRadius: "10px",
+                                                        padding: "8px 16px",
                                                         color: "#ffffff",
-                                                        fontSize: "0.78rem",
+                                                        fontSize: "0.82rem",
                                                         fontWeight: 600,
                                                         cursor: "pointer",
-                                                        display: "flex",
+                                                        display: "inline-flex",
                                                         alignItems: "center",
-                                                        gap: "4px",
+                                                        gap: "6px",
+                                                        whiteSpace: "nowrap",
+                                                        boxShadow: "0 4px 14px rgba(139, 92, 246, 0.3)",
+                                                        transition: "all 0.2s",
                                                     }}
                                                 >
                                                     {batchCopied ? <Check size={14} /> : <Copy size={14} />}
-                                                    {batchCopied ? "Copied All!" : "Copy All Links"}
+                                                    <span>{batchCopied ? "Copied All!" : "Copy All Links"}</span>
                                                 </button>
                                                 <button
                                                     onClick={copyAllMarkdown}
                                                     style={{
-                                                        background: "rgba(139, 92, 246, 0.15)",
-                                                        border: "1px solid rgba(139, 92, 246, 0.3)",
-                                                        borderRadius: "8px",
-                                                        padding: "6px 12px",
+                                                        background: "rgba(255, 255, 255, 0.05)",
+                                                        border: "1px solid var(--border-color)",
+                                                        borderRadius: "10px",
+                                                        padding: "8px 14px",
                                                         color: "var(--text-main)",
-                                                        fontSize: "0.78rem",
+                                                        fontSize: "0.82rem",
                                                         fontWeight: 500,
                                                         cursor: "pointer",
-                                                        display: "flex",
+                                                        display: "inline-flex",
                                                         alignItems: "center",
-                                                        gap: "4px",
+                                                        gap: "6px",
+                                                        whiteSpace: "nowrap",
+                                                        transition: "all 0.2s",
                                                     }}
                                                 >
-                                                    <FileText size={14} color="#8b5cf6" /> Markdown
+                                                    <FileText size={14} color="#8b5cf6" />
+                                                    <span>Markdown</span>
                                                 </button>
                                             </>
                                         )}
                                         <button
                                             onClick={() => setBatchQueue([])}
                                             style={{
-                                                background: "transparent",
+                                                background: "rgba(255, 255, 255, 0.03)",
                                                 border: "1px solid var(--border-color)",
-                                                borderRadius: "8px",
-                                                padding: "6px 10px",
+                                                borderRadius: "10px",
+                                                padding: "8px 12px",
                                                 color: "var(--text-muted)",
-                                                fontSize: "0.78rem",
+                                                fontSize: "0.82rem",
+                                                fontWeight: 500,
                                                 cursor: "pointer",
+                                                whiteSpace: "nowrap",
+                                                transition: "all 0.2s",
                                             }}
                                         >
                                             Clear
@@ -955,64 +1006,74 @@ export default function Home() {
                                     </div>
                                 </div>
 
-                                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "280px", overflowY: "auto" }}>
+                                {/* Queue Items Grid */}
+                                <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "300px", overflowY: "auto", paddingRight: "4px" }}>
                                     {batchQueue.map((item) => (
                                         <div
                                             key={item.id}
                                             style={{
                                                 background: "var(--input-bg)",
                                                 border: "1px solid var(--border-color)",
-                                                borderRadius: "12px",
-                                                padding: "10px 14px",
+                                                borderRadius: "14px",
+                                                padding: "12px 16px",
                                                 display: "flex",
                                                 alignItems: "center",
                                                 justifyContent: "space-between",
-                                                gap: "12px",
+                                                gap: "14px",
+                                                transition: "all 0.2s",
                                             }}
                                         >
-                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
                                                 {item.status === 'complete' ? (
-                                                    <CheckCheck size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                                                    <div style={{ background: "rgba(16, 185, 129, 0.15)", padding: "6px", borderRadius: "8px", display: "flex" }}>
+                                                        <CheckCheck size={16} color="#10b981" />
+                                                    </div>
                                                 ) : item.status === 'error' ? (
-                                                    <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0 }} />
+                                                    <div style={{ background: "rgba(239, 68, 68, 0.15)", padding: "6px", borderRadius: "8px", display: "flex" }}>
+                                                        <AlertCircle size={16} color="#ef4444" />
+                                                    </div>
                                                 ) : (
-                                                    <ImageIcon size={16} color="#8b5cf6" style={{ flexShrink: 0 }} />
+                                                    <div style={{ background: "rgba(139, 92, 246, 0.15)", padding: "6px", borderRadius: "8px", display: "flex" }}>
+                                                        <ImageIcon size={16} color="#8b5cf6" />
+                                                    </div>
                                                 )}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                         {item.fileName}
                                                     </div>
                                                     {item.status === 'uploading' && (
-                                                        <div style={{ width: "100%", background: "rgba(255,255,255,0.1)", height: "4px", borderRadius: "2px", marginTop: "4px", overflow: "hidden" }}>
-                                                            <div style={{ width: `${item.progress}%`, background: "#8b5cf6", height: "100%", transition: "width 0.2s" }} />
+                                                        <div style={{ width: "100%", background: "rgba(255,255,255,0.08)", height: "5px", borderRadius: "100px", marginTop: "6px", overflow: "hidden" }}>
+                                                            <div style={{ width: `${item.progress}%`, background: "linear-gradient(90deg, #8b5cf6, #06b6d4)", height: "100%", transition: "width 0.2s" }} />
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
                                                 {item.status === 'complete' && item.url ? (
                                                     <button
                                                         onClick={() => {
                                                             navigator.clipboard.writeText(item.url!);
                                                         }}
                                                         style={{
-                                                            background: "rgba(16, 185, 129, 0.12)",
-                                                            border: "1px solid rgba(16, 185, 129, 0.3)",
-                                                            borderRadius: "6px",
-                                                            padding: "4px 8px",
+                                                            background: "rgba(16, 185, 129, 0.15)",
+                                                            border: "1px solid rgba(16, 185, 129, 0.4)",
+                                                            borderRadius: "8px",
+                                                            padding: "6px 14px",
                                                             color: "#10b981",
-                                                            fontSize: "0.75rem",
+                                                            fontSize: "0.8rem",
                                                             fontWeight: 600,
                                                             cursor: "pointer",
+                                                            transition: "all 0.2s",
+                                                            whiteSpace: "nowrap",
                                                         }}
                                                     >
                                                         Copy Link
                                                     </button>
                                                 ) : item.status === 'error' ? (
-                                                    <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>Failed</span>
+                                                    <span style={{ fontSize: "0.78rem", color: "#ef4444", fontWeight: 500 }}>Failed</span>
                                                 ) : (
-                                                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.progress}%</span>
+                                                    <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", fontWeight: 500 }}>{item.progress}%</span>
                                                 )}
                                             </div>
                                         </div>
