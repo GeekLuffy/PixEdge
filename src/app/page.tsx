@@ -32,7 +32,7 @@ import {
     FileText,
     CheckCheck,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { useSession, signOut } from "next-auth/react";
 
@@ -121,9 +121,35 @@ function SpotlightCard({
     );
 }
 
-const iconHoverVariant = {
+// Signature icon animations per card feature (matching betterlyrics.org style)
+const bounceUpIconVariant: Variants = {
+    initial: { y: 0, scale: 1 },
+    hover: { y: [0, -8, 0], scale: [1, 1.25, 1.15], transition: { duration: 0.5, ease: "easeInOut" } },
+};
+
+const spinZapIconVariant: Variants = {
+    initial: { rotate: 0, scale: 1 },
+    hover: { rotate: [0, -20, 20, -10, 10, 0], scale: [1, 1.25, 1.15], transition: { duration: 0.6, ease: "easeInOut" } },
+};
+
+const pulseGlobeIconVariant: Variants = {
+    initial: { rotate: 0, scale: 1 },
+    hover: { rotate: 360, scale: 1.2, transition: { duration: 1, ease: "easeInOut" } },
+};
+
+const codeWiggleIconVariant: Variants = {
     initial: { scale: 1, rotate: 0 },
-    hover: { scale: 1.18, rotate: 10 },
+    hover: { scale: [1, 1.25, 1.15], rotate: [0, -15, 15, 0], transition: { duration: 0.5 } },
+};
+
+const cameraPulseIconVariant: Variants = {
+    initial: { scale: 1 },
+    hover: { scale: [1, 1.3, 0.92, 1.15], transition: { duration: 0.5 } },
+};
+
+const chatBubbleIconVariant: Variants = {
+    initial: { scale: 1, rotate: 0 },
+    hover: { scale: [1, 1.25, 1.15], rotate: [0, -18, 18, 0], transition: { duration: 0.5 } },
 };
 
 export default function Home() {
@@ -1793,8 +1819,7 @@ export default function Home() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
                             <motion.div
-                                variants={iconHoverVariant}
-                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                variants={bounceUpIconVariant}
                                 style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
                             >
                                 <Upload size={24} />
@@ -1810,8 +1835,7 @@ export default function Home() {
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
                             <motion.div
-                                variants={iconHoverVariant}
-                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                variants={spinZapIconVariant}
                                 style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
                             >
                                 <Zap size={24} />
@@ -1827,8 +1851,7 @@ export default function Home() {
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
                             <motion.div
-                                variants={iconHoverVariant}
-                                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                                variants={pulseGlobeIconVariant}
                                 style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}
                             >
                                 <Globe size={24} />
@@ -1858,7 +1881,7 @@ export default function Home() {
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                <motion.div variants={codeWiggleIconVariant}>
                                     <Code2 size={22} color="#8b5cf6" />
                                 </motion.div>
                                 REST API Upload
@@ -1885,7 +1908,7 @@ export default function Home() {
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                <motion.div variants={cameraPulseIconVariant}>
                                     <ImageIcon size={22} color="#06b6d4" />
                                 </motion.div>
                                 ShareX 1-Click Integration
@@ -1912,7 +1935,7 @@ export default function Home() {
 
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
                             <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }}>
+                                <motion.div variants={chatBubbleIconVariant}>
                                     <MessageSquare size={22} color="#10b981" />
                                 </motion.div>
                                 Telegram Bot Uploads
@@ -1945,7 +1968,7 @@ export default function Home() {
                 <div style={{ marginTop: "4rem", width: "100%", maxWidth: "1000px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
-                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                            <motion.div variants={spinZapIconVariant} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
                                 <Zap size={28} color="#8b5cf6" />
                             </motion.div>
                             <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Edge Delivery</h3>
@@ -1954,7 +1977,7 @@ export default function Home() {
                             </p>
                         </SpotlightCard>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
-                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                            <motion.div variants={bounceUpIconVariant} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
                                 <Shield size={28} color="#06b6d4" />
                             </motion.div>
                             <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Privacy Shield</h3>
@@ -1963,7 +1986,7 @@ export default function Home() {
                             </p>
                         </SpotlightCard>
                         <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(234, 179, 8, 0.25)">
-                            <motion.div variants={iconHoverVariant} transition={{ type: "spring", stiffness: 400, damping: 15 }} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
+                            <motion.div variants={codeWiggleIconVariant} style={{ marginBottom: "1.25rem", display: "inline-block" }}>
                                 <Code2 size={28} color="#eab308" />
                             </motion.div>
                             <h3 style={{ marginBottom: "0.8rem", color: "var(--text-main)" }}>Rich API</h3>
