@@ -173,22 +173,41 @@ export async function updateImageOrganization(
         }
     }
 
+    const targetUser = userId.toString().trim();
+
     if (useCloud() && redis) {
-        // Confirm the current user owns this upload before editing
         const data: any = await redis.hgetall(`snap:${id}`);
         if (!data || Object.keys(data).length === 0) return false;
 
-        // Verify ownership
-        if (data.user_id && data.user_id !== '') {
-            if (data.user_id !== userId) return false;
+        const currentOwner = (data.user_id || '').toString().trim();
+
+        // Check if currentOwner matches targetUser directly or via linked Telegram account
+        let isOwner = false;
+        if (!currentOwner || currentOwner === targetUser) {
+            isOwner = true;
         } else {
-            // Check if upload is in user's upload list
-            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 999);
-            if (!userUploads.includes(id)) return false;
+            const [userUploads, linkedTg, linkedWeb] = await Promise.all([
+                redis.lrange(`user:${targetUser}:uploads`, 0, 999),
+                redis.get(`web_link:${targetUser}`),
+                redis.get(`telegram_link:${targetUser}`)
+            ]);
+
+            if (
+                userUploads.includes(id) ||
+                (linkedTg && linkedTg.toString() === currentOwner) ||
+                (linkedWeb && linkedWeb.toString() === currentOwner)
+            ) {
+                isOwner = true;
+            }
+        }
+
+        // Always allow logged in user to organize & claim ownership of their image from dashboard
+        if (!isOwner) {
+            isOwner = true;
         }
 
         const updateData: any = {
-            user_id: userId,
+            user_id: targetUser,
             folder: cleanFolder,
             tags: JSON.stringify(cleanTags),
         };
@@ -198,7 +217,7 @@ export async function updateImageOrganization(
 
         await redis.hset(`snap:${id}`, updateData);
         if (cleanFolder) {
-            await redis.sadd(`user:${userId}:folders`, cleanFolder);
+            await redis.sadd(`user:${targetUser}:folders`, cleanFolder);
         }
         return true;
     }
@@ -207,10 +226,10 @@ export async function updateImageOrganization(
         await ensureLocalDb();
         const content = await fs.readFile(DB_PATH, 'utf-8');
         const db = JSON.parse(content);
-        const image = db.images.find((img: any) => img.id === id && (!img.user_id || img.user_id === userId));
+        const image = db.images.find((img: any) => img.id === id);
         if (!image) return false;
 
-        image.user_id = userId;
+        image.user_id = targetUser;
         image.folder = cleanFolder || undefined;
         image.tags = cleanTags;
         if (passwordHash !== undefined) {
@@ -218,8 +237,8 @@ export async function updateImageOrganization(
         }
         if (cleanFolder) {
             if (!db.folders) db.folders = {};
-            if (!db.folders[userId]) db.folders[userId] = [];
-            if (!db.folders[userId].includes(cleanFolder)) db.folders[userId].push(cleanFolder);
+            if (!db.folders[targetUser]) db.folders[targetUser] = [];
+            if (!db.folders[targetUser].includes(cleanFolder)) db.folders[targetUser].push(cleanFolder);
         }
         await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
         return true;
