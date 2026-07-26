@@ -667,3 +667,128 @@ export async function extendImageExpiry(
         return { success: false, error: 'Failed to update database' };
     }
 }
+
+export interface AlbumRecord {
+    id: string;
+    title?: string;
+    user_id?: string;
+    image_ids: string[];
+    created_at: number;
+    expires_at?: number;
+    password_hash?: string;
+    views: number;
+}
+
+export async function saveAlbum(
+    record: Omit<AlbumRecord, 'views'>,
+    expiresIn?: number
+) {
+    if (useCloud() && redis) {
+        const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
+        const pipeline = redis.pipeline();
+        pipeline.hset(`album:${record.id}`, {
+            ...record,
+            user_id: record.user_id || '',
+            views: 0,
+            image_ids: JSON.stringify(record.image_ids),
+            expires_at: expiresAt ? expiresAt.toString() : '',
+            password_hash: record.password_hash || '',
+            title: record.title || 'Shared Album',
+        });
+
+        if (expiresIn) {
+            pipeline.expire(`album:${record.id}`, expiresIn);
+        }
+
+        await pipeline.exec();
+        return record;
+    }
+
+    await ensureLocalDb();
+    const content = await fs.readFile(DB_PATH, 'utf-8');
+    const db = JSON.parse(content);
+    if (!db.albums) db.albums = [];
+
+    const newAlbum = {
+        ...record,
+        views: 0,
+        expires_at: expiresIn ? Date.now() + expiresIn * 1000 : undefined,
+    };
+
+    db.albums.push(newAlbum);
+    await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+    return newAlbum;
+}
+
+export async function getAlbum(id: string): Promise<AlbumRecord | null> {
+    if (useCloud() && redis) {
+        const albumData = await redis.hgetall(`album:${id}`);
+        if (!albumData || !albumData.id) return null;
+
+        const expiresAt = albumData.expires_at ? parseInt(albumData.expires_at as string, 10) : undefined;
+        if (expiresAt && Date.now() > expiresAt) {
+            await redis.del(`album:${id}`);
+            return null;
+        }
+
+        let imageIds: string[] = [];
+        try {
+            imageIds = typeof albumData.image_ids === 'string' ? JSON.parse(albumData.image_ids) : (albumData.image_ids || []);
+        } catch {
+            imageIds = [];
+        }
+
+        return {
+            id: albumData.id as string,
+            title: (albumData.title as string) || 'Shared Album',
+            user_id: albumData.user_id as string,
+            image_ids: imageIds,
+            created_at: parseInt(albumData.created_at as string, 10) || Date.now(),
+            expires_at: expiresAt,
+            password_hash: (albumData.password_hash as string) || undefined,
+            views: parseInt(albumData.views as string, 10) || 0,
+        };
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (!db.albums) return null;
+
+        const album = db.albums.find((a: any) => a.id === id);
+        if (!album) return null;
+
+        if (album.expires_at && Date.now() > album.expires_at) {
+            db.albums = db.albums.filter((a: any) => a.id !== id);
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+            return null;
+        }
+
+        return album;
+    } catch {
+        return null;
+    }
+}
+
+export async function incrementAlbumViews(id: string) {
+    if (useCloud() && redis) {
+        await redis.hincrby(`album:${id}`, 'views', 1);
+        return;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (!db.albums) return;
+
+        const album = db.albums.find((a: any) => a.id === id);
+        if (album) {
+            album.views = (album.views || 0) + 1;
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        }
+    } catch {
+        // ignore
+    }
+}

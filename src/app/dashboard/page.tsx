@@ -39,6 +39,7 @@ import {
     Filter,
     Search,
     Lock,
+    Share2,
     X,
 } from "lucide-react";
 import Link from "next/link";
@@ -581,6 +582,30 @@ export default function DashboardPage() {
         navigator.clipboard.writeText(`${baseUrl}/i/${id}`);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
+    };
+
+    const handleShareFolderAsAlbum = async (folderName: string) => {
+        const folderItems = uploads.filter(u => u.folder === folderName);
+        if (folderItems.length === 0) return;
+
+        try {
+            const res = await fetch('/api/album/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    imageIds: folderItems.map(u => u.id),
+                    title: `${folderName} Album`,
+                }),
+            });
+            const data = await res.json();
+            if (data.success && data.url) {
+                navigator.clipboard.writeText(data.url);
+                setSuccess(`Album link for "${folderName}" copied to clipboard!`);
+                setTimeout(() => setSuccess(""), 3500);
+            }
+        } catch (err) {
+            console.error("Failed to share album", err);
+        }
     };
 
     // Save folder category, tags, and password protection for a specific upload
@@ -1761,21 +1786,41 @@ export default function DashboardPage() {
                                                         }}>
                                                             <Folder size={22} />
                                                         </div>
-                                                        <button
-                                                            onClick={(e) => handleDeleteFolder(folderName, e)}
-                                                            title={`Delete folder "${folderName}"`}
-                                                            style={{
-                                                                background: 'transparent',
-                                                                border: 'none',
-                                                                color: 'var(--text-muted)',
-                                                                cursor: 'pointer',
-                                                                padding: '4px',
-                                                            }}
-                                                            onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
-                                                            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-                                                        >
-                                                            <Trash2 size={15} />
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '4px' }}>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleShareFolderAsAlbum(folderName);
+                                                                }}
+                                                                title={`Share "${folderName}" as Album`}
+                                                                style={{
+                                                                    background: 'transparent',
+                                                                    border: 'none',
+                                                                    color: '#8b5cf6',
+                                                                    padding: '7px 4px',
+                                                                    cursor: 'pointer',
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                }}
+                                                            >
+                                                                <Share2 size={15} />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => handleDeleteFolder(folderName, e)}
+                                                                title={`Delete folder "${folderName}"`}
+                                                                style={{
+                                                                    background: 'transparent',
+                                                                    border: 'none',
+                                                                    color: 'var(--text-muted)',
+                                                                    cursor: 'pointer',
+                                                                    padding: '4px',
+                                                                }}
+                                                                onMouseEnter={(e) => (e.currentTarget.style.color = '#f87171')}
+                                                                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
+                                                            >
+                                                                <Trash2 size={15} />
+                                                            </button>
+                                                        </div>
                                                     </div>
 
                                                     <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>

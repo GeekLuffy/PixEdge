@@ -31,6 +31,7 @@ import {
     Layers,
     FileText,
     CheckCheck,
+    FileArchive,
 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -179,6 +180,8 @@ export default function Home() {
     const [batchQueue, setBatchQueue] = useState<BatchItem[]>([]);
     const [batchActive, setBatchActive] = useState(false);
     const [batchCopied, setBatchCopied] = useState(false);
+    const [albumUrl, setAlbumUrl] = useState<string | null>(null);
+    const [albumCopied, setAlbumCopied] = useState(false);
 
     // Load history and theme from localStorage
     useEffect(() => {
@@ -584,6 +587,41 @@ export default function Home() {
                 } : q));
             }
         }
+
+        // Auto-create album if 2 or more files completed
+        setTimeout(async () => {
+            setBatchQueue(currentQueue => {
+                const completed = currentQueue.filter(q => q.status === 'complete' && q.url);
+                if (completed.length >= 2) {
+                    const imageIds = completed.map(q => {
+                        const parts = q.url!.split('/i/');
+                        return parts[1] || '';
+                    }).filter(Boolean);
+
+                    if (imageIds.length >= 2) {
+                        fetch('/api/album/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                imageIds,
+                                title: 'Batch Upload Album',
+                                password: password || undefined,
+                                expiresIn: expiresIn || undefined,
+                            }),
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.success && data.url) {
+                                setAlbumUrl(data.url);
+                            }
+                        })
+                        .catch(err => console.error("Failed to auto-create album", err));
+                    }
+                }
+                return currentQueue;
+            });
+        }, 150);
+
         setPassword("");
         setExpiresIn("");
     };
@@ -1083,6 +1121,33 @@ export default function Home() {
                                                     <FileText size={14} color="#8b5cf6" />
                                                     <span>Markdown</span>
                                                 </button>
+                                                {albumUrl && (
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(albumUrl);
+                                                            setAlbumCopied(true);
+                                                            setTimeout(() => setAlbumCopied(false), 2000);
+                                                        }}
+                                                        style={{
+                                                            background: "linear-gradient(135deg, #8b5cf6, #06b6d4)",
+                                                            border: "none",
+                                                            borderRadius: "10px",
+                                                            padding: "8px 14px",
+                                                            color: "#ffffff",
+                                                            fontSize: "0.82rem",
+                                                            fontWeight: 700,
+                                                            cursor: "pointer",
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: "6px",
+                                                            whiteSpace: "nowrap",
+                                                            boxShadow: "0 4px 12px rgba(139, 92, 246, 0.4)",
+                                                        }}
+                                                    >
+                                                        {albumCopied ? <CheckCheck size={14} /> : <FileArchive size={14} />}
+                                                        <span>{albumCopied ? "Album Copied!" : "Copy Album Link"}</span>
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         <button
