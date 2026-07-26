@@ -24,6 +24,10 @@ import {
     Clock,
     BarChart2,
     Lock,
+    Eye,
+    EyeOff,
+    Sparkles,
+    HelpCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -50,6 +54,7 @@ export default function Home() {
     const [copied, setCopied] = useState(false);
     const [customId, setCustomId] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [history, setHistory] = useState<HistoryItem[]>([]);
     const [showQr, setShowQr] = useState(false);
     const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -260,6 +265,9 @@ export default function Home() {
                 timestamp: Date.now(),
             });
             setCustomId("");
+            setPassword("");
+            setExpiresIn("");
+            setShowPassword(false);
         } catch (err: any) {
             alert(err.message || "Upload failed");
             setPendingFile(null);
@@ -616,6 +624,36 @@ export default function Home() {
                     >
                         Zero storage. Lightning speed. Infinity scale.
                     </motion.p>
+
+                    {/* Quick 1-2-3 How-It-Works Visual Guide for New Users */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                            flexWrap: "wrap",
+                            marginTop: "1.75rem",
+                        }}
+                    >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(139, 92, 246, 0.08)", border: "1px solid rgba(139, 92, 246, 0.2)", padding: "6px 14px", borderRadius: "100px", fontSize: "0.82rem", color: "var(--text-main)", fontWeight: 500 }}>
+                            <span style={{ background: "#8b5cf6", color: "#fff", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}>1</span>
+                            Drop Media (up to 2 GB)
+                        </div>
+                        <ArrowRight size={14} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(6, 182, 212, 0.08)", border: "1px solid rgba(6, 182, 212, 0.2)", padding: "6px 14px", borderRadius: "100px", fontSize: "0.82rem", color: "var(--text-main)", fontWeight: 500 }}>
+                            <span style={{ background: "#06b6d4", color: "#fff", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}>2</span>
+                            Set Custom Link / PIN (Optional)
+                        </div>
+                        <ArrowRight size={14} style={{ color: "var(--text-muted)", opacity: 0.5 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", padding: "6px 14px", borderRadius: "100px", fontSize: "0.82rem", color: "var(--text-main)", fontWeight: 500 }}>
+                            <span style={{ background: "#10b981", color: "#fff", width: "20px", height: "20px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", fontWeight: 700 }}>3</span>
+                            Get Instant Share Link
+                        </div>
+                    </motion.div>
                 </header>
 
                 <motion.div
@@ -729,7 +767,7 @@ export default function Home() {
                             <Lock size={14} />
                         </div>
                         <input
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             placeholder="Secret PIN / Password Protection (Optional)"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
@@ -738,7 +776,7 @@ export default function Home() {
                                 background: "var(--input-bg)",
                                 border: "1px solid var(--border-color)",
                                 borderRadius: "16px",
-                                padding: "12px 12px 12px 40px",
+                                padding: "12px 46px 12px 40px",
                                 color: "var(--text-main)",
                                 fontSize: "0.9rem",
                                 outline: "none",
@@ -747,6 +785,33 @@ export default function Home() {
                                 boxSizing: "border-box" as const,
                             }}
                         />
+                        {password && (
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                style={{
+                                    position: "absolute",
+                                    right: "12px",
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    background: "rgba(139, 92, 246, 0.25)",
+                                    border: "1px solid rgba(139, 92, 246, 0.5)",
+                                    borderRadius: "8px",
+                                    padding: "6px",
+                                    color: "#ffffff",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    transition: "all 0.2s",
+                                    boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+                                    zIndex: 2,
+                                }}
+                                title={showPassword ? "Hide PIN" : "Show PIN"}
+                            >
+                                {showPassword ? <EyeOff size={14} color="#ffffff" /> : <Eye size={14} color="#ffffff" />}
+                            </button>
+                        )}
                     </div>
 
                     {/* ID Error with Suggestions */}

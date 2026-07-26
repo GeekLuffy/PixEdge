@@ -571,6 +571,7 @@ export default function DashboardPage() {
     const [folderInput, setFolderInput] = useState<string>("");
     const [tagsInput, setTagsInput] = useState<string>("");
     const [passwordInput, setPasswordInput] = useState<string>("");
+    const [showModalPassword, setShowModalPassword] = useState<boolean>(false);
     const [savingOrg, setSavingOrg] = useState<boolean>(false);
 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -2229,31 +2230,57 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Password Protection Field */}
-                                 <div style={{ marginBottom: '1.75rem' }}>
-                                     <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-                                         Secret PIN / Password Protection
-                                     </label>
-                                     <div style={{ position: 'relative' }}>
-                                         <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                         <input
-                                             type="password"
-                                             placeholder={organizingItem?.password_hash ? "Protected (Type new PIN to update)" : "Add secret PIN or password"}
-                                             value={passwordInput}
-                                             onChange={(e) => setPasswordInput(e.target.value)}
-                                             style={{
-                                                 width: '100%',
-                                                 background: 'var(--input-bg)',
-                                                 border: '1px solid var(--border-color)',
-                                                 borderRadius: '14px',
-                                                 padding: '10px 14px 10px 38px',
-                                                 color: 'var(--text-main)',
-                                                 fontSize: '0.85rem',
-                                                 outline: 'none',
-                                                 fontFamily: 'inherit',
-                                             }}
-                                         />
-                                     </div>
-                                 </div>
+                                <div style={{ marginBottom: '1.75rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Secret PIN / Password Protection
+                                    </label>
+                                    <div style={{ position: 'relative' }}>
+                                        <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                        <input
+                                            type={showModalPassword ? "text" : "password"}
+                                            placeholder={organizingItem?.password_hash ? "Protected (Type new PIN to update)" : "Add secret PIN or password"}
+                                            value={passwordInput}
+                                            onChange={(e) => setPasswordInput(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                background: 'var(--input-bg)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '14px',
+                                                padding: '10px 42px 10px 38px',
+                                                color: 'var(--text-main)',
+                                                fontSize: '0.85rem',
+                                                outline: 'none',
+                                                fontFamily: 'inherit',
+                                            }}
+                                        />
+                                        {passwordInput && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowModalPassword(!showModalPassword)}
+                                                style={{
+                                                    position: "absolute",
+                                                    right: "10px",
+                                                    top: "50%",
+                                                    transform: "translateY(-50%)",
+                                                    background: "rgba(139, 92, 246, 0.25)",
+                                                    border: "1px solid rgba(139, 92, 246, 0.5)",
+                                                    borderRadius: "8px",
+                                                    padding: "5px",
+                                                    color: "#ffffff",
+                                                    cursor: "pointer",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    transition: "all 0.2s",
+                                                    boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+                                                }}
+                                                title={showModalPassword ? "Hide PIN" : "Show PIN"}
+                                            >
+                                                {showModalPassword ? <EyeOff size={14} color="#ffffff" /> : <Eye size={14} color="#ffffff" />}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
 
                                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                                     <button
