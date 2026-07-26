@@ -53,6 +53,69 @@ interface BatchItem {
     error?: string;
 }
 
+function SpotlightCard({
+    children,
+    style = {},
+    glowColor = "rgba(139, 92, 246, 0.18)",
+    ...props
+}: {
+    children: React.ReactNode;
+    style?: React.CSSProperties;
+    glowColor?: string;
+    [key: string]: any;
+}) {
+    const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+    const [isHovered, setIsHovered] = useState(false);
+
+    const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+        setMousePosition({
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top,
+        });
+    };
+
+    return (
+        <motion.div
+            onMouseMove={handleMouseMove}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            whileHover={{ y: -6, scale: 1.015 }}
+            transition={{ type: "spring", stiffness: 350, damping: 22 }}
+            style={{
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: "24px",
+                background: "var(--panel-bg)",
+                backdropFilter: "blur(24px)",
+                border: isHovered
+                    ? "1px solid rgba(139, 92, 246, 0.4)"
+                    : "1px solid var(--border-color)",
+                boxShadow: isHovered
+                    ? "0 20px 45px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(139, 92, 246, 0.25)"
+                    : "0 10px 30px rgba(0, 0, 0, 0.1)",
+                transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+                ...style,
+            }}
+            {...props}
+        >
+            {/* Spotlight Glow Effect */}
+            <div
+                style={{
+                    pointerEvents: "none",
+                    position: "absolute",
+                    inset: 0,
+                    opacity: isHovered ? 1 : 0,
+                    transition: "opacity 0.4s ease",
+                    background: `radial-gradient(600px circle at ${mousePosition.x}px ${mousePosition.y}px, ${glowColor}, transparent 45%)`,
+                    zIndex: 0,
+                }}
+            />
+            <div style={{ position: "relative", zIndex: 1 }}>{children}</div>
+        </motion.div>
+    );
+}
+
 export default function Home() {
     const { data: session } = useSession();
     const [isDragging, setIsDragging] = useState(false);
@@ -1718,19 +1781,7 @@ export default function Home() {
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            style={{
-                                background: "var(--panel-bg)",
-                                backdropFilter: "blur(20px)",
-                                border: "1px solid var(--border-color)",
-                                borderRadius: "24px",
-                                padding: "1.75rem",
-                                position: "relative",
-                            }}
-                        >
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
                             <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
                                 <Upload size={24} />
                             </div>
@@ -1741,22 +1792,9 @@ export default function Home() {
                             <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
                                 Drag & drop any photo, GIF, or 4K video up to 2 GB. Set an optional custom vanity URL or link expiry duration.
                             </p>
-                        </motion.div>
+                        </SpotlightCard>
 
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.1 }}
-                            style={{
-                                background: "var(--panel-bg)",
-                                backdropFilter: "blur(20px)",
-                                border: "1px solid var(--border-color)",
-                                borderRadius: "24px",
-                                padding: "1.75rem",
-                                position: "relative",
-                            }}
-                        >
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
                             <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(6, 182, 212, 0.15)", color: "#06b6d4", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
                                 <Zap size={24} />
                             </div>
@@ -1767,22 +1805,9 @@ export default function Home() {
                             <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
                                 High-speed chunked streaming via pooled Telegram sockets with live speed tracking (MB/s) & progress indicators.
                             </p>
-                        </motion.div>
+                        </SpotlightCard>
 
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: 0.2 }}
-                            style={{
-                                background: "var(--panel-bg)",
-                                backdropFilter: "blur(20px)",
-                                border: "1px solid var(--border-color)",
-                                borderRadius: "24px",
-                                padding: "1.75rem",
-                                position: "relative",
-                            }}
-                        >
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
                             <div style={{ width: "48px", height: "48px", borderRadius: "16px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
                                 <Globe size={24} />
                             </div>
@@ -1793,7 +1818,7 @@ export default function Home() {
                             <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", lineHeight: "1.5", margin: 0 }}>
                                 Share your custom vanity link with in-browser video scrubbing, volume persistence, and auto-deletion channel sync.
                             </p>
-                        </motion.div>
+                        </SpotlightCard>
                     </div>
                 </div>
 
@@ -1808,94 +1833,83 @@ export default function Home() {
                         </h2>
                     </div>
 
-                    <div
-                        style={{
-                            background: "var(--panel-bg)",
-                            backdropFilter: "blur(24px)",
-                            border: "1px solid var(--border-color)",
-                            borderRadius: "28px",
-                            padding: "2rem",
-                            boxShadow: "0 20px 40px rgba(0,0,0,0.2)",
-                        }}
-                    >
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1.5rem" }}>
-                            <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                    <Code2 size={20} color="#8b5cf6" />
-                                    REST API Upload
-                                </div>
-                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
-                                    Programmatically upload media via simple POST requests with API key authentication.
-                                </p>
-                                <Link
-                                    href="/docs"
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        color: "var(--accent-primary)",
-                                        fontSize: "0.85rem",
-                                        fontWeight: 600,
-                                        textDecoration: "none",
-                                        marginTop: "8px",
-                                    }}
-                                >
-                                    View API Docs <ArrowRight size={14} />
-                                </Link>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(139, 92, 246, 0.25)">
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <Code2 size={20} color="#8b5cf6" />
+                                REST API Upload
                             </div>
+                            <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                Programmatically upload media via simple POST requests with API key authentication.
+                            </p>
+                            <Link
+                                href="/docs"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    color: "var(--accent-primary)",
+                                    fontSize: "0.85rem",
+                                    fontWeight: 600,
+                                    textDecoration: "none",
+                                    marginTop: "8px",
+                                }}
+                            >
+                                View API Docs <ArrowRight size={14} />
+                            </Link>
+                        </SpotlightCard>
 
-                            <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                    <ImageIcon size={20} color="#06b6d4" />
-                                    ShareX 1-Click Integration
-                                </div>
-                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
-                                    Take desktop screenshots on Windows and automatically upload them to PixEdge using ShareX.
-                                </p>
-                                <Link
-                                    href="/dashboard"
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        color: "#06b6d4",
-                                        fontSize: "0.85rem",
-                                        fontWeight: 600,
-                                        textDecoration: "none",
-                                        marginTop: "8px",
-                                    }}
-                                >
-                                    Get API Key in Dashboard <ArrowRight size={14} />
-                                </Link>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(6, 182, 212, 0.25)">
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <ImageIcon size={20} color="#06b6d4" />
+                                ShareX 1-Click Integration
                             </div>
+                            <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                Take desktop screenshots on Windows and automatically upload them to PixEdge using ShareX.
+                            </p>
+                            <Link
+                                href="/dashboard"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    color: "#06b6d4",
+                                    fontSize: "0.85rem",
+                                    fontWeight: 600,
+                                    textDecoration: "none",
+                                    marginTop: "8px",
+                                }}
+                            >
+                                Get API Key in Dashboard <ArrowRight size={14} />
+                            </Link>
+                        </SpotlightCard>
 
-                            <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
-                                    <MessageSquare size={20} color="#10b981" />
-                                    Telegram Bot Uploads
-                                </div>
-                                <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
-                                    Send media directly to our bot or reply with <code>/upload custom-slug</code> to host on the edge.
-                                </p>
-                                <a
-                                    href="https://t.me/PixEdge_bot"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "6px",
-                                        color: "#10b981",
-                                        fontSize: "0.85rem",
-                                        fontWeight: 600,
-                                        textDecoration: "none",
-                                        marginTop: "8px",
-                                    }}
-                                >
-                                    Open Telegram Bot <ExternalLink size={14} />
-                                </a>
+                        <SpotlightCard style={{ padding: "1.75rem" }} glowColor="rgba(16, 185, 129, 0.25)">
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--text-main)", fontWeight: 700, marginBottom: "8px" }}>
+                                <MessageSquare size={20} color="#10b981" />
+                                Telegram Bot Uploads
                             </div>
-                        </div>
+                            <p style={{ fontSize: "0.88rem", color: "var(--card-subtext)", lineHeight: "1.5" }}>
+                                Send media directly to our bot or reply with <code>/upload custom-slug</code> to host on the edge.
+                            </p>
+                            <a
+                                href="https://t.me/PixEdge_bot"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    color: "#10b981",
+                                    fontSize: "0.85rem",
+                                    fontWeight: 600,
+                                    textDecoration: "none",
+                                    marginTop: "8px",
+                                }}
+                            >
+                                Open @PixEdge_bot <ExternalLink size={14} />
+                            </a>
+                        </SpotlightCard>
                     </div>
                 </div>
 
