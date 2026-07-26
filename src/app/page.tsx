@@ -28,6 +28,9 @@ import {
     EyeOff,
     Sparkles,
     HelpCircle,
+    Layers,
+    FileText,
+    CheckCheck,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -37,6 +40,17 @@ interface HistoryItem {
     id: string;
     url: string;
     timestamp: number;
+}
+
+interface BatchItem {
+    id: string;
+    fileName: string;
+    size: number;
+    url?: string;
+    direct_url?: string;
+    status: 'pending' | 'uploading' | 'complete' | 'error';
+    progress: number;
+    error?: string;
 }
 
 export default function Home() {
@@ -63,6 +77,9 @@ export default function Home() {
     const [idError, setIdError] = useState<{ message: string; suggestions: string[] } | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [expiresIn, setExpiresIn] = useState<string>("");
+    const [batchQueue, setBatchQueue] = useState<BatchItem[]>([]);
+    const [batchActive, setBatchActive] = useState(false);
+    const [batchCopied, setBatchCopied] = useState(false);
 
     // Load history and theme from localStorage
     useEffect(() => {
@@ -386,6 +403,110 @@ export default function Home() {
         }
     };
 
+    const processBatchUpload = async (files: File[]) => {
+        const validFiles = files.filter(f => f.type.startsWith("image/") || f.type.startsWith("video/"));
+        if (validFiles.length === 0) {
+            alert("Please select valid image or video files.");
+            return;
+        }
+
+        if (validFiles.length === 1 && !batchActive) {
+            uploadFile(validFiles[0]);
+            return;
+        }
+
+        setBatchActive(true);
+        setResult(null);
+        setIdError(null);
+
+        const initialQueue: BatchItem[] = validFiles.map((f, i) => ({
+            id: `batch-${Date.now()}-${i}`,
+            fileName: f.name,
+            size: f.size,
+            status: 'pending',
+            progress: 0,
+        }));
+
+        setBatchQueue(initialQueue);
+
+        for (let i = 0; i < validFiles.length; i++) {
+            const file = validFiles[i];
+            const item = initialQueue[i];
+
+            setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, status: 'uploading' } : q));
+
+            try {
+                const formData = new FormData();
+                formData.append("file", file);
+                if (expiresIn) formData.append("expiresIn", expiresIn);
+                if (password) formData.append("password", password);
+
+                const xhr = new XMLHttpRequest();
+                const res = await new Promise<any>((resolve, reject) => {
+                    xhr.upload.addEventListener("progress", (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.min(100, Math.round((e.loaded / e.total) * 100));
+                            setBatchQueue(prev => prev.map(q => q.id === item.id ? { ...q, progress: percent } : q));
+                        }
+                    });
+                    xhr.addEventListener("load", () => {
+                        try {
+                            resolve(JSON.parse(xhr.responseText));
+                        } catch {
+                            reject(new Error("Failed to parse response"));
+                        }
+                    });
+                    xhr.addEventListener("error", () => reject(new Error("Network error")));
+                    xhr.open("POST", "/api/v1/upload");
+                    xhr.send(formData);
+                });
+
+                if (res.success && res.data) {
+                    setBatchQueue(prev => prev.map(q => q.id === item.id ? {
+                        ...q,
+                        status: 'complete',
+                        progress: 100,
+                        url: res.data.url,
+                        direct_url: res.data.direct_url,
+                    } : q));
+                    saveToHistory({ id: res.data.id, url: res.data.url, timestamp: Date.now() });
+                } else {
+                    setBatchQueue(prev => prev.map(q => q.id === item.id ? {
+                        ...q,
+                        status: 'error',
+                        error: res.error?.message || "Upload failed",
+                    } : q));
+                }
+            } catch (err: any) {
+                setBatchQueue(prev => prev.map(q => q.id === item.id ? {
+                    ...q,
+                    status: 'error',
+                    error: err.message || "Upload error",
+                } : q));
+            }
+        }
+        setPassword("");
+        setExpiresIn("");
+    };
+
+    const copyAllBatchLinks = () => {
+        const links = batchQueue.filter(q => q.status === 'complete' && q.url).map(q => q.url).join('\n');
+        if (links) {
+            navigator.clipboard.writeText(links);
+            setBatchCopied(true);
+            setTimeout(() => setBatchCopied(false), 2000);
+        }
+    };
+
+    const copyAllMarkdown = () => {
+        const md = batchQueue.filter(q => q.status === 'complete' && q.url).map(q => `![${q.fileName}](${q.url})`).join('\n');
+        if (md) {
+            navigator.clipboard.writeText(md);
+            setBatchCopied(true);
+            setTimeout(() => setBatchCopied(false), 2000);
+        }
+    };
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDragging(true);
@@ -395,8 +516,11 @@ export default function Home() {
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (file) uploadFile(file);
+        setIsDragging(false);
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith("image/") || f.type.startsWith("video/"));
+        if (files.length > 0) {
+            processBatchUpload(files);
+        }
     };
 
     useEffect(() => {
@@ -750,6 +874,154 @@ export default function Home() {
                         </select>
                     </div>
 
+                    {/* Batch Upload Queue / Results Gallery */}
+                    <AnimatePresence>
+                        {batchQueue.length > 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -10 }}
+                                style={{
+                                    marginTop: "1.5rem",
+                                    background: "rgba(139, 92, 246, 0.04)",
+                                    border: "1px solid rgba(139, 92, 246, 0.2)",
+                                    borderRadius: "20px",
+                                    padding: "1.25rem",
+                                }}
+                            >
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                        <Layers size={18} color="#8b5cf6" />
+                                        <span style={{ fontWeight: 700, fontSize: "0.95rem", color: "var(--text-main)" }}>
+                                            Batch Queue ({batchQueue.filter(q => q.status === 'complete').length}/{batchQueue.length} Done)
+                                        </span>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "8px" }}>
+                                        {batchQueue.some(q => q.status === 'complete') && (
+                                            <>
+                                                <button
+                                                    onClick={copyAllBatchLinks}
+                                                    style={{
+                                                        background: "#8b5cf6",
+                                                        border: "none",
+                                                        borderRadius: "8px",
+                                                        padding: "6px 12px",
+                                                        color: "#ffffff",
+                                                        fontSize: "0.78rem",
+                                                        fontWeight: 600,
+                                                        cursor: "pointer",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                    }}
+                                                >
+                                                    {batchCopied ? <Check size={14} /> : <Copy size={14} />}
+                                                    {batchCopied ? "Copied All!" : "Copy All Links"}
+                                                </button>
+                                                <button
+                                                    onClick={copyAllMarkdown}
+                                                    style={{
+                                                        background: "rgba(139, 92, 246, 0.15)",
+                                                        border: "1px solid rgba(139, 92, 246, 0.3)",
+                                                        borderRadius: "8px",
+                                                        padding: "6px 12px",
+                                                        color: "var(--text-main)",
+                                                        fontSize: "0.78rem",
+                                                        fontWeight: 500,
+                                                        cursor: "pointer",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        gap: "4px",
+                                                    }}
+                                                >
+                                                    <FileText size={14} color="#8b5cf6" /> Markdown
+                                                </button>
+                                            </>
+                                        )}
+                                        <button
+                                            onClick={() => setBatchQueue([])}
+                                            style={{
+                                                background: "transparent",
+                                                border: "1px solid var(--border-color)",
+                                                borderRadius: "8px",
+                                                padding: "6px 10px",
+                                                color: "var(--text-muted)",
+                                                fontSize: "0.78rem",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "280px", overflowY: "auto" }}>
+                                    {batchQueue.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            style={{
+                                                background: "var(--input-bg)",
+                                                border: "1px solid var(--border-color)",
+                                                borderRadius: "12px",
+                                                padding: "10px 14px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                gap: "12px",
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
+                                                {item.status === 'complete' ? (
+                                                    <CheckCheck size={16} color="#10b981" style={{ flexShrink: 0 }} />
+                                                ) : item.status === 'error' ? (
+                                                    <AlertCircle size={16} color="#ef4444" style={{ flexShrink: 0 }} />
+                                                ) : (
+                                                    <ImageIcon size={16} color="#8b5cf6" style={{ flexShrink: 0 }} />
+                                                )}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-main)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {item.fileName}
+                                                    </div>
+                                                    {item.status === 'uploading' && (
+                                                        <div style={{ width: "100%", background: "rgba(255,255,255,0.1)", height: "4px", borderRadius: "2px", marginTop: "4px", overflow: "hidden" }}>
+                                                            <div style={{ width: `${item.progress}%`, background: "#8b5cf6", height: "100%", transition: "width 0.2s" }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                                                {item.status === 'complete' && item.url ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(item.url!);
+                                                        }}
+                                                        style={{
+                                                            background: "rgba(16, 185, 129, 0.12)",
+                                                            border: "1px solid rgba(16, 185, 129, 0.3)",
+                                                            borderRadius: "6px",
+                                                            padding: "4px 8px",
+                                                            color: "#10b981",
+                                                            fontSize: "0.75rem",
+                                                            fontWeight: 600,
+                                                            cursor: "pointer",
+                                                        }}
+                                                    >
+                                                        Copy Link
+                                                    </button>
+                                                ) : item.status === 'error' ? (
+                                                    <span style={{ fontSize: "0.75rem", color: "#ef4444" }}>Failed</span>
+                                                ) : (
+                                                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{item.progress}%</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {/* Secret PIN / Password Protection (Optional) */}
                     <div style={{ position: "relative", marginBottom: "1.5rem" }}>
                         <div
@@ -1007,11 +1279,13 @@ export default function Home() {
                             type="file"
                             id="file-upload"
                             className="file-input"
+                            multiple={true}
                             accept="image/*,video/*"
                             onChange={(e) => {
-                                if (e.target.files?.[0]) {
-                                    uploadFile(e.target.files[0]);
-                                    e.target.value = ''; // Reset so same file can be re-selected
+                                if (e.target.files && e.target.files.length > 0) {
+                                    const files = Array.from(e.target.files);
+                                    processBatchUpload(files);
+                                    e.target.value = ''; // Reset so same files can be re-selected
                                 }
                             }}
                         />
