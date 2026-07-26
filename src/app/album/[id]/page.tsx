@@ -16,8 +16,6 @@ import {
     Sparkles,
     Play,
     Plus,
-    Maximize2,
-    Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import JSZip from "jszip";
@@ -55,6 +53,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const [isCopied, setIsCopied] = useState(false);
     const [zipProgress, setZipProgress] = useState<string | null>(null);
+    const [downloadingAll, setDownloadingAll] = useState(false);
 
     const fetchAlbum = async (pass?: string) => {
         try {
@@ -123,6 +122,38 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
         navigator.clipboard.writeText(window.location.href);
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2500);
+    };
+
+    // Download each file individually
+    const handleDownloadAll = async () => {
+        if (!album || album.items.length === 0) return;
+        setDownloadingAll(true);
+        try {
+            for (let i = 0; i < album.items.length; i++) {
+                const item = album.items[i];
+                const response = await fetch(item.url);
+                const blob = await response.blob();
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+
+                let ext = "jpg";
+                if (item.type.includes("png")) ext = "png";
+                else if (item.type.includes("gif")) ext = "gif";
+                else if (item.type.includes("mp4")) ext = "mp4";
+                else if (item.type.includes("webm")) ext = "webm";
+
+                a.download = `media_${i + 1}_${item.id}.${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+                await new Promise((r) => setTimeout(r, 200));
+            }
+        } catch (err) {
+            console.error("Download all failed", err);
+        } finally {
+            setDownloadingAll(false);
+        }
     };
 
     // Client-side 1-Click ZIP Downloader
@@ -222,7 +253,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                 }}
             />
 
-            {/* Matching CSS Styles of /i/id Toolbar & Info Bar */}
+            {/* CSS Styles for Floating Toolbar, Info Bar & Free-Form Mobile 3x3 Grid */}
             <style>{`
                 .album-toolbar {
                     position: fixed;
@@ -355,7 +386,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                         display: none !important;
                     }
                     .page-wrapper {
-                        padding: 70px 10px 80px !important;
+                        padding: 75px 12px 90px !important;
                     }
                 }
             `}</style>
@@ -364,7 +395,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                 <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1 }}>
                     <div style={{ textAlign: "center" }}>
                         <Sparkles className="spin" size={38} color="#8b5cf6" style={{ marginBottom: "1rem" }} />
-                        <p style={{ color: "#a1a1aa", fontWeight: 600, fontSize: "0.95rem" }}>Loading Album Gallery...</p>
+                        <p style={{ color: "#a1a1aa", fontWeight: 600, fontSize: "0.95rem" }}>Loading Media Gallery...</p>
                     </div>
                 </div>
             ) : isLocked ? (
@@ -474,6 +505,16 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                         </button>
 
                         <button
+                            onClick={handleDownloadAll}
+                            disabled={downloadingAll}
+                            className="btn-pill"
+                            style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)" }}
+                        >
+                            <Download size={15} />
+                            <span>{downloadingAll ? "Downloading..." : "Download All"}</span>
+                        </button>
+
+                        <button
                             onClick={handleDownloadZip}
                             disabled={!!zipProgress}
                             className="btn-pill btn-pill-primary"
@@ -483,89 +524,74 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                         </button>
                     </div>
 
-                    {/* Main Page Canvas Wrapper */}
-                    <div className="page-wrapper" style={{ width: "100%", maxWidth: "1150px", padding: "90px 20px 100px", position: "relative", zIndex: 1 }}>
+                    {/* Free-Form Page Content (Directly on Background, No Outer Box Frame) */}
+                    <div className="page-wrapper" style={{ width: "100%", maxWidth: "1250px", padding: "90px 20px 100px", position: "relative", zIndex: 1 }}>
                         
-                        {/* Goated Canvas Frame Container */}
-                        <div
-                            style={{
-                                background: "rgba(18, 18, 22, 0.6)",
-                                backdropFilter: "blur(20px)",
-                                WebkitBackdropFilter: "blur(20px)",
-                                border: "1px solid rgba(255, 255, 255, 0.12)",
-                                borderRadius: "24px",
-                                padding: "28px",
-                                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
-                            }}
-                        >
-                            {/* Album Header Info */}
-                            <div style={{ marginBottom: "1.75rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-                                <div>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
-                                        <span className="badge-purple">ALBUM</span>
-                                        <h1 style={{ fontSize: "1.75rem", fontWeight: 800, color: "#ffffff", margin: 0, letterSpacing: "-0.5px" }}>
-                                            {album.title}
-                                        </h1>
-                                    </div>
-                                    <p style={{ color: "#a1a1aa", fontSize: "0.85rem", margin: 0 }}>
-                                        Created {formattedDate} • {album.items.length} media items
-                                    </p>
-                                </div>
+                        {/* Album Header Title & Subtitle Below Navbar */}
+                        <div style={{ marginBottom: "1.75rem", paddingLeft: "4px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px" }}>
+                                <span className="badge-purple">ALBUM</span>
+                                <h1 style={{ fontSize: "2.1rem", fontWeight: 800, color: "#ffffff", margin: 0, letterSpacing: "-0.5px" }}>
+                                    {album.title}
+                                </h1>
                             </div>
+                            <p style={{ color: "#a1a1aa", fontSize: "0.88rem", margin: 0 }}>
+                                Created {formattedDate} • {album.items.length} media items
+                            </p>
+                        </div>
 
-                            {/* Media Grid (3x3 on Phone View, Sleek Tiles on Desktop) */}
-                            <div className="album-grid-container">
-                                {album.items.map((item, idx) => {
-                                    const isVideo = item.type.includes("video") || item.type.includes("mp4") || item.type.includes("webm");
+                        {/* Free-Form Media Grid (3x3 on Phone View, Edge-to-Edge Tiles on Desktop) */}
+                        <div className="album-grid-container">
+                            {album.items.map((item, idx) => {
+                                const isVideo = item.type.includes("video") || item.type.includes("mp4") || item.type.includes("webm");
 
-                                    return (
-                                        <motion.div
-                                            key={item.id}
-                                            className="album-card-tile"
-                                            initial={{ opacity: 0, scale: 0.95 }}
-                                            animate={{ opacity: 1, scale: 1 }}
-                                            transition={{ delay: idx * 0.03 }}
-                                            onClick={() => setLightboxIndex(idx)}
-                                        >
-                                            {isVideo ? (
-                                                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0c", position: "relative" }}>
-                                                    <video src={item.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                                    <div style={{ position: "absolute", width: "44px", height: "44px", borderRadius: "50%", background: "rgba(139, 92, 246, 0.9)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 15px rgba(139, 92, 246, 0.5)" }}>
-                                                        <Play size={20} style={{ marginLeft: "3px" }} />
-                                                    </div>
+                                return (
+                                    <motion.div
+                                        key={item.id}
+                                        className="album-card-tile"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: idx * 0.03 }}
+                                        onClick={() => setLightboxIndex(idx)}
+                                    >
+                                        {isVideo ? (
+                                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0c", position: "relative" }}>
+                                                <video src={item.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                <div style={{ position: "absolute", width: "44px", height: "44px", borderRadius: "50%", background: "rgba(139, 92, 246, 0.9)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 15px rgba(139, 92, 246, 0.5)" }}>
+                                                    <Play size={20} style={{ marginLeft: "3px" }} />
                                                 </div>
-                                            ) : (
-                                                <img
-                                                    src={item.url}
-                                                    alt={`Media ${idx + 1}`}
-                                                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                                    loading="lazy"
-                                                />
-                                            )}
-
-                                            {/* Hover Overlay */}
-                                            <div
-                                                style={{
-                                                    position: "absolute",
-                                                    inset: 0,
-                                                    background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%)",
-                                                    display: "flex",
-                                                    alignItems: "flex-end",
-                                                    padding: "10px",
-                                                    justifyContent: "space-between",
-                                                }}
-                                            >
-                                                <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#ffffff" }}>
-                                                    #{idx + 1}
-                                                </span>
-                                                <span className="mobile-hide" style={{ fontSize: "0.7rem", color: "rgba(255, 255, 255, 0.9)", background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(6px)", padding: "2px 6px", borderRadius: "6px" }}>
-                                                    {formatSize(item.size)}
-                                                </span>
                                             </div>
-                                        </motion.div>
-                                    );
-                                })}
-                            </div>
+                                        ) : (
+                                            <img
+                                                src={item.url}
+                                                alt={`Media ${idx + 1}`}
+                                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                                loading="lazy"
+                                            />
+                                        )}
+
+                                        {/* Hover Overlay */}
+                                        <div
+                                            style={{
+                                                position: "absolute",
+                                                inset: 0,
+                                                background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%)",
+                                                display: "flex",
+                                                alignItems: "flex-end",
+                                                padding: "10px",
+                                                justifyContent: "space-between",
+                                            }}
+                                        >
+                                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#ffffff" }}>
+                                                #{idx + 1}
+                                            </span>
+                                            <span className="mobile-hide" style={{ fontSize: "0.7rem", color: "rgba(255, 255, 255, 0.9)", background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(6px)", padding: "2px 6px", borderRadius: "6px" }}>
+                                                {formatSize(item.size)}
+                                            </span>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
                         </div>
                     </div>
 
