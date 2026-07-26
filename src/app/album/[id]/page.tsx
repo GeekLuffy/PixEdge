@@ -13,10 +13,10 @@ import {
     ChevronRight,
     X,
     FileArchive,
-    Grid,
     Sparkles,
     Play,
     ArrowLeft,
+    Layers,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import JSZip from "jszip";
@@ -128,13 +128,13 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
     const handleDownloadZip = async () => {
         if (!album || album.items.length === 0) return;
         try {
-            setZipProgress("Initializing ZIP archive...");
+            setZipProgress("Preparing...");
             const zip = new JSZip();
             const folder = zip.folder(album.title.toLowerCase().replace(/[^a-z0-9]/g, "-") || "pixedge-album");
 
             for (let i = 0; i < album.items.length; i++) {
                 const item = album.items[i];
-                setZipProgress(`Fetching media ${i + 1} of ${album.items.length}...`);
+                setZipProgress(`${i + 1}/${album.items.length}...`);
                 const response = await fetch(item.url);
                 const blob = await response.blob();
 
@@ -148,7 +148,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                 folder?.file(`media_${i + 1}_${item.id}.${ext}`, blob);
             }
 
-            setZipProgress("Bundling ZIP file...");
+            setZipProgress("Zipping...");
             const content = await zip.generateAsync({ type: "blob" });
 
             // Trigger file save
@@ -162,279 +162,387 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
             setZipProgress(null);
         } catch (err) {
             console.error("ZIP download failed", err);
-            setZipProgress("Failed to generate ZIP");
+            setZipProgress("Failed");
             setTimeout(() => setZipProgress(null), 3000);
         }
     };
 
     const formatSize = (bytes: number) => {
+        if (!bytes) return "0 MB";
         if (bytes < 1024) return `${bytes} B`;
         if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
         return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     };
 
-    if (loading) {
-        return (
-            <main style={{ minHeight: "100vh", background: "var(--bg-main)", color: "var(--text-main)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <div style={{ textAlign: "center" }}>
-                    <Sparkles className="spin" size={36} color="var(--accent-primary)" style={{ marginBottom: "1rem" }} />
-                    <p style={{ color: "var(--card-subtext)", fontWeight: 600 }}>Loading Album Gallery...</p>
-                </div>
-            </main>
-        );
-    }
-
-    if (isLocked) {
-        return (
-            <main style={{ minHeight: "100vh", background: "var(--bg-main)", color: "var(--text-main)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    style={{
-                        background: "var(--panel-bg)",
-                        backdropFilter: "blur(24px)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "28px",
-                        padding: "2.5rem",
-                        maxWidth: "420px",
-                        width: "100%",
-                        textAlign: "center",
-                        boxShadow: "0 25px 50px rgba(0, 0, 0, 0.3)",
-                    }}
-                >
-                    <div style={{ width: "64px", height: "64px", borderRadius: "20px", background: "rgba(139, 92, 246, 0.15)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem auto" }}>
-                        <Lock size={32} />
-                    </div>
-
-                    <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.5rem" }}>Protected Album</h2>
-                    <p style={{ color: "var(--card-subtext)", fontSize: "0.9rem", marginBottom: "1.75rem", lineHeight: 1.5 }}>
-                        This album is protected with a secret PIN or password. Enter the password to unlock and view media.
-                    </p>
-
-                    <form onSubmit={handleUnlock}>
-                        <div style={{ position: "relative", marginBottom: "1rem" }}>
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                placeholder="Enter PIN or Password"
-                                value={passwordInput}
-                                onChange={(e) => setPasswordInput(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "0.85rem 3rem 0.85rem 1.25rem",
-                                    borderRadius: "14px",
-                                    background: "rgba(255, 255, 255, 0.05)",
-                                    border: passError ? "1px solid #ef4444" : "1px solid var(--border-color)",
-                                    color: "var(--text-main)",
-                                    fontSize: "1rem",
-                                    outline: "none",
-                                }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                style={{
-                                    position: "absolute",
-                                    right: "12px",
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    background: "transparent",
-                                    border: "none",
-                                    color: "var(--card-subtext)",
-                                    cursor: "pointer",
-                                }}
-                            >
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
-                        </div>
-
-                        {passError && (
-                            <p style={{ color: "#ef4444", fontSize: "0.85rem", marginBottom: "1rem", fontWeight: 600 }}>{passError}</p>
-                        )}
-
-                        <button
-                            type="submit"
-                            style={{
-                                width: "100%",
-                                padding: "0.85rem",
-                                borderRadius: "14px",
-                                background: "var(--accent-primary)",
-                                color: "#ffffff",
-                                fontWeight: 700,
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: "1rem",
-                                boxShadow: "0 10px 25px rgba(139, 92, 246, 0.3)",
-                            }}
-                        >
-                            Unlock Album
-                        </button>
-                    </form>
-                </motion.div>
-            </main>
-        );
-    }
-
-    if (error || !album) {
-        return (
-            <main style={{ minHeight: "100vh", background: "var(--bg-main)", color: "var(--text-main)", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem" }}>
-                <div style={{ textAlign: "center" }}>
-                    <h2 style={{ fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.75rem" }}>Album Not Found</h2>
-                    <p style={{ color: "var(--card-subtext)", marginBottom: "1.5rem" }}>{error || "The requested album does not exist or has expired."}</p>
-                    <Link href="/" style={{ color: "var(--accent-primary)", fontWeight: 700, textDecoration: "none" }}>
-                        ← Back to Homepage
-                    </Link>
-                </div>
-            </main>
-        );
-    }
-
     return (
-        <main style={{ minHeight: "100vh", background: "var(--bg-main)", color: "var(--text-main)", padding: "2rem 1.5rem" }}>
-            <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-                {/* Header Navigation */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "2rem" }}>
-                    <Link
-                        href="/"
+        <main
+            style={{
+                minHeight: "100vh",
+                background: "#09090b",
+                color: "#f4f4f5",
+                fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+                position: "relative",
+                overflowX: "hidden",
+            }}
+        >
+            {/* Ambient Spotlight Glow Background */}
+            <div
+                style={{
+                    position: "fixed",
+                    top: "-200px",
+                    left: "-150px",
+                    width: "500px",
+                    height: "500px",
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(0, 0, 0, 0) 70%)",
+                    pointerEvents: "none",
+                    zIndex: 0,
+                }}
+            />
+            <div
+                style={{
+                    position: "fixed",
+                    bottom: "-200px",
+                    right: "-150px",
+                    width: "600px",
+                    height: "600px",
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, rgba(6, 182, 212, 0.14) 0%, rgba(0, 0, 0, 0) 70%)",
+                    pointerEvents: "none",
+                    zIndex: 0,
+                }}
+            />
+
+            {/* Custom Responsive Styles for Mobile 3x3 Grid */}
+            <style>{`
+                .album-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+                    gap: 1.25rem;
+                }
+                .album-card {
+                    aspect-ratio: 4 / 3;
+                    border-radius: 18px;
+                }
+                .album-header-bar {
+                    flex-direction: row;
+                }
+                @media (max-width: 640px) {
+                    .album-grid {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 3px !important;
+                    }
+                    .album-card {
+                        aspect-ratio: 1 / 1 !important;
+                        border-radius: 6px !important;
+                    }
+                    .album-card-overlay {
+                        padding: 4px !important;
+                    }
+                    .album-card-overlay-size {
+                        display: none !important;
+                    }
+                    .album-toolbar {
+                        padding: 6px 12px !important;
+                        gap: 6px !important;
+                        width: 94vw !important;
+                    }
+                    .album-title-text {
+                        font-size: 1.4rem !important;
+                    }
+                    .mobile-hide {
+                        display: none !important;
+                    }
+                }
+            `}</style>
+
+            {loading ? (
+                <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1 }}>
+                    <div style={{ textAlign: "center" }}>
+                        <Sparkles className="spin" size={38} color="#8b5cf6" style={{ marginBottom: "1rem" }} />
+                        <p style={{ color: "#a1a1aa", fontWeight: 600, fontSize: "0.95rem" }}>Loading Media Gallery...</p>
+                    </div>
+                </div>
+            ) : isLocked ? (
+                <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", position: "relative", zIndex: 1 }}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            color: "var(--card-subtext)",
-                            textDecoration: "none",
-                            fontWeight: 600,
-                            fontSize: "0.9rem",
-                            transition: "color 0.2s",
+                            background: "rgba(18, 18, 24, 0.85)",
+                            backdropFilter: "blur(24px)",
+                            WebkitBackdropFilter: "blur(24px)",
+                            border: "1px solid rgba(139, 92, 246, 0.3)",
+                            borderRadius: "28px",
+                            padding: "2.5rem 2rem",
+                            maxWidth: "420px",
+                            width: "100%",
+                            textAlign: "center",
+                            boxShadow: "0 25px 60px rgba(0, 0, 0, 0.6), 0 0 30px rgba(139, 92, 246, 0.15)",
                         }}
                     >
-                        <ArrowLeft size={18} /> Back to PixEdge
-                    </Link>
+                        <div style={{ width: "64px", height: "64px", borderRadius: "20px", background: "rgba(139, 92, 246, 0.15)", border: "1px solid rgba(139, 92, 246, 0.3)", color: "#c4b5fd", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 1.5rem auto" }}>
+                            <Lock size={30} />
+                        </div>
 
-                    <div style={{ display: "flex", gap: "10px" }}>
-                        <button
-                            onClick={handleCopyShareLink}
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                padding: "0.6rem 1.25rem",
-                                borderRadius: "14px",
-                                background: "var(--panel-bg)",
-                                border: "1px solid var(--border-color)",
-                                color: "var(--text-main)",
-                                fontWeight: 600,
-                                fontSize: "0.88rem",
-                                cursor: "pointer",
-                            }}
-                        >
-                            {isCopied ? <Check size={16} color="#10b981" /> : <Share2 size={16} />}
-                            {isCopied ? "Link Copied!" : "Share Album"}
-                        </button>
+                        <h2 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.5rem", letterSpacing: "-0.5px" }}>Protected Album</h2>
+                        <p style={{ color: "#a1a1aa", fontSize: "0.88rem", marginBottom: "1.75rem", lineHeight: 1.55 }}>
+                            This album is password protected. Enter the PIN or password to unlock and view files.
+                        </p>
 
-                        <button
-                            onClick={handleDownloadZip}
-                            disabled={!!zipProgress}
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                padding: "0.6rem 1.25rem",
-                                borderRadius: "14px",
-                                background: "var(--accent-primary)",
-                                border: "none",
-                                color: "#ffffff",
-                                fontWeight: 700,
-                                fontSize: "0.88rem",
-                                cursor: zipProgress ? "not-allowed" : "pointer",
-                                boxShadow: "0 10px 20px rgba(139, 92, 246, 0.3)",
-                            }}
-                        >
-                            <FileArchive size={18} />
-                            {zipProgress || "Download (.ZIP)"}
-                        </button>
-                    </div>
-                </div>
-
-                {/* Album Title Banner */}
-                <div style={{ marginBottom: "2.5rem" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "0.5rem" }}>
-                        <span style={{ fontSize: "0.8rem", fontWeight: 800, color: "var(--accent-primary)", textTransform: "uppercase", letterSpacing: "1px" }}>
-                            Album Gallery
-                        </span>
-                        <span style={{ fontSize: "0.8rem", color: "var(--card-subtext)", background: "rgba(255, 255, 255, 0.06)", padding: "2px 10px", borderRadius: "12px", border: "1px solid var(--border-color)" }}>
-                            {album.items.length} Files
-                        </span>
-                    </div>
-                    <h1 style={{ fontSize: "2.25rem", fontWeight: 900, color: "var(--text-main)", margin: 0 }}>
-                        {album.title}
-                    </h1>
-                </div>
-
-                {/* Masonry Grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "1.25rem" }}>
-                    {album.items.map((item, idx) => {
-                        const isVideo = item.type.includes("video") || item.type.includes("mp4") || item.type.includes("webm");
-
-                        return (
-                            <motion.div
-                                key={item.id}
-                                initial={{ opacity: 0, y: 15 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05 }}
-                                onClick={() => setLightboxIndex(idx)}
-                                style={{
-                                    position: "relative",
-                                    borderRadius: "20px",
-                                    overflow: "hidden",
-                                    background: "var(--panel-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    cursor: "pointer",
-                                    aspectRatio: isVideo ? "16/10" : "4/3",
-                                    boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
-                                }}
-                                whileHover={{ scale: 1.025, y: -4 }}
-                            >
-                                {isVideo ? (
-                                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0c", position: "relative" }}>
-                                        <video src={item.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                        <div style={{ position: "absolute", width: "52px", height: "52px", borderRadius: "50%", background: "rgba(139, 92, 246, 0.85)", backdropFilter: "blur(10px)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff" }}>
-                                            <Play size={24} style={{ marginLeft: "4px" }} />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <img
-                                        src={item.url}
-                                        alt={`Album item ${idx + 1}`}
-                                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                                    />
-                                )}
-
-                                {/* Hover Gradient & Info Pill */}
-                                <div
+                        <form onSubmit={handleUnlock}>
+                            <div style={{ position: "relative", marginBottom: "1rem" }}>
+                                <input
+                                    type={showPassword ? "text" : "password"}
+                                    placeholder="Enter PIN or Password"
+                                    value={passwordInput}
+                                    onChange={(e) => setPasswordInput(e.target.value)}
+                                    style={{
+                                        width: "100%",
+                                        padding: "0.85rem 3rem 0.85rem 1.25rem",
+                                        borderRadius: "14px",
+                                        background: "rgba(255, 255, 255, 0.05)",
+                                        border: passError ? "1px solid #ef4444" : "1px solid rgba(255, 255, 255, 0.15)",
+                                        color: "#ffffff",
+                                        fontSize: "1rem",
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                    }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
                                     style={{
                                         position: "absolute",
-                                        inset: 0,
-                                        background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)",
-                                        opacity: 0.9,
-                                        display: "flex",
-                                        alignItems: "flex-end",
-                                        padding: "1rem",
-                                        justifyContent: "space-between",
+                                        right: "12px",
+                                        top: "50%",
+                                        transform: "translateY(-50%)",
+                                        background: "transparent",
+                                        border: "none",
+                                        color: "#a1a1aa",
+                                        cursor: "pointer",
                                     }}
                                 >
-                                    <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "#ffffff" }}>
-                                        #{idx + 1}
-                                    </span>
-                                    <span style={{ fontSize: "0.75rem", color: "rgba(255, 255, 255, 0.8)", background: "rgba(0, 0, 0, 0.5)", backdropFilter: "blur(8px)", padding: "3px 8px", borderRadius: "8px" }}>
-                                        {formatSize(item.size)}
-                                    </span>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </div>
-            </div>
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
+                            </div>
 
-            {/* Lightbox Modal */}
+                            {passError && (
+                                <p style={{ color: "#ef4444", fontSize: "0.85rem", marginBottom: "1rem", fontWeight: 600 }}>{passError}</p>
+                            )}
+
+                            <button
+                                type="submit"
+                                style={{
+                                    width: "100%",
+                                    padding: "0.85rem",
+                                    borderRadius: "14px",
+                                    background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                                    color: "#ffffff",
+                                    fontWeight: 700,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: "1rem",
+                                    boxShadow: "0 10px 25px rgba(139, 92, 246, 0.4)",
+                                }}
+                            >
+                                Unlock Gallery
+                            </button>
+                        </form>
+                    </motion.div>
+                </div>
+            ) : error || !album ? (
+                <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", position: "relative", zIndex: 1 }}>
+                    <div style={{ textAlign: "center" }}>
+                        <h2 style={{ fontSize: "1.75rem", fontWeight: 800, marginBottom: "0.75rem" }}>Album Not Found</h2>
+                        <p style={{ color: "#a1a1aa", marginBottom: "1.5rem" }}>{error || "The requested album does not exist or has expired."}</p>
+                        <Link href="/" style={{ color: "#8b5cf6", fontWeight: 700, textDecoration: "none" }}>
+                            ← Back to PixEdge
+                        </Link>
+                    </div>
+                </div>
+            ) : (
+                <div style={{ position: "relative", zIndex: 1, padding: "80px 1.25rem 3rem" }}>
+                    {/* Sleek Floating Top Glassmorphic Navbar */}
+                    <div
+                        className="album-toolbar"
+                        style={{
+                            position: "fixed",
+                            top: "16px",
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "10px",
+                            background: "rgba(18, 18, 22, 0.8)",
+                            backdropFilter: "blur(20px)",
+                            WebkitBackdropFilter: "blur(20px)",
+                            padding: "8px 14px",
+                            borderRadius: "100px",
+                            border: "1px solid rgba(255, 255, 255, 0.12)",
+                            boxShadow: "0 10px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.15)",
+                            zIndex: 100,
+                            maxWidth: "960px",
+                            width: "90vw",
+                        }}
+                    >
+                        {/* Brand Logo Pill */}
+                        <Link
+                            href="/"
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                textDecoration: "none",
+                                color: "#ffffff",
+                                fontWeight: 800,
+                                fontSize: "0.92rem",
+                                letterSpacing: "-0.3px",
+                            }}
+                        >
+                            <span style={{ width: "26px", height: "26px", borderRadius: "50%", background: "linear-gradient(135deg, #8b5cf6, #06b6d4)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Layers size={14} color="#fff" />
+                            </span>
+                            <span className="mobile-hide">PixEdge</span>
+                        </Link>
+
+                        {/* Album Badge */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "#c4b5fd", background: "rgba(139, 92, 246, 0.15)", border: "1px solid rgba(139, 92, 246, 0.3)", padding: "4px 12px", borderRadius: "50px", whiteSpace: "nowrap" }}>
+                                📷 {album.items.length} Items
+                            </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <button
+                                onClick={handleCopyShareLink}
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    padding: "6px 12px",
+                                    borderRadius: "50px",
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    color: "#ffffff",
+                                    fontWeight: 600,
+                                    fontSize: "0.8rem",
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                    transition: "all 0.2s",
+                                }}
+                            >
+                                {isCopied ? <Check size={14} color="#10b981" /> : <Share2 size={14} />}
+                                <span>{isCopied ? "Copied!" : "Share"}</span>
+                            </button>
+
+                            <button
+                                onClick={handleDownloadZip}
+                                disabled={!!zipProgress}
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    padding: "6px 14px",
+                                    borderRadius: "50px",
+                                    background: "linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)",
+                                    border: "none",
+                                    color: "#ffffff",
+                                    fontWeight: 700,
+                                    fontSize: "0.8rem",
+                                    cursor: zipProgress ? "not-allowed" : "pointer",
+                                    whiteSpace: "nowrap",
+                                    boxShadow: "0 4px 15px rgba(139, 92, 246, 0.4)",
+                                }}
+                            >
+                                <FileArchive size={14} />
+                                <span>{zipProgress || "Download ZIP"}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Container */}
+                    <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+                        {/* Title Section */}
+                        <div style={{ marginBottom: "2rem", marginTop: "1rem" }}>
+                            <h1 className="album-title-text" style={{ fontSize: "2rem", fontWeight: 900, color: "#ffffff", margin: "0 0 6px 0", letterSpacing: "-0.5px" }}>
+                                {album.title}
+                            </h1>
+                            <p style={{ color: "#a1a1aa", fontSize: "0.88rem", margin: 0 }}>
+                                Created {new Date(album.created_at).toLocaleDateString()} • {album.items.length} media items
+                            </p>
+                        </div>
+
+                        {/* Media Grid (3x3 on Phone View, Masonry on Desktop) */}
+                        <div className="album-grid">
+                            {album.items.map((item, idx) => {
+                                const isVideo = item.type.includes("video") || item.type.includes("mp4") || item.type.includes("webm");
+
+                                return (
+                                    <motion.div
+                                        key={item.id}
+                                        className="album-card"
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: idx * 0.03 }}
+                                        onClick={() => setLightboxIndex(idx)}
+                                        style={{
+                                            position: "relative",
+                                            overflow: "hidden",
+                                            background: "rgba(22, 22, 28, 0.7)",
+                                            border: "1px solid rgba(255, 255, 255, 0.1)",
+                                            cursor: "pointer",
+                                            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
+                                        }}
+                                        whileHover={{ scale: 1.03, y: -4 }}
+                                    >
+                                        {isVideo ? (
+                                            <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0c", position: "relative" }}>
+                                                <video src={item.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                <div style={{ position: "absolute", width: "42px", height: "42px", borderRadius: "50%", background: "rgba(139, 92, 246, 0.9)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ffffff", boxShadow: "0 4px 15px rgba(139, 92, 246, 0.5)" }}>
+                                                    <Play size={20} style={{ marginLeft: "3px" }} />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={item.url}
+                                                alt={`Media ${idx + 1}`}
+                                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                                loading="lazy"
+                                            />
+                                        )}
+
+                                        {/* Hover Overlay */}
+                                        <div
+                                            className="album-card-overlay"
+                                            style={{
+                                                position: "absolute",
+                                                inset: 0,
+                                                background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 60%)",
+                                                display: "flex",
+                                                alignItems: "flex-end",
+                                                padding: "10px",
+                                                justifyContent: "space-between",
+                                            }}
+                                        >
+                                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#ffffff" }}>
+                                                #{idx + 1}
+                                            </span>
+                                            <span className="album-card-overlay-size" style={{ fontSize: "0.7rem", color: "rgba(255, 255, 255, 0.9)", background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(6px)", padding: "2px 6px", borderRadius: "6px" }}>
+                                                {formatSize(item.size)}
+                                            </span>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Goated Fullscreen Lightbox Modal */}
             <AnimatePresence>
                 {lightboxIndex !== null && album && (
                     <motion.div
@@ -445,15 +553,36 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             position: "fixed",
                             inset: 0,
                             zIndex: 9999,
-                            background: "rgba(0, 0, 0, 0.92)",
-                            backdropFilter: "blur(20px)",
+                            background: "rgba(6, 6, 9, 0.95)",
+                            backdropFilter: "blur(24px)",
+                            WebkitBackdropFilter: "blur(24px)",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: "2rem",
+                            padding: "1.5rem",
                         }}
                         onClick={() => setLightboxIndex(null)}
                     >
+                        {/* Top Counter Bar */}
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "20px",
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                background: "rgba(255, 255, 255, 0.1)",
+                                border: "1px solid rgba(255, 255, 255, 0.15)",
+                                padding: "6px 16px",
+                                borderRadius: "50px",
+                                color: "#ffffff",
+                                fontSize: "0.85rem",
+                                fontWeight: 700,
+                                zIndex: 10001,
+                            }}
+                        >
+                            {lightboxIndex + 1} / {album.items.length}
+                        </div>
+
                         {/* Close button */}
                         <button
                             onClick={() => setLightboxIndex(null)}
@@ -461,11 +590,11 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                 position: "absolute",
                                 top: "20px",
                                 right: "20px",
-                                background: "rgba(255, 255, 255, 0.1)",
-                                border: "none",
+                                background: "rgba(255, 255, 255, 0.12)",
+                                border: "1px solid rgba(255, 255, 255, 0.18)",
                                 color: "#ffffff",
-                                width: "44px",
-                                height: "44px",
+                                width: "42px",
+                                height: "42px",
                                 borderRadius: "50%",
                                 display: "flex",
                                 alignItems: "center",
@@ -474,10 +603,10 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                 zIndex: 10001,
                             }}
                         >
-                            <X size={24} />
+                            <X size={22} />
                         </button>
 
-                        {/* Navigation Left */}
+                        {/* Left Arrow */}
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -485,15 +614,15 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             }}
                             style={{
                                 position: "absolute",
-                                left: "20px",
+                                left: "16px",
                                 top: "50%",
                                 transform: "translateY(-50%)",
                                 background: "rgba(255, 255, 255, 0.12)",
-                                backdropFilter: "blur(10px)",
+                                backdropFilter: "blur(12px)",
                                 border: "1px solid rgba(255, 255, 255, 0.2)",
                                 color: "#ffffff",
-                                width: "52px",
-                                height: "52px",
+                                width: "48px",
+                                height: "48px",
                                 borderRadius: "50%",
                                 display: "flex",
                                 alignItems: "center",
@@ -502,10 +631,10 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                 zIndex: 10001,
                             }}
                         >
-                            <ChevronLeft size={28} />
+                            <ChevronLeft size={26} />
                         </button>
 
-                        {/* Navigation Right */}
+                        {/* Right Arrow */}
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -513,15 +642,15 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             }}
                             style={{
                                 position: "absolute",
-                                right: "20px",
+                                right: "16px",
                                 top: "50%",
                                 transform: "translateY(-50%)",
                                 background: "rgba(255, 255, 255, 0.12)",
-                                backdropFilter: "blur(10px)",
+                                backdropFilter: "blur(12px)",
                                 border: "1px solid rgba(255, 255, 255, 0.2)",
                                 color: "#ffffff",
-                                width: "52px",
-                                height: "52px",
+                                width: "48px",
+                                height: "48px",
                                 borderRadius: "50%",
                                 display: "flex",
                                 alignItems: "center",
@@ -530,14 +659,14 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                 zIndex: 10001,
                             }}
                         >
-                            <ChevronRight size={28} />
+                            <ChevronRight size={26} />
                         </button>
 
-                        {/* Media Container */}
+                        {/* Content Container */}
                         <div
                             onClick={(e) => e.stopPropagation()}
                             style={{
-                                maxWidth: "90vw",
+                                maxWidth: "92vw",
                                 maxHeight: "85vh",
                                 display: "flex",
                                 flexDirection: "column",
@@ -551,37 +680,38 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                     src={album.items[lightboxIndex].url}
                                     controls
                                     autoPlay
-                                    style={{ maxWidth: "100%", maxHeight: "75vh", borderRadius: "16px", boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }}
+                                    style={{ maxWidth: "100%", maxHeight: "78vh", borderRadius: "16px", boxShadow: "0 25px 60px rgba(0,0,0,0.8)" }}
                                 />
                             ) : (
                                 <img
                                     src={album.items[lightboxIndex].url}
                                     alt="Album lightbox"
-                                    style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: "16px", boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }}
+                                    style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: "16px", boxShadow: "0 25px 60px rgba(0,0,0,0.8)" }}
                                 />
                             )}
 
-                            {/* Lightbox Footer */}
-                            <div style={{ marginTop: "1rem", display: "flex", alignItems: "center", gap: "16px", color: "rgba(255, 255, 255, 0.8)", fontSize: "0.9rem" }}>
-                                <span>{lightboxIndex + 1} of {album.items.length}</span>
-                                <span>•</span>
-                                <span>{formatSize(album.items[lightboxIndex].size)}</span>
-                                <span>•</span>
+                            {/* Download Action */}
+                            <div style={{ marginTop: "1.25rem", display: "flex", alignItems: "center", gap: "14px" }}>
                                 <a
                                     href={album.items[lightboxIndex].url}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     download
                                     style={{
-                                        color: "#8b5cf6",
+                                        background: "linear-gradient(135deg, #8b5cf6, #06b6d4)",
+                                        color: "#ffffff",
+                                        padding: "8px 18px",
+                                        borderRadius: "50px",
                                         fontWeight: 700,
+                                        fontSize: "0.85rem",
                                         textDecoration: "none",
                                         display: "inline-flex",
                                         alignItems: "center",
-                                        gap: "4px",
+                                        gap: "6px",
+                                        boxShadow: "0 4px 20px rgba(139, 92, 246, 0.4)",
                                     }}
                                 >
-                                    <Download size={16} /> Download File
+                                    <Download size={15} /> Download Original File ({formatSize(album.items[lightboxIndex].size)})
                                 </a>
                             </div>
                         </div>
