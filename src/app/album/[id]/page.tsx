@@ -263,23 +263,24 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     display: flex;
                     align-items: center;
                     gap: 8px;
-                    background: rgba(18, 18, 22, 0.75);
-                    backdrop-filter: blur(16px);
-                    -webkit-backdrop-filter: blur(16px);
+                    background: rgba(18, 18, 22, 0.85);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
                     padding: 6px 10px;
                     border-radius: 100px;
-                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border: 1px solid rgba(255, 255, 255, 0.14);
                     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
                     z-index: 100;
+                    max-width: 95vw;
                 }
                 .album-info-bar {
                     position: fixed;
                     bottom: 24px;
                     left: 50%;
                     transform: translateX(-50%);
-                    background: rgba(18, 18, 22, 0.75);
-                    backdrop-filter: blur(16px);
-                    -webkit-backdrop-filter: blur(16px);
+                    background: rgba(18, 18, 22, 0.85);
+                    backdrop-filter: blur(20px);
+                    -webkit-backdrop-filter: blur(20px);
                     padding: 10px 22px;
                     border-radius: 100px;
                     display: flex;
@@ -287,10 +288,11 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     gap: 20px;
                     font-size: 13px;
                     color: #a1a1aa;
-                    border: 1px solid rgba(255, 255, 255, 0.12);
+                    border: 1px solid rgba(255, 255, 255, 0.14);
                     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
                     z-index: 100;
                     white-space: nowrap;
+                    max-width: 95vw;
                 }
                 .info-item { display: flex; align-items: center; gap: 6px; }
                 .info-item b { color: #f4f4f5; font-weight: 600; }
@@ -321,6 +323,7 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     font-family: inherit;
                     height: 32px;
                     white-space: nowrap;
+                    flex-shrink: 0;
                 }
                 .btn-pill:hover {
                     background: rgba(255, 255, 255, 0.1);
@@ -359,20 +362,42 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     border-color: rgba(139, 92, 246, 0.5);
                     box-shadow: 0 20px 45px rgba(139, 92, 246, 0.2);
                 }
+                .mobile-show {
+                    display: none !important;
+                }
                 @media (max-width: 640px) {
                     .album-toolbar {
-                        top: 12px !important;
-                        padding: 4px 8px !important;
-                        gap: 4px !important;
-                        max-width: 96vw !important;
+                        top: 10px !important;
+                        padding: 4px 6px !important;
+                        gap: 3px !important;
+                        max-width: 95vw !important;
+                        width: auto !important;
+                        overflow-x: auto !important;
+                        scrollbar-width: none !important;
+                        -ms-overflow-style: none !important;
+                        justify-content: flex-start !important;
+                        border-radius: 50px !important;
+                    }
+                    .album-toolbar::-webkit-scrollbar {
+                        display: none !important;
                     }
                     .album-info-bar {
-                        bottom: 12px !important;
-                        padding: 8px 14px !important;
-                        gap: 12px !important;
+                        bottom: 10px !important;
+                        padding: 6px 12px !important;
+                        gap: 10px !important;
                         font-size: 11px !important;
-                        max-width: 96vw !important;
-                        overflow-x: auto;
+                        max-width: 95vw !important;
+                        overflow-x: auto !important;
+                        scrollbar-width: none !important;
+                    }
+                    .album-info-bar::-webkit-scrollbar {
+                        display: none !important;
+                    }
+                    .btn-pill {
+                        padding: 5px 10px !important;
+                        font-size: 11px !important;
+                        height: 28px !important;
+                        gap: 4px !important;
                     }
                     .album-grid-container {
                         grid-template-columns: repeat(3, 1fr) !important;
@@ -385,8 +410,11 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     .mobile-hide {
                         display: none !important;
                     }
+                    .mobile-show {
+                        display: inline !important;
+                    }
                     .page-wrapper {
-                        padding: 75px 12px 90px !important;
+                        padding: 65px 10px 80px !important;
                     }
                 }
             `}</style>
@@ -496,12 +524,13 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                     {/* Top Floating Glassmorphic Pill Navbar (Matching /i/id Toolbar) */}
                     <div className="album-toolbar">
                         <Link href="/" className="btn-pill">
-                            <Plus size={15} /> <span>Upload</span>
+                            <Plus size={13} /> <span>Upload</span>
                         </Link>
 
                         <button onClick={handleCopyShareLink} className="btn-pill">
-                            {isCopied ? <Check size={15} color="#10b981" /> : <Share2 size={15} />}
-                            <span>{isCopied ? "Copied!" : "Copy Link"}</span>
+                            {isCopied ? <Check size={13} color="#10b981" /> : <Share2 size={13} />}
+                            <span className="mobile-hide">Copy Link</span>
+                            <span className="mobile-show">Link</span>
                         </button>
 
                         <button
@@ -510,8 +539,9 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             className="btn-pill"
                             style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.15)" }}
                         >
-                            <Download size={15} />
-                            <span>{downloadingAll ? "Downloading..." : "Download All"}</span>
+                            <Download size={13} />
+                            <span className="mobile-hide">{downloadingAll ? "Downloading..." : "Download All"}</span>
+                            <span className="mobile-show">{downloadingAll ? "..." : "All"}</span>
                         </button>
 
                         <button
@@ -519,8 +549,9 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             disabled={!!zipProgress}
                             className="btn-pill btn-pill-primary"
                         >
-                            <FileArchive size={15} />
-                            <span>{zipProgress || "Download ZIP"}</span>
+                            <FileArchive size={13} />
+                            <span className="mobile-hide">{zipProgress || "Download ZIP"}</span>
+                            <span className="mobile-show">{zipProgress || "ZIP"}</span>
                         </button>
                     </div>
 
