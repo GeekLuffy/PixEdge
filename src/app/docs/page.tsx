@@ -24,10 +24,14 @@ import {
     Sun,
     Moon,
     Key,
+    Lock,
+    Folder,
+    Download,
+    Share2,
 } from "lucide-react";
 import Link from "next/link";
 
-type Language = "bash" | "python" | "javascript" | "go";
+type Language = "bash" | "python" | "javascript" | "sharex" | "go";
 
 export default function Docs() {
     const [copied, setCopied] = useState<string | null>(null);
@@ -61,25 +65,36 @@ export default function Docs() {
         setTimeout(() => setCopied(null), 2000);
     };
 
+    const originUrl = baseUrl || "https://pixedge.app";
+
     const snippets = {
-        bash: `curl -X POST ${baseUrl || "http://localhost:3000"}/api/v1/upload \\
+        bash: `curl -X POST ${originUrl}/api/v1/upload \\
   -H "X-API-Key: pe_your_generated_key" \\
-  -F "file=@/path/to/image.jpg" \\
-  -F "customId=my-slug"`,
+  -F "file=@/path/to/media.mp4" \\
+  -F "customId=my-vanity-slug" \\
+  -F "password=secret-pin" \\
+  -F "expiresIn=86400"`,
         python: `import requests
 
-url = "${baseUrl || "http://localhost:3000"}/api/v1/upload"
+url = "${originUrl}/api/v1/upload"
 headers = {"X-API-Key": "pe_your_generated_key"}
-files = {'file': open('image.jpg', 'rb')}
-data = {'customId': 'my-slug'}
+files = {'file': open('video.mp4', 'rb')}
+data = {
+    'customId': 'my-vanity-slug',
+    'password': 'secret-pin',  # Optional PIN lock
+    'expiresIn': '86400',       # 24 hours expiry in seconds
+    'folder': 'Work'
+}
 
 response = requests.post(url, headers=headers, files=files, data=data)
 print(response.json())`,
         javascript: `const formData = new FormData();
 formData.append('file', imageFile);
-formData.append('customId', 'my-slug');
+formData.append('customId', 'my-vanity-slug');
+formData.append('password', 'secret-pin'); // Optional PIN
+formData.append('expiresIn', '86400');     // Optional expiry
 
-const res = await fetch('${baseUrl || "http://localhost:3000"}/api/v1/upload', {
+const res = await fetch('${originUrl}/api/v1/upload', {
   method: 'POST',
   headers: {
     'X-API-Key': 'pe_your_generated_key'
@@ -89,10 +104,24 @@ const res = await fetch('${baseUrl || "http://localhost:3000"}/api/v1/upload', {
 
 const data = await res.json();
 console.log(data);`,
+        sharex: `{
+  "Version": "15.0.0",
+  "Name": "PixEdge Host",
+  "DestinationType": "ImageUploader, TextUploader, FileUploader",
+  "RequestMethod": "POST",
+  "RequestURL": "${originUrl}/api/v1/upload",
+  "Headers": {
+    "X-API-Key": "pe_your_generated_key"
+  },
+  "Body": "MultipartFormData",
+  "FileFormName": "file",
+  "URL": "{json:data.url}"
+}`,
         go: `package main
 
 import (
     "bytes"
+    "fmt"
     "io"
     "mime/multipart"
     "net/http"
@@ -100,19 +129,43 @@ import (
 )
 
 func main() {
-    url := "${baseUrl || "http://localhost:3000"}/api/v1/upload"
-    // ... setup multipart/form-data request ...
-    // Full example omitted for brevity
+    url := "${originUrl}/api/v1/upload"
+    body := &bytes.Buffer{}
+    writer := multipart.NewWriter(body)
+    
+    file, _ := os.Open("media.jpg")
+    part, _ := writer.CreateFormFile("file", "media.jpg")
+    io.Copy(part, file)
+    
+    writer.WriteField("customId", "my-vanity-slug")
+    writer.WriteField("password", "secret-pin")
+    writer.Close()
+
+    req, _ := http.NewRequest("POST", url, body)
+    req.Header.Set("Content-Type", writer.FormDataContentType())
+    req.Header.Set("X-API-Key", "pe_your_generated_key")
+
+    client := &http.Client{}
+    resp, err := client.Do(req)
+    fmt.Println(resp.StatusCode, err)
 }`,
     };
 
     const responseExample = `{
   "success": true,
   "data": {
-    "id": "my-slug",
-    "url": "${baseUrl || "https://pixedge.link"}/i/my-slug",
-    "direct_url": "${baseUrl || "https://pixedge.link"}/i/my-slug.jpg",
-    "timestamp": 1705500000000
+    "id": "my-vanity-slug",
+    "url": "${originUrl}/i/my-vanity-slug",
+    "direct_url": "${originUrl}/i/my-vanity-slug.mp4",
+    "is_protected": true,
+    "views": 0,
+    "created_at": 1705500000000,
+    "expires_at": 1705586400000,
+    "metadata": {
+      "size": 4829104,
+      "type": "video/mp4",
+      "version": "v2"
+    }
   }
 }`;
 
@@ -138,13 +191,14 @@ func main() {
                 padding: "10px 16px",
                 borderRadius: "10px",
                 background:
-                    activeSection === id ? "rgba(139, 92, 246, 0.1)" : "transparent",
+                    activeSection === id ? "rgba(139, 92, 246, 0.12)" : "transparent",
                 border: "none",
                 color: activeSection === id ? "#8b5cf6" : "var(--text-muted)",
                 cursor: "pointer",
                 fontSize: "0.9rem",
                 fontWeight: activeSection === id ? "600" : "400",
                 transition: "all 0.2s",
+                textAlign: "left",
             }}
         >
             <Icon size={18} />
@@ -276,8 +330,10 @@ func main() {
                     >
                         Endpoints
                     </p>
-                    <SidebarItem id="upload" label="Upload Media" icon={Terminal} />
-                    <SidebarItem id="info" label="Get Metadata" icon={Cpu} />
+                    <SidebarItem id="upload" label="Upload Media (2 GB)" icon={Terminal} />
+                    <SidebarItem id="password-protection" label="PIN & Protection" icon={Lock} />
+                    <SidebarItem id="info" label="Metadata & Verification" icon={Cpu} />
+                    <SidebarItem id="sharex" label="ShareX Desktop Config" icon={Share2} />
 
                     <p
                         style={{
@@ -291,20 +347,20 @@ func main() {
                             textTransform: "uppercase",
                         }}
                     >
-                        Reference
+                        Integrations
                     </p>
+                    <SidebarItem
+                        id="telegram-bot"
+                        label="Telegram Bot (@PixEdge_bot)"
+                        icon={MessageSquare}
+                    />
                     <SidebarItem
                         id="rate-limiting"
                         label="Rate Limiting"
                         icon={Activity}
                     />
                     <SidebarItem id="errors" label="Error Codes" icon={AlertCircle} />
-                    <SidebarItem
-                        id="telegram-bot"
-                        label="Telegram Bot"
-                        icon={MessageSquare}
-                    />
-                    <SidebarItem id="sdk" label="SDKs" icon={Box} />
+
                     <div
                         style={{
                             marginTop: "auto",
@@ -340,14 +396,14 @@ func main() {
 
             {/* Main Content */}
             <div className="content-wrapper">
-                <header style={{ marginBottom: "4rem" }}>
+                <header style={{ marginBottom: "3rem" }}>
                     <Link
                         href="/"
                         style={{
                             color: "var(--text-muted)",
                             textDecoration: "none",
                             fontSize: "0.9rem",
-                            display: "flex",
+                            display: "inline-flex",
                             alignItems: "center",
                             gap: "8px",
                             marginBottom: "1rem",
@@ -357,41 +413,27 @@ func main() {
                     </Link>
                     <h1
                         style={{
-                            fontSize: "3rem",
+                            fontSize: "2.8rem",
                             fontWeight: "800",
                             color: "var(--text-main)",
-                            marginBottom: "1rem",
+                            marginBottom: "0.5rem",
+                            letterSpacing: "-0.5px",
                         }}
                     >
-                        Documentation
+                        Developer API Documentation
                     </h1>
                     <p
                         style={{
                             color: "var(--text-muted)",
-                            fontSize: "1.1rem",
+                            fontSize: "1.05rem",
                             marginBottom: "1rem",
                         }}
                     >
-                        API v1.0.0 — The complete reference for PixEdge developers.
+                        PixEdge v2.0 API — Build custom uploaders, ShareX integrations, and bot workflows with 2 GB cloud streaming.
                     </p>
-                    <div
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            color: "var(--text-muted)",
-                            fontSize: "0.85rem",
-                            fontWeight: "bold",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                        }}
-                    >
-                        <ArrowLeft size={14} style={{ transform: "rotate(90deg)" }} />
-                        <span>Navigate using the sidebar to explore endpoints</span>
-                    </div>
                 </header>
 
-                <div style={{ maxWidth: "800px" }}>
+                <div style={{ maxWidth: "840px" }}>
                     {activeSection === "getting-started" && (
                         <motion.section
                             initial={{ opacity: 0, y: 10 }}
@@ -413,35 +455,36 @@ func main() {
                                     marginBottom: "1.5rem",
                                 }}
                             >
-                                PixEdge provides a high-performance REST API for uploading and
-                                managing images, GIFs, and videos via our Telegram-backed edge
-                                storage. Our storage is 100% free, decentralized, and infinitely
-                                scalable.
+                                PixEdge provides a high-performance, edge-backed REST API for uploading and
+                                hosting images, GIFs, and videos up to **2 GB**. Powered by MTProto Telegram cloud infrastructure and Upstash Redis, your media streams with zero storage limits.
                             </p>
                             <div
                                 style={{
-                                    background: "rgba(139, 92, 246, 0.05)",
-                                    border: "1px solid rgba(139, 92, 246, 0.2)",
+                                    background: "rgba(139, 92, 246, 0.08)",
+                                    border: "1px solid rgba(139, 92, 246, 0.25)",
                                     borderRadius: "16px",
                                     padding: "1.5rem",
                                     display: "flex",
                                     gap: "1rem",
+                                    alignItems: "flex-start",
                                 }}
                             >
-                                <Zap color="#8b5cf6" style={{ flexShrink: 0 }} />
+                                <Zap color="#8b5cf6" style={{ flexShrink: 0, marginTop: "2px" }} />
                                 <div>
                                     <h4 style={{ color: "#8b5cf6", marginBottom: "4px" }}>
-                                        Pro Tip
+                                        Key Highlights
                                     </h4>
-                                    <p style={{ fontSize: "0.9rem", color: "#a1a1aa" }}>
-                                        All API responses are in JSON format. We recommend using
-                                        versioned endpoints (e.g., /api/v1/...) for better
-                                        stability.
-                                    </p>
+                                    <ul style={{ margin: 0, paddingLeft: "18px", color: "var(--text-muted)", fontSize: "0.9rem", lineHeight: "1.6" }}>
+                                        <li><b>Up to 2 GB File Size Limit</b> per upload.</li>
+                                        <li><b>Optional Secret PIN / Password Protection</b> on any link.</li>
+                                        <li><b>1-Click Desktop Integration</b> with ShareX (`.sxcu`).</li>
+                                        <li><b>Instant Telegram Bot Synchronization</b> (`@PixEdge_bot`).</li>
+                                    </ul>
                                 </div>
                             </div>
                         </motion.section>
                     )}
+
                     {activeSection === "authentication" && (
                         <motion.section
                             initial={{ opacity: 0, y: 10 }}
@@ -463,9 +506,7 @@ func main() {
                                     marginBottom: "1.5rem",
                                 }}
                             >
-                                To use the PixEdge API, you must authenticate your requests
-                                using an **API Key**. This helps us track usage and enforce rate
-                                limits more fairly.
+                                Authenticate your API calls using an **API Key** passed in the HTTP request headers or query params.
                             </p>
 
                             <div
@@ -487,7 +528,7 @@ func main() {
                                     }}
                                 >
                                     <Key size={18} color="var(--accent-primary)" />
-                                    How to get a key
+                                    Generating your API Key
                                 </h4>
                                 <ol
                                     style={{
@@ -496,26 +537,9 @@ func main() {
                                         lineHeight: "1.6",
                                     }}
                                 >
-                                    <li>
-                                        Sign in to your account at{" "}
-                                        <Link
-                                            href="/login"
-                                            style={{ color: "var(--accent-primary)" }}
-                                        >
-                                            PixEdge
-                                        </Link>
-                                        .
-                                    </li>
-                                    <li>Navigate to your **Dashboard**.</li>
-                                    <li>
-                                        Scroll to the **API Keys** section and click **Generate API
-                                        Key**.
-                                    </li>
-                                    <li>
-                                        Copy your key (starts with{" "}
-                                        <code style={{ color: "var(--accent-primary)" }}>pe_</code>
-                                        ).
-                                    </li>
+                                    <li>Sign in to your account at <Link href="/login" style={{ color: "var(--accent-primary)" }}>PixEdge</Link>.</li>
+                                    <li>Navigate to your <b>Dashboard</b> ➔ <b>API Keys</b> tab.</li>
+                                    <li>Click <b>Generate API Key</b> (keys start with <code style={{ color: "var(--accent-primary)" }}>pe_</code>).</li>
                                 </ol>
                             </div>
 
@@ -526,121 +550,8 @@ func main() {
                                     marginBottom: "1.5rem",
                                 }}
                             >
-                                All API requests should include your key in the{" "}
-                                <code
-                                    style={{ color: "var(--accent-primary)", fontWeight: "bold" }}
-                                >
-                                    X-API-Key
-                                </code>{" "}
-                                header.
+                                Pass your key in the <code style={{ color: "var(--accent-primary)", fontWeight: "bold" }}>X-API-Key</code> or <code style={{ color: "var(--accent-primary)", fontWeight: "bold" }}>Authorization: Bearer pe_...</code> header.
                             </p>
-
-                            <div
-                                style={{
-                                    background: "rgba(59, 130, 246, 0.05)",
-                                    border: "1px solid rgba(59, 130, 246, 0.2)",
-                                    borderRadius: "16px",
-                                    padding: "1.5rem",
-                                    color: "#3b82f6",
-                                }}
-                            >
-                                <Server size={20} style={{ marginBottom: "10px" }} />
-                                <h4 style={{ marginBottom: "4px" }}>Security Note</h4>
-                                <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-                                    Keep your API key secret. If you believe your key has been
-                                    compromised, you can rotate it instantly from your dashboard.
-                                </p>
-                            </div>
-                        </motion.section>
-                    )}
-
-                    {activeSection === "info" && (
-                        <motion.section
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                        >
-                            <div
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "12px",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                <span
-                                    style={{
-                                        background: "#3b82f6",
-                                        color: "white",
-                                        fontSize: "0.7rem",
-                                        fontWeight: "bold",
-                                        padding: "4px 8px",
-                                        borderRadius: "4px",
-                                    }}
-                                >
-                                    GET
-                                </span>
-                                <h2
-                                    style={{
-                                        fontSize: "1.8rem",
-                                        color: "var(--text-main)",
-                                        margin: 0,
-                                    }}
-                                >
-                                    /api/v1/info/[id]
-                                </h2>
-                            </div>
-
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    lineHeight: "1.7",
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                Retrieve real-time statistics and deep metadata for any image
-                                hosted on PixEdge.
-                            </p>
-
-                            <div
-                                style={{
-                                    background: "var(--code-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "20px",
-                                    padding: "20px",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        marginBottom: "10px",
-                                        color: "var(--text-muted)",
-                                        opacity: 0.6,
-                                        fontSize: "0.8rem",
-                                    }}
-                                >
-                                    RESPONSE SCHEMA
-                                </div>
-                                <pre style={{ margin: 0 }}>
-                                    <code
-                                        style={{
-                                            fontFamily: "'JetBrains Mono', monospace",
-                                            color: "var(--code-text-color)",
-                                            fontSize: "0.85rem",
-                                        }}
-                                    >{`{
-  "success": true,
-  "data": {
-    "id": "example-id",
-    "url": "https://pixedge.link/i/example-id",
-    "views": 42,
-    "created_at": 1705500000000,
-    "metadata": {
-      "size": 102400,
-      "type": "image/jpeg"
-    }
-  }
-}`}</code>
-                                </pre>
-                            </div>
                         </motion.section>
                     )}
 
@@ -661,10 +572,10 @@ func main() {
                                     style={{
                                         background: "#10b981",
                                         color: "white",
-                                        fontSize: "0.7rem",
+                                        fontSize: "0.75rem",
                                         fontWeight: "bold",
-                                        padding: "4px 8px",
-                                        borderRadius: "4px",
+                                        padding: "4px 10px",
+                                        borderRadius: "6px",
                                     }}
                                 >
                                     POST
@@ -687,9 +598,7 @@ func main() {
                                     marginBottom: "2rem",
                                 }}
                             >
-                                This endpoint allows you to upload media files (Images, GIFs,
-                                Videos). It returns a clean URL that utilizes our edge
-                                redirection proxy.
+                                Upload images, GIFs, and videos up to <b>2 GB (2000 MB)</b>. Supports custom vanity slugs, link expiration timers, secret PIN lock, and folder categorization.
                             </p>
 
                             <h4
@@ -700,7 +609,7 @@ func main() {
                                     textTransform: "uppercase",
                                 }}
                             >
-                                Request Body
+                                Request Parameters (multipart/form-data)
                             </h4>
                             <table
                                 style={{
@@ -711,99 +620,48 @@ func main() {
                             >
                                 <thead>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Field
-                                        </th>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Type
-                                        </th>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Description
-                                        </th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Field</th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Type</th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Description</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                fontFamily: "monospace",
-                                                color: "var(--accent-primary)",
-                                            }}
-                                        >
-                                            X-API-Key
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Header
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Required. Your private PixEdge API key.
-                                        </td>
+                                        <td style={{ padding: "12px", fontFamily: "monospace", color: "var(--accent-primary)", fontWeight: 600 }}>file</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>File</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}><b>Required.</b> Media file (Image, GIF, Video, max 2 GB).</td>
                                     </tr>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                fontFamily: "monospace",
-                                                color: "var(--accent-primary)",
-                                            }}
-                                        >
-                                            file
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            File
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Multipart file (Image/GIF/Video, max 20MB)
-                                        </td>
+                                        <td style={{ padding: "12px", fontFamily: "monospace", color: "var(--accent-primary)", fontWeight: 600 }}>customId</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>String</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>Optional vanity link slug (e.g. <code style={{ color: "#3b82f6" }}>my-custom-shot</code>).</td>
                                     </tr>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                fontFamily: "monospace",
-                                                color: "var(--accent-primary)",
-                                            }}
-                                        >
-                                            customId
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            String
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Optional vanity slug for the link
-                                        </td>
+                                        <td style={{ padding: "12px", fontFamily: "monospace", color: "var(--accent-primary)", fontWeight: 600 }}>password</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>String</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>Optional secret PIN/password to lock the viewing page.</td>
+                                    </tr>
+                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
+                                        <td style={{ padding: "12px", fontFamily: "monospace", color: "var(--accent-primary)", fontWeight: 600 }}>expiresIn</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>Integer</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>Optional expiration in seconds (3600=1h, 86400=24h, 604800=7d, 2592000=30d).</td>
+                                    </tr>
+                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
+                                        <td style={{ padding: "12px", fontFamily: "monospace", color: "var(--accent-primary)", fontWeight: 600 }}>folder</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>String</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>Optional target folder name for dashboard organization.</td>
                                     </tr>
                                 </tbody>
                             </table>
 
+                            <h4 style={{ marginBottom: "1rem", color: "var(--text-muted)", fontSize: "0.8rem", textTransform: "uppercase" }}>Code Examples</h4>
                             <div
                                 style={{
                                     background: "var(--code-bg)",
                                     border: "1px solid var(--border-color)",
                                     borderRadius: "20px",
                                     overflow: "hidden",
+                                    marginBottom: "2rem",
                                 }}
                             >
                                 <div
@@ -811,11 +669,12 @@ func main() {
                                         background: "var(--panel-header-bg)",
                                         padding: "12px 20px",
                                         display: "flex",
-                                        gap: "20px",
+                                        gap: "16px",
                                         borderBottom: "1px solid var(--border-color)",
+                                        overflowX: "auto",
                                     }}
                                 >
-                                    {(["bash", "python", "javascript"] as Language[]).map(
+                                    {(["bash", "python", "javascript", "sharex", "go"] as Language[]).map(
                                         (lang) => (
                                             <button
                                                 key={lang}
@@ -823,18 +682,12 @@ func main() {
                                                 style={{
                                                     background: "transparent",
                                                     border: "none",
-                                                    color:
-                                                        activeLang === lang
-                                                            ? "#8b5cf6"
-                                                            : "var(--text-muted)",
+                                                    color: activeLang === lang ? "#8b5cf6" : "var(--text-muted)",
                                                     fontSize: "0.8rem",
                                                     fontWeight: "bold",
                                                     cursor: "pointer",
                                                     padding: "4px 0",
-                                                    borderBottom:
-                                                        activeLang === lang
-                                                            ? "2px solid #8b5cf6"
-                                                            : "2px solid transparent",
+                                                    borderBottom: activeLang === lang ? "2px solid #8b5cf6" : "2px solid transparent",
                                                     transition: "all 0.2s",
                                                 }}
                                             >
@@ -844,79 +697,108 @@ func main() {
                                     )}
                                     <div style={{ marginLeft: "auto" }}>
                                         <button
-                                            onClick={() =>
-                                                copyCode(
-                                                    snippets[activeLang as keyof typeof snippets] || "",
-                                                    "main",
-                                                )
-                                            }
-                                            style={{
-                                                background: "transparent",
-                                                border: "none",
-                                                color: "var(--text-muted)",
-                                                cursor: "pointer",
-                                            }}
+                                            onClick={() => copyCode(snippets[activeLang as keyof typeof snippets] || "", "main")}
+                                            style={{ background: "transparent", border: "none", color: "var(--text-muted)", cursor: "pointer" }}
                                         >
-                                            {copied === "main" ? (
-                                                <Check size={16} color="#10b981" />
-                                            ) : (
-                                                <Copy size={16} />
-                                            )}
+                                            {copied === "main" ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
                                         </button>
                                     </div>
                                 </div>
-                                <pre
-                                    style={{
-                                        padding: "24px",
-                                        fontSize: "0.9rem",
-                                        margin: 0,
-                                        overflowX: "auto",
-                                        background: "transparent",
-                                    }}
-                                >
-                                    <code
-                                        style={{
-                                            fontFamily: "'JetBrains Mono', monospace",
-                                            color: "var(--code-text-color)",
-                                            lineHeight: "1.6",
-                                        }}
-                                    >
+                                <pre style={{ padding: "20px", fontSize: "0.85rem", margin: 0, overflowX: "auto" }}>
+                                    <code style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--code-text-color)", lineHeight: "1.6" }}>
                                         {snippets[activeLang as keyof typeof snippets]}
                                     </code>
                                 </pre>
                             </div>
 
-                            <h4
-                                style={{
-                                    marginTop: "3rem",
-                                    marginBottom: "1rem",
-                                    color: "var(--text-muted)",
-                                    opacity: 0.6,
-                                    fontSize: "0.8rem",
-                                    textTransform: "uppercase",
-                                }}
-                            >
-                                Response Example
-                            </h4>
-                            <div
-                                style={{
-                                    background: "var(--code-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "20px",
-                                    padding: "20px",
-                                }}
-                            >
+                            <h4 style={{ marginBottom: "1rem", color: "var(--text-muted)", fontSize: "0.8rem", textTransform: "uppercase" }}>Response Example</h4>
+                            <div style={{ background: "var(--code-bg)", border: "1px solid var(--border-color)", borderRadius: "20px", padding: "20px" }}>
                                 <pre style={{ margin: 0 }}>
-                                    <code
-                                        style={{
-                                            fontFamily: "'JetBrains Mono', monospace",
-                                            color: "var(--code-text-color)",
-                                            fontSize: "0.85rem",
-                                        }}
-                                    >
+                                    <code style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--code-text-color)", fontSize: "0.85rem" }}>
                                         {responseExample}
                                     </code>
                                 </pre>
+                            </div>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "password-protection" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                Secret PIN & Password Protection
+                            </h2>
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                You can lock any media upload with a secret PIN or password. Viewers accessing <code style={{ color: "#8b5cf6" }}>/i/[id]</code> will see a glassmorphic lock screen requiring the password to reveal and stream the content.
+                            </p>
+
+                            <div style={{ background: "var(--panel-bg)", border: "1px solid var(--border-color)", borderRadius: "16px", padding: "1.5rem", marginBottom: "2rem" }}>
+                                <h4 style={{ color: "var(--text-main)", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+                                    <Lock size={18} color="var(--accent-primary)" />
+                                    Unlocking Protected Links Programmatically
+                                </h4>
+                                <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", lineHeight: "1.6" }}>
+                                    Send a <code style={{ color: "#10b981" }}>POST</code> request to <code style={{ color: "#3b82f6" }}>/api/v1/info/[id]</code> with <code style={{ color: "#8b5cf6" }}>{`{"password": "secret-pin"}`}</code> to verify the PIN and receive an unlock token cookie.
+                                </p>
+                            </div>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "info" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "1.5rem" }}>
+                                <span style={{ background: "#3b82f6", color: "white", fontSize: "0.75rem", fontWeight: "bold", padding: "4px 10px", borderRadius: "6px" }}>
+                                    GET
+                                </span>
+                                <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", margin: 0 }}>
+                                    /api/v1/info/[id]
+                                </h2>
+                            </div>
+
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "2rem" }}>
+                                Retrieve real-time view counts, protection status, creation timestamp, and file size metadata.
+                            </p>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "sharex" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                ShareX 1-Click Desktop Setup
+                            </h2>
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                PixEdge natively supports ShareX for Windows. Download your personalized <code style={{ color: "#8b5cf6" }}>.sxcu</code> configuration file directly from your dashboard under the **API Keys** tab to upload desktop screenshots instantly with print screen keybindings!
+                            </p>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "telegram-bot" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                Telegram Bot Integration (@PixEdge_bot)
+                            </h2>
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                Send photos, GIFs, or videos directly to <b style={{ color: "#3b82f6" }}>@PixEdge_bot</b> in Telegram to get instant edge links!
+                            </p>
+
+                            <div style={{ background: "var(--code-bg)", border: "1px solid var(--border-color)", borderRadius: "20px", padding: "20px" }}>
+                                <h4 style={{ color: "var(--text-main)", marginBottom: "12px" }}>Available Bot Commands</h4>
+                                <ul style={{ color: "var(--text-muted)", listStyle: "none", padding: 0, margin: 0 }}>
+                                    <li style={{ marginBottom: "8px" }}><code style={{ color: "var(--accent-primary)" }}>/login</code> - Generate a 6-digit PIN to log into PixEdge without passwords or OTPs</li>
+                                    <li style={{ marginBottom: "8px" }}><code style={{ color: "var(--accent-primary)" }}>/upload [custom-slug]</code> - Upload media with a custom vanity link</li>
+                                    <li style={{ marginBottom: "8px" }}><code style={{ color: "var(--accent-primary)" }}>/help</code> - Show bot commands & usage instructions</li>
+                                </ul>
                             </div>
                         </motion.section>
                     )}
@@ -926,108 +808,33 @@ func main() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                         >
-                            <h2
-                                style={{
-                                    fontSize: "1.8rem",
-                                    color: "var(--text-main)",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
                                 Rate Limiting
                             </h2>
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    lineHeight: "1.7",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                To ensure peak performance for all PixEdge users, we implement a
-                                fair-use rate limiting policy. Limits are applied per IP
-                                address.
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                To ensure peak performance for all users, rate limits are automatically enforced via Upstash Redis.
                             </p>
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                    marginBottom: "2rem",
-                                }}
-                            >
+                            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "2rem" }}>
                                 <thead>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Tier
-                                        </th>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Limit
-                                        </th>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Window
-                                        </th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Tier</th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Limit</th>
+                                        <th style={{ textAlign: "left", padding: "12px", color: "var(--text-muted)", fontSize: "0.85rem" }}>Window</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td style={{ padding: "12px", color: "var(--text-main)" }}>
-                                            API User (Upload)
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            50 requests
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            1 minute
-                                        </td>
+                                        <td style={{ padding: "12px", color: "var(--text-main)" }}>Authenticated API User</td>
+                                        <td style={{ padding: "12px", color: "#10b981", fontWeight: 600 }}>100 requests</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>1 minute</td>
                                     </tr>
                                     <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td style={{ padding: "12px", color: "var(--text-main)" }}>
-                                            Anonymous (Upload)
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Limited to Web only
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            N/A
-                                        </td>
-                                    </tr>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td style={{ padding: "12px", color: "var(--text-main)" }}>
-                                            Public (Info)
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            60 requests
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            1 minute
-                                        </td>
+                                        <td style={{ padding: "12px", color: "var(--text-main)" }}>Anonymous Web Upload</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>20 requests</td>
+                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>1 minute</td>
                                     </tr>
                                 </tbody>
                             </table>
-                            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
-                                Exceeding these limits will result in a{" "}
-                                <code style={{ color: "#ef4444" }}>429 Too Many Requests</code>{" "}
-                                response.
-                            </p>
                         </motion.section>
                     )}
 
@@ -1036,318 +843,22 @@ func main() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                         >
-                            <h2
-                                style={{
-                                    fontSize: "1.8rem",
-                                    color: "var(--text-main)",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                Error Codes
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                Error Codes & Responses
                             </h2>
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    lineHeight: "1.7",
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                PixEdge uses standard HTTP response codes to indicate the
-                                success or failure of an API request. All error responses follow
-                                this JSON structure:
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "2rem" }}>
+                                All error responses return standard HTTP status codes and a structured JSON payload:
                             </p>
-                            <div
-                                style={{
-                                    background: "var(--code-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "20px",
-                                    padding: "20px",
-                                    marginBottom: "2rem",
-                                }}
-                            >
+                            <div style={{ background: "var(--code-bg)", border: "1px solid var(--border-color)", borderRadius: "20px", padding: "20px", marginBottom: "2rem" }}>
                                 <pre style={{ margin: 0 }}>
-                                    <code
-                                        style={{
-                                            fontFamily: "'JetBrains Mono', monospace",
-                                            color: "var(--code-text-color)",
-                                            fontSize: "0.85rem",
-                                        }}
-                                    >{`{
-   "success": false,
-   "error": {
-     "code": "UPLOAD_FAILED",
-     "message": "The file provided is too large or not a valid image."
-   }
- }`}</code>
+                                    <code style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--code-text-color)", fontSize: "0.85rem" }}>{`{
+  "success": false,
+  "error": {
+    "code": "RATE_LIMIT_EXCEEDED",
+    "message": "Too many uploads. Try again in a moment."
+  }
+}`}</code>
                                 </pre>
-                            </div>
-                            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                <thead>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Code
-                                        </th>
-                                        <th
-                                            style={{
-                                                textAlign: "left",
-                                                padding: "12px",
-                                                color: "var(--text-muted)",
-                                                fontSize: "0.9rem",
-                                            }}
-                                        >
-                                            Meaning
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                color: "var(--text-main)",
-                                                fontFamily: "monospace",
-                                            }}
-                                        >
-                                            401
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Unauthorized (Invalid or missing API key)
-                                        </td>
-                                    </tr>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                color: "var(--text-main)",
-                                                fontFamily: "monospace",
-                                            }}
-                                        >
-                                            400
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Bad Request (Missing parameters)
-                                        </td>
-                                    </tr>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                color: "var(--text-main)",
-                                                fontFamily: "monospace",
-                                            }}
-                                        >
-                                            404
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Not Found (Invalid image ID)
-                                        </td>
-                                    </tr>
-                                    <tr style={{ borderBottom: "1px solid var(--border-color)" }}>
-                                        <td
-                                            style={{
-                                                padding: "12px",
-                                                color: "var(--text-main)",
-                                                fontFamily: "monospace",
-                                            }}
-                                        >
-                                            500
-                                        </td>
-                                        <td style={{ padding: "12px", color: "var(--text-muted)" }}>
-                                            Internal Server Error
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </motion.section>
-                    )}
-
-                    {activeSection === "telegram-bot" && (
-                        <motion.section
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                        >
-                            <h2
-                                style={{
-                                    fontSize: "1.8rem",
-                                    color: "var(--text-main)",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                Telegram Bot Integration
-                            </h2>
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    lineHeight: "1.7",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                PixEdge comes with a built-in Telegram Bot that allows you to
-                                upload images directly from your chat. No API calls or dashboard
-                                visits required.
-                            </p>
-
-                            <div
-                                style={{
-                                    background: "var(--code-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "20px",
-                                    padding: "20px",
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                <h4 style={{ color: "var(--text-main)", marginBottom: "12px" }}>
-                                    Available Commands
-                                </h4>
-                                <ul
-                                    style={{
-                                        color: "var(--text-muted)",
-                                        listStyle: "none",
-                                        padding: 0,
-                                    }}
-                                >
-                                    <li style={{ marginBottom: "8px" }}>
-                                        <code style={{ color: "var(--accent-primary)" }}>
-                                            /start
-                                        </code>{" "}
-                                        - Initialize the bot
-                                    </li>
-                                    <li style={{ marginBottom: "8px" }}>
-                                        <code style={{ color: "var(--accent-primary)" }}>
-                                            /upload
-                                        </code>{" "}
-                                        - View upload instructions
-                                    </li>
-                                    <li style={{ marginBottom: "8px" }}>
-                                        <code style={{ color: "var(--accent-primary)" }}>/tgm</code>{" "}
-                                        - Rapid upload mode
-                                    </li>
-                                </ul>
-                            </div>
-
-                            <h4 style={{ color: "var(--text-main)", marginBottom: "1rem" }}>
-                                Webhook Setup
-                            </h4>
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    fontSize: "0.9rem",
-                                    marginBottom: "1rem",
-                                }}
-                            >
-                                To enable the bot, you must point your Telegram Bot token to the
-                                following webhook endpoint:
-                            </p>
-                            <div
-                                style={{
-                                    background: "var(--code-bg)",
-                                    border: "1px solid var(--border-color)",
-                                    borderRadius: "12px",
-                                    padding: "12px",
-                                    fontFamily: "monospace",
-                                    fontSize: "0.85rem",
-                                    color: "var(--accent-primary)",
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                https://your-domain.com/api/webhook/telegram
-                            </div>
-
-                            <div
-                                style={{
-                                    background: "rgba(59, 130, 246, 0.05)",
-                                    border: "1px solid rgba(59, 130, 246, 0.2)",
-                                    borderRadius: "16px",
-                                    padding: "1.5rem",
-                                    display: "flex",
-                                    gap: "1rem",
-                                }}
-                            >
-                                <Zap color="#3b82f6" />
-                                <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-                                    <b>Note:</b> The bot handles both high-resolution Photos and
-                                    Documents (when sent as images).
-                                </p>
-                            </div>
-                        </motion.section>
-                    )}
-                    {activeSection === "sdk" && (
-                        <motion.section
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                        >
-                            <h2
-                                style={{
-                                    fontSize: "1.8rem",
-                                    color: "var(--text-main)",
-                                    marginBottom: "1.5rem",
-                                }}
-                            >
-                                Official SDKs
-                            </h2>
-                            <p
-                                style={{
-                                    color: "var(--text-muted)",
-                                    lineHeight: "1.7",
-                                    marginBottom: "2rem",
-                                }}
-                            >
-                                We are developing official libraries to help you integrate
-                                PixEdge into your projects even faster. Coming soon to all major
-                                package managers.
-                            </p>
-                            <div
-                                style={{
-                                    display: "grid",
-                                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                                    gap: "1.5rem",
-                                }}
-                            >
-                                {["Node.js", "Python", "Go", "PHP"].map((sdk) => (
-                                    <div
-                                        key={sdk}
-                                        style={{
-                                            background: "var(--panel-bg)",
-                                            border: "1px solid var(--border-color)",
-                                            borderRadius: "16px",
-                                            padding: "1.5rem",
-                                            textAlign: "center",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                background: "rgba(139, 92, 246, 0.1)",
-                                                width: "48px",
-                                                height: "48px",
-                                                borderRadius: "12px",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                margin: "0 auto 1rem",
-                                                color: "#8b5cf6",
-                                            }}
-                                        >
-                                            <Box size={24} />
-                                        </div>
-                                        <h4
-                                            style={{ color: "var(--text-main)", marginBottom: "4px" }}
-                                        >
-                                            {sdk}
-                                        </h4>
-                                        <p
-                                            style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}
-                                        >
-                                            Coming Soon
-                                        </p>
-                                    </div>
-                                ))}
                             </div>
                         </motion.section>
                     )}
@@ -1363,9 +874,7 @@ func main() {
           background: var(--bg-color);
           color: var(--text-main);
           overflow-x: hidden;
-          transition:
-            background 0.3s ease,
-            color 0.3s ease;
+          transition: background 0.3s ease, color 0.3s ease;
         }
 
         .mobile-header {
@@ -1405,6 +914,7 @@ func main() {
           background: var(--bg-color);
           transition: transform 0.3s ease;
           z-index: 999;
+          overflow-y: auto;
         }
 
         .sidebar-logo {
