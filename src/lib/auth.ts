@@ -76,8 +76,10 @@ export const authOptions: NextAuthOptions = {
             id: "telegram-login",
             name: "Telegram",
             credentials: {
+                telegram_id: { label: "Telegram ID", type: "text" },
                 id: { label: "ID", type: "text" },
                 first_name: { label: "First Name", type: "text" },
+                last_name: { label: "Last Name", type: "text" },
                 username: { label: "Username", type: "text" },
                 photo_url: { label: "Photo URL", type: "text" },
                 auth_date: { label: "Auth Date", type: "text" },
@@ -85,47 +87,54 @@ export const authOptions: NextAuthOptions = {
             },
             async authorize(credentials) {
                 if (!credentials?.hash || !process.env.TELEGRAM_BOT_TOKEN) {
-                    console.log('Missing hash or token');
+                    console.log('Telegram login failed: Missing hash or TELEGRAM_BOT_TOKEN');
                     return null;
                 }
 
-                const { hash, ...data } = credentials;
+                // Numeric Telegram User ID (ignore provider ID "telegram-login")
+                let rawId = credentials.telegram_id;
+                if (!rawId || rawId === 'telegram-login') {
+                    rawId = credentials.id;
+                }
+                if (!rawId || rawId === 'telegram-login') {
+                    console.log('Telegram login failed: Invalid telegram ID');
+                    return null;
+                }
 
-                // Only these fields are sent by Telegram (exclude NextAuth internal fields)
-                const telegramFields = ['id', 'first_name', 'last_name', 'username', 'photo_url', 'auth_date'];
-                const dataCheckArr = telegramFields
-                    .filter(key => data[key as keyof typeof data] && data[key as keyof typeof data]!.trim() !== '')
+                const tgUser: Record<string, string> = {};
+                tgUser['id'] = rawId;
+                if (credentials.first_name && credentials.first_name !== 'undefined') tgUser['first_name'] = credentials.first_name;
+                if (credentials.last_name && credentials.last_name !== 'undefined') tgUser['last_name'] = credentials.last_name;
+                if (credentials.username && credentials.username !== 'undefined') tgUser['username'] = credentials.username;
+                if (credentials.photo_url && credentials.photo_url !== 'undefined') tgUser['photo_url'] = credentials.photo_url;
+                if (credentials.auth_date && credentials.auth_date !== 'undefined') tgUser['auth_date'] = credentials.auth_date;
+
+                const dataCheckArr = Object.keys(tgUser)
                     .sort()
-                    .map(key => `${key}=${data[key as keyof typeof data]}`);
+                    .map(key => `${key}=${tgUser[key]}`);
                 const dataCheckString = dataCheckArr.join('\n');
 
-                console.log('Data check string:', dataCheckString);
-
-                // Use Node.js crypto module
                 const crypto = require('crypto');
                 const secret = crypto.createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN).digest();
                 const hmac = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
 
-                console.log('Calculated HMAC:', hmac);
-                console.log('Received hash:', hash);
-
-                if (hmac !== hash) {
-                    console.log('Hash mismatch!');
+                if (hmac !== credentials.hash) {
+                    console.log('Telegram login failed: Hash mismatch', { calculated: hmac, received: credentials.hash, dataCheckString });
                     return null;
                 }
 
                 // Check expiry (24 hours)
                 const now = Math.floor(Date.now() / 1000);
-                if (now - parseInt(credentials.auth_date) > 86400) {
-                    console.log('Auth expired');
+                if (credentials.auth_date && now - parseInt(credentials.auth_date) > 86400) {
+                    console.log('Telegram login failed: Auth expired');
                     return null;
                 }
 
                 return {
-                    id: credentials.id.toString(),
-                    name: credentials.first_name,
+                    id: rawId,
+                    name: credentials.first_name || credentials.username || 'Telegram User',
                     image: credentials.photo_url || null,
-                    email: `${credentials.id}@telegram.user`,
+                    email: `${rawId}@telegram.user`,
                 };
             }
         }),

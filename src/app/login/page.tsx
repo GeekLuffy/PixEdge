@@ -305,8 +305,24 @@ function LoginPageContent() {
 
     const handleTelegramLogin = async (user: any) => {
         setLoading(true);
-        const result = await signIn('telegram-login', { redirect: false, ...user });
-        if (result?.error) setError('Telegram login failed.');
+        setError('');
+        const result = await signIn('telegram-login', {
+            redirect: false,
+            telegram_id: user.id ? user.id.toString() : '',
+            id: user.id ? user.id.toString() : '',
+            first_name: user.first_name || '',
+            last_name: user.last_name || '',
+            username: user.username || '',
+            photo_url: user.photo_url || '',
+            auth_date: user.auth_date ? user.auth_date.toString() : '',
+            hash: user.hash || '',
+        });
+        if (result?.error) {
+            console.error('Telegram widget login error:', result.error);
+            setError('Telegram login failed. Please ensure TELEGRAM_BOT_TOKEN matches @PixEdge_bot.');
+        } else {
+            router.push('/dashboard');
+        }
         setLoading(false);
     };
 
