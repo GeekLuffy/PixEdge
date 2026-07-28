@@ -41,6 +41,10 @@ import {
     Lock,
     Share2,
     X,
+    Maximize2,
+    Command,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -742,6 +746,79 @@ export default function DashboardPage() {
         return true;
     });
 
+    // Command Palette & Quick-Preview Lightbox State
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [cmdQuery, setCmdQuery] = useState("");
+    const [lightboxItem, setLightboxItem] = useState<any | null>(null);
+    const [lightboxIndex, setLightboxIndex] = useState<number>(0);
+    const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
+
+    // Format file size utility
+    const formatSize = (bytes: number) => {
+        if (!bytes) return "0 MB";
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    };
+
+    // Global Keyboard Listeners (Ctrl+K, Spacebar, Esc, Arrow Left/Right)
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ctrl+K or Cmd+K to toggle Command Palette
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setIsCommandPaletteOpen(prev => !prev);
+                return;
+            }
+
+            // Close active modals on Escape
+            if (e.key === 'Escape') {
+                if (isCommandPaletteOpen) setIsCommandPaletteOpen(false);
+                if (lightboxItem) setLightboxItem(null);
+                if (organizingItem) setOrganizingItem(null);
+                return;
+            }
+
+            // Spacebar quick-preview lightbox when a card is hovered
+            if (e.code === 'Space' && !lightboxItem && !isCommandPaletteOpen && !organizingItem) {
+                const activeTag = document.activeElement?.tagName.toLowerCase();
+                if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') return;
+
+                if (hoveredCardId && filteredUploads.length > 0) {
+                    const foundIdx = filteredUploads.findIndex(u => u.id === hoveredCardId);
+                    if (foundIdx !== -1) {
+                        e.preventDefault();
+                        setLightboxIndex(foundIdx);
+                        setLightboxItem(filteredUploads[foundIdx]);
+                    }
+                }
+                return;
+            }
+
+            // Left / Right arrows inside Lightbox
+            if (lightboxItem && filteredUploads.length > 0) {
+                if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    setLightboxIndex(prev => {
+                        const newIdx = prev > 0 ? prev - 1 : filteredUploads.length - 1;
+                        setLightboxItem(filteredUploads[newIdx]);
+                        return newIdx;
+                    });
+                } else if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    setLightboxIndex(prev => {
+                        const newIdx = prev < filteredUploads.length - 1 ? prev + 1 : 0;
+                        setLightboxItem(filteredUploads[newIdx]);
+                        return newIdx;
+                    });
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isCommandPaletteOpen, lightboxItem, organizingItem, hoveredCardId, filteredUploads]);
+
     // Delete upload
     const handleDelete = async (id: string) => {
         setDeleting(true);
@@ -930,6 +1007,45 @@ export default function DashboardPage() {
                     </Link>
 
                     <div style={styles.headerActions}>
+                        <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => setIsCommandPaletteOpen(true)}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                padding: "6px 14px",
+                                background: "rgba(18, 18, 22, 0.75)",
+                                backdropFilter: "blur(16px)",
+                                WebkitBackdropFilter: "blur(16px)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "12px",
+                                color: "var(--text-muted)",
+                                cursor: "pointer",
+                                fontSize: "0.825rem",
+                                fontFamily: "inherit",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Search size={14} style={{ color: "var(--accent-primary)" }} />
+                            <span className="mobile-hide">Command Palette</span>
+                            <kbd
+                                style={{
+                                    background: "rgba(255, 255, 255, 0.1)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    borderRadius: "6px",
+                                    padding: "2px 6px",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 600,
+                                    fontFamily: "monospace",
+                                    color: "var(--text-main)",
+                                }}
+                            >
+                                Ctrl K
+                            </kbd>
+                        </motion.button>
+
                         <motion.button
                             whileHover={{ scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
@@ -1443,11 +1559,16 @@ export default function DashboardPage() {
                                             animate={{ opacity: 1, scale: 1 }}
                                             transition={{ delay: idx * 0.03 }}
                                             style={styles.uploadCard}
+                                            onMouseEnter={() => setHoveredCardId(upload.id)}
+                                            onMouseLeave={() => setHoveredCardId(null)}
                                         >
                                             {/* Preview */}
                                             <div 
-                                                style={styles.uploadPreview}
-                                                onClick={() => window.open(`/i/${upload.id}`, "_blank")}
+                                                style={{ ...styles.uploadPreview, cursor: "pointer" }}
+                                                onClick={() => {
+                                                    setLightboxIndex(idx);
+                                                    setLightboxItem(upload);
+                                                }}
                                             >
                                                 {isVideo ? (
                                                     <video
@@ -1469,6 +1590,39 @@ export default function DashboardPage() {
                                                         }}
                                                     />
                                                 )}
+
+                                                {/* Hover Quick Preview Pill */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    background: 'rgba(0, 0, 0, 0.45)',
+                                                    opacity: hoveredCardId === upload.id ? 1 : 0,
+                                                    transition: 'opacity 0.2s ease',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    pointerEvents: 'none',
+                                                    zIndex: 5,
+                                                }}>
+                                                    <span style={{
+                                                        background: 'rgba(18, 18, 22, 0.85)',
+                                                        backdropFilter: 'blur(12px)',
+                                                        WebkitBackdropFilter: 'blur(12px)',
+                                                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                        color: '#ffffff',
+                                                        padding: '6px 14px',
+                                                        borderRadius: '50px',
+                                                        fontSize: '0.78rem',
+                                                        fontWeight: 600,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        boxShadow: '0 8px 20px rgba(0,0,0,0.4)',
+                                                    }}>
+                                                        <Maximize2 size={13} color="#8b5cf6" /> Space Preview
+                                                    </span>
+                                                </div>
+
                                                 {isVideo && (
                                                     <div style={{
                                                         position: 'absolute',
@@ -1481,7 +1635,8 @@ export default function DashboardPage() {
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '4px',
-                                                        color: '#fff'
+                                                        color: '#fff',
+                                                        zIndex: 6,
                                                     }}>
                                                         <Video size={10} /> Video
                                                     </div>
@@ -1500,7 +1655,8 @@ export default function DashboardPage() {
                                                         alignItems: 'center',
                                                         gap: '4px',
                                                         color: '#fff',
-                                                        fontWeight: 600
+                                                        fontWeight: 600,
+                                                        zIndex: 6,
                                                     }}>
                                                         <Lock size={10} /> Protected
                                                     </div>
@@ -2481,6 +2637,297 @@ export default function DashboardPage() {
                                 </div>
                             </motion.div>
                         </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Quick-Preview Lightbox Modal (Spacebar / Click) */}
+                <AnimatePresence>
+                    {lightboxItem && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(9, 9, 11, 0.92)',
+                                backdropFilter: 'blur(24px)',
+                                WebkitBackdropFilter: 'blur(24px)',
+                                zIndex: 1000,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '1.25rem',
+                                userSelect: 'none',
+                            }}
+                        >
+                            {/* Lightbox Top Header */}
+                            <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <span style={{ background: 'rgba(139, 92, 246, 0.2)', color: '#c4b5fd', border: '1px solid rgba(139, 92, 246, 0.3)', padding: '3px 10px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700 }}>
+                                        {lightboxIndex + 1} / {filteredUploads.length}
+                                    </span>
+                                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f4f4f5', margin: 0 }}>
+                                        /{lightboxItem.id}
+                                    </h3>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.72rem', background: 'rgba(255, 255, 255, 0.08)', padding: '4px 10px', borderRadius: '6px', color: '#a1a1aa' }}>
+                                        Space / ← → / Esc
+                                    </span>
+                                    <button
+                                        onClick={() => setLightboxItem(null)}
+                                        style={{ background: 'rgba(255, 255, 255, 0.1)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Lightbox Center Content + Navigation Arrows */}
+                            <div style={{ position: 'relative', width: '100%', maxWidth: '1200px', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0.75rem 0' }}>
+                                {/* Left Arrow */}
+                                {filteredUploads.length > 1 && (
+                                    <button
+                                        onClick={() => {
+                                            const newIdx = lightboxIndex > 0 ? lightboxIndex - 1 : filteredUploads.length - 1;
+                                            setLightboxIndex(newIdx);
+                                            setLightboxItem(filteredUploads[newIdx]);
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            left: '10px',
+                                            background: 'rgba(18, 18, 22, 0.85)',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            borderRadius: '50%',
+                                            width: '44px',
+                                            height: '44px',
+                                            color: '#fff',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            zIndex: 20,
+                                            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                        }}
+                                    >
+                                        <ChevronLeft size={22} />
+                                    </button>
+                                )}
+
+                                {/* Media Box */}
+                                <div style={{ maxHeight: '68vh', maxWidth: '85vw', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '18px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 25px 60px rgba(0,0,0,0.75)', background: '#000' }}>
+                                    {lightboxItem.metadata?.type?.startsWith('video/') ? (
+                                        <video src={`/i/${lightboxItem.id}.mp4`} controls autoPlay style={{ maxHeight: '68vh', maxWidth: '85vw', objectFit: 'contain' }} />
+                                    ) : (
+                                        <img src={`/i/${lightboxItem.id}.jpg`} alt={lightboxItem.id} style={{ maxHeight: '68vh', maxWidth: '85vw', objectFit: 'contain' }} />
+                                    )}
+                                </div>
+
+                                {/* Right Arrow */}
+                                {filteredUploads.length > 1 && (
+                                    <button
+                                        onClick={() => {
+                                            const newIdx = lightboxIndex < filteredUploads.length - 1 ? lightboxIndex + 1 : 0;
+                                            setLightboxIndex(newIdx);
+                                            setLightboxItem(filteredUploads[newIdx]);
+                                        }}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '10px',
+                                            background: 'rgba(18, 18, 22, 0.85)',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            borderRadius: '50%',
+                                            width: '44px',
+                                            height: '44px',
+                                            color: '#fff',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            zIndex: 20,
+                                            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                                        }}
+                                    >
+                                        <ChevronRight size={22} />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Lightbox Bottom Info Bar */}
+                            <div style={{ width: '100%', maxWidth: '900px', background: 'rgba(18, 18, 22, 0.85)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)', border: '1px solid rgba(255, 255, 255, 0.14)', borderRadius: '100px', padding: '8px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '0.8rem', color: '#a1a1aa' }}>
+                                    <span>Size: <b style={{ color: '#fff' }}>{formatSize(lightboxItem.size)}</b></span>
+                                    <span>Views: <b style={{ color: '#8b5cf6' }}>{lightboxItem.views || 0}</b></span>
+                                    <span>Uploaded: <b style={{ color: '#fff' }}>{new Date(lightboxItem.created_at).toLocaleDateString()}</b></span>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        onClick={() => copyLink(lightboxItem.id)}
+                                        style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                    >
+                                        <Copy size={13} /> {copiedId === lightboxItem.id ? "Copied!" : "Copy Link"}
+                                    </button>
+                                    <a
+                                        href={`/i/${lightboxItem.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ padding: '6px 16px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)', borderRadius: '50px', color: '#fff', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}
+                                    >
+                                        <ExternalLink size={13} /> Open Page
+                                    </a>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Command Palette Modal (Ctrl + K / Cmd + K) */}
+                <AnimatePresence>
+                    {isCommandPaletteOpen && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsCommandPaletteOpen(false)}
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(9, 9, 11, 0.8)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                zIndex: 1100,
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                justifyContent: 'center',
+                                paddingTop: '12vh',
+                                paddingLeft: '1rem',
+                                paddingRight: '1rem',
+                            }}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    width: '100%',
+                                    maxWidth: '620px',
+                                    background: 'rgba(18, 18, 24, 0.95)',
+                                    border: '1px solid rgba(139, 92, 246, 0.3)',
+                                    borderRadius: '24px',
+                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)',
+                                    overflow: 'hidden',
+                                }}
+                            >
+                                {/* Search Bar Header */}
+                                <div style={{ display: 'flex', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', gap: '12px' }}>
+                                    <Search size={18} color="#8b5cf6" />
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        placeholder="Type a command or search files..."
+                                        value={cmdQuery}
+                                        onChange={(e) => setCmdQuery(e.target.value)}
+                                        style={{
+                                            flex: 1,
+                                            background: 'transparent',
+                                            border: 'none',
+                                            outline: 'none',
+                                            color: '#ffffff',
+                                            fontSize: '1rem',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                    <kbd style={{ fontSize: '0.72rem', background: 'rgba(255, 255, 255, 0.1)', padding: '3px 8px', borderRadius: '6px', color: '#a1a1aa' }}>
+                                        ESC
+                                    </kbd>
+                                </div>
+
+                                {/* Results & Commands */}
+                                <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '12px' }}>
+                                    {/* Matching Files */}
+                                    {cmdQuery.trim() !== '' && (
+                                        <div style={{ marginBottom: '12px' }}>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 10px', marginBottom: '4px' }}>
+                                                Matching Uploads
+                                            </div>
+                                            {filteredUploads
+                                                .filter(u => u.id.toLowerCase().includes(cmdQuery.toLowerCase()) || (u.folder && u.folder.toLowerCase().includes(cmdQuery.toLowerCase())))
+                                                .slice(0, 5)
+                                                .map(u => (
+                                                    <div
+                                                        key={u.id}
+                                                        onClick={() => {
+                                                            setIsCommandPaletteOpen(false);
+                                                            setLightboxItem(u);
+                                                        }}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            padding: '10px 14px',
+                                                            borderRadius: '12px',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.15s ease',
+                                                            background: 'rgba(255, 255, 255, 0.03)',
+                                                            marginBottom: '4px',
+                                                        }}
+                                                        onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)')}
+                                                        onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)')}
+                                                    >
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            <ImageIcon size={16} color="#8b5cf6" />
+                                                            <span style={{ fontSize: '0.88rem', color: '#f4f4f5', fontWeight: 500 }}>/{u.id}</span>
+                                                            {u.folder && (
+                                                                <span style={{ fontSize: '0.72rem', background: 'rgba(139,92,246,0.2)', color: '#c4b5fd', padding: '2px 8px', borderRadius: '6px' }}>
+                                                                    {u.folder}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Preview ↗</span>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    )}
+
+                                    {/* Default Quick Actions */}
+                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 10px', marginBottom: '4px' }}>
+                                        Quick Actions
+                                    </div>
+                                    {[
+                                        { icon: Upload, label: "Upload New Files", action: () => router.push('/') },
+                                        { icon: FolderPlus, label: "Create Folder", action: () => { setIsCommandPaletteOpen(false); setShowCreateFolderModal(true); } },
+                                        { icon: Key, label: "View API Keys", action: () => { setIsCommandPaletteOpen(false); setActiveTab('api'); } },
+                                        { icon: ExternalLink, label: "Open Telegram Storage Bot", action: () => window.open('https://t.me/PixEdge_bot', '_blank') },
+                                        { icon: LogOut, label: "Sign Out", action: () => signOut({ callbackUrl: '/' }) },
+                                    ].map((item, idx) => (
+                                        <div
+                                            key={idx}
+                                            onClick={item.action}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '12px',
+                                                padding: '10px 14px',
+                                                borderRadius: '12px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.15s ease',
+                                                marginBottom: '4px',
+                                            }}
+                                            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)')}
+                                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                                        >
+                                            <item.icon size={16} color="#8b5cf6" />
+                                            <span style={{ fontSize: '0.88rem', color: '#f4f4f5', fontWeight: 500 }}>{item.label}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </motion.div>
+                        </motion.div>
                     )}
                 </AnimatePresence>
             </div>
