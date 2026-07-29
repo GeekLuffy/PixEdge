@@ -328,6 +328,23 @@ func main() {
                             textTransform: "uppercase",
                         }}
                     >
+                        Features & Tools
+                    </p>
+                    <SidebarItem id="albums" label="Albums & ZIP Downloader" icon={Folder} />
+                    <SidebarItem id="command-palette" label="Spotlight & Lightbox" icon={Zap} />
+
+                    <p
+                        style={{
+                            fontSize: "0.7rem",
+                            fontWeight: "bold",
+                            color: "var(--text-muted)",
+                            opacity: 0.6,
+                            marginLeft: "12px",
+                            marginBottom: "8px",
+                            marginTop: "1.5rem",
+                            textTransform: "uppercase",
+                        }}
+                    >
                         Endpoints
                     </p>
                     <SidebarItem id="upload" label="Upload Media (2 GB)" icon={Terminal} />
@@ -835,6 +852,53 @@ func main() {
                                     </tr>
                                 </tbody>
                             </table>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "albums" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                Shareable Media Albums & ZIP Downloader
+                            </h2>
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                Batch uploads auto-generate a shareable album gallery link (e.g. <code style={{ color: "#8b5cf6" }}>/album/xyz</code>). Viewers can stream all media in a mobile 3x3 ratio grid, download all files individually, or generate a 1-Click <code style={{ color: "#8b5cf6" }}>.zip</code> archive directly in the browser.
+                            </p>
+                            <h3 style={{ fontSize: "1.2rem", color: "var(--text-main)", margin: "1.5rem 0 1rem" }}>
+                                Album API (<code style={{ color: "#8b5cf6" }}>POST /api/album/create</code>)
+                            </h3>
+                            <div style={{ background: "var(--code-bg)", border: "1px solid var(--border-color)", borderRadius: "20px", padding: "20px", marginBottom: "1.5rem" }}>
+                                <pre style={{ margin: 0 }}>
+                                    <code style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--code-text-color)", fontSize: "0.85rem" }}>{`// POST ${originUrl}/api/album/create
+{
+  "imageIds": ["img_1", "img_2", "img_3"],
+  "title": "Summer Vacation Album",
+  "password": "optional-album-pin"
+}`}</code>
+                                </pre>
+                            </div>
+                        </motion.section>
+                    )}
+
+                    {activeSection === "command-palette" && (
+                        <motion.section
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                        >
+                            <h2 style={{ fontSize: "1.8rem", color: "var(--text-main)", marginBottom: "1.5rem" }}>
+                                Command Palette (<code style={{ color: "#8b5cf6" }}>Ctrl + K</code>) & Spacebar Lightbox
+                            </h2>
+                            <p style={{ color: "var(--text-muted)", lineHeight: "1.7", marginBottom: "1.5rem" }}>
+                                PixEdge includes desktop-grade productivity shortcuts inside your Dashboard:
+                            </p>
+                            <ul style={{ color: "var(--text-muted)", lineHeight: "1.8", marginLeft: "1.5rem", marginBottom: "1.5rem" }}>
+                                <li><b><code style={{ color: "#8b5cf6" }}>Ctrl + K</code> / <code style={{ color: "#8b5cf6" }}>Cmd + K</code> Spotlight</b>: Instant search across all files, folders, and tags with quick action shortcuts.</li>
+                                <li><b><code style={{ color: "#8b5cf6" }}>Spacebar</code> Lightbox Preview</b>: Hover over any media item and hit Spacebar (or click) to launch full-screen preview.</li>
+                                <li><b>Keyboard Arrows (<code style={{ color: "#8b5cf6" }}>←</code> / <code style={{ color: "#8b5cf6" }}>→</code>)</b>: Navigate through gallery items inside the Lightbox.</li>
+                                <li><b><code style={{ color: "#8b5cf6" }}>ESC</code> Key</b>: Close any active modal instantly.</li>
+                            </ul>
                         </motion.section>
                     )}
 

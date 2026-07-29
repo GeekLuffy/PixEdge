@@ -1016,7 +1016,7 @@ export default function DashboardPage() {
                                 alignItems: "center",
                                 gap: "8px",
                                 padding: "6px 14px",
-                                background: "rgba(18, 18, 22, 0.75)",
+                                background: theme === "dark" ? "rgba(18, 18, 22, 0.75)" : "var(--panel-bg)",
                                 backdropFilter: "blur(16px)",
                                 WebkitBackdropFilter: "blur(16px)",
                                 border: "1px solid var(--border-color)",
@@ -1032,8 +1032,8 @@ export default function DashboardPage() {
                             <span className="mobile-hide">Command Palette</span>
                             <kbd
                                 style={{
-                                    background: "rgba(255, 255, 255, 0.1)",
-                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    background: theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.06)",
+                                    border: theme === "dark" ? "1px solid rgba(255, 255, 255, 0.15)" : "1px solid rgba(0, 0, 0, 0.12)",
                                     borderRadius: "6px",
                                     padding: "2px 6px",
                                     fontSize: "0.7rem",
@@ -1075,10 +1075,14 @@ export default function DashboardPage() {
                     animate={{ opacity: 1, y: 0 }}
                     style={{
                         position: "relative",
-                        background: "linear-gradient(135deg, rgba(20, 20, 30, 0.75) 0%, rgba(35, 20, 55, 0.65) 100%)",
+                        background: theme === "dark"
+                            ? "linear-gradient(135deg, rgba(20, 20, 30, 0.75) 0%, rgba(35, 20, 55, 0.65) 100%)"
+                            : "linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(243, 232, 255, 0.9) 100%)",
                         backdropFilter: "blur(30px)",
                         WebkitBackdropFilter: "blur(30px)",
-                        border: "1px solid rgba(139, 92, 246, 0.25)",
+                        border: theme === "dark"
+                            ? "1px solid rgba(139, 92, 246, 0.25)"
+                            : "1px solid rgba(139, 92, 246, 0.2)",
                         borderRadius: "28px",
                         padding: "2rem",
                         marginBottom: "2rem",
@@ -1088,7 +1092,9 @@ export default function DashboardPage() {
                         gap: "1.75rem",
                         flexWrap: "wrap",
                         overflow: "hidden",
-                        boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+                        boxShadow: theme === "dark"
+                            ? "0 20px 50px rgba(0,0,0,0.3)"
+                            : "0 10px 30px rgba(139, 92, 246, 0.08)",
                     }}
                 >
                     {/* Ambient Glow Effect */}
