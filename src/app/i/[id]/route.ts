@@ -252,12 +252,19 @@ export async function GET(
         }
 
         const rangeHeader = req.headers.get('range');
+        const downloadParam = req.nextUrl.searchParams.get('download') || req.nextUrl.searchParams.get('dl');
+        const isExplicitDownload = downloadParam === '1' || downloadParam === 'true';
+
+        // Increment counts correctly
+        if (isExplicitDownload) {
+            await incrementDownloads(id);
+        } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
+            await incrementViews(id);
+        }
 
         // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
         if (record.message_id && isGramConfigured()) {
             if (serveRaw) {
-                if (hasExtension) await incrementDownloads(id);
-
                 try {
                     const fileSizeHint = record.metadata?.size || 0;
                     const parsedRange = fileSizeHint ? parseRangeHeader(rangeHeader, fileSizeHint) : null;
@@ -283,9 +290,10 @@ export async function GET(
                         if (fileSize) headers.set('Content-Length', fileSize.toString());
                     }
 
-                    if (fileName) {
-                        headers.set('Content-Disposition', `inline; filename="${fileName}"`);
-                    }
+                    const defaultExt = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
+                    const finalFileName = fileName || `${id}${defaultExt}`;
+                    const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
+                    headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
                     return new Response(stream, { status, headers });
                 } catch (gramErr) {
@@ -298,9 +306,7 @@ export async function GET(
         // ── v1 path: Bot API redirect / proxy (original behaviour with Range support) ───────────
         const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
 
-        const proxyImage = async (isDownload: boolean = false) => {
-            if (isDownload) await incrementDownloads(id);
-
+        const proxyImage = async () => {
             const fetchHeaders: Record<string, string> = {};
             if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
@@ -318,14 +324,19 @@ export async function GET(
                 headers.set('Content-Length', response.headers.get('Content-Length')!);
             }
 
+            const defaultExt = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
+            const finalFileName = `${id}${defaultExt}`;
+            const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
+            headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
+
             return new NextResponse(blob, { status: response.status, headers });
         };
 
         if (serveRaw) {
-            return proxyImage(hasExtension);
+            return proxyImage();
         }
 
-        // Increment views only for HTML page view
+        // Increment views for HTML page view
         await incrementViews(id);
 
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
@@ -685,7 +696,7 @@ export async function GET(
                     <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (F)" onclick="toggleFullscreen()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
                     </button>
-                    <a href="${proxiedImgSrc}" download class="btn btn-primary">
+                    <a href="${proxiedImgSrc}?download=1" download class="btn btn-primary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download
                     </a>

@@ -131,7 +131,8 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
         try {
             for (let i = 0; i < album.items.length; i++) {
                 const item = album.items[i];
-                const response = await fetch(item.url);
+                const fetchUrl = item.url.includes("?") ? `${item.url}&download=1` : `${item.url}?download=1`;
+                const response = await fetch(fetchUrl);
                 const blob = await response.blob();
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
@@ -167,7 +168,8 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
             for (let i = 0; i < album.items.length; i++) {
                 const item = album.items[i];
                 setZipProgress(`${i + 1}/${album.items.length}...`);
-                const response = await fetch(item.url);
+                const fetchUrl = item.url.includes("?") ? `${item.url}&download=1` : `${item.url}?download=1`;
+                const response = await fetch(fetchUrl);
                 const blob = await response.blob();
 
                 let ext = "jpg";
