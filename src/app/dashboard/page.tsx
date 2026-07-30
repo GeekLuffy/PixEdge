@@ -592,19 +592,26 @@ export default function DashboardPage() {
         const folderItems = uploads.filter(u => u.folder === folderName);
         if (folderItems.length === 0) return;
 
+        // Generate a clean, deterministic album ID based on user and folder name
+        const userSlug = session?.user?.email || session?.user?.name || "user";
+        const cleanUser = userSlug.toLowerCase().replace(/[^a-z0-9]/g, "").substring(0, 10);
+        const cleanFolder = folderName.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
+        const folderAlbumId = `f-${cleanUser}-${cleanFolder}`;
+
         try {
             const res = await fetch('/api/album/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    customId: folderAlbumId,
                     imageIds: folderItems.map(u => u.id),
-                    title: `${folderName} Album`,
+                    title: `${folderName}`,
                 }),
             });
             const data = await res.json();
             if (data.success && data.url) {
                 navigator.clipboard.writeText(data.url);
-                setSuccess(`Album link for "${folderName}" copied to clipboard!`);
+                setSuccess(`Folder album link for "${folderName}" copied to clipboard!`);
                 setTimeout(() => setSuccess(""), 3500);
             }
         } catch (err) {
