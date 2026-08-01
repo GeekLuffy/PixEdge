@@ -225,7 +225,8 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
       chat_id: chatId,
       text,
       parse_mode: parseMode,
-      disable_web_page_preview: false,
+      disable_web_page_preview: true,
+      link_preview_options: { is_disabled: true },
       reply_markup: replyMarkup
     }),
   });

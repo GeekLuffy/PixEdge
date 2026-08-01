@@ -39,6 +39,12 @@ function parseRangeHeader(rangeHeader: string | null, fileSize: number): { start
     return { start, end };
 }
 
+function isBotCrawler(req: NextRequest): boolean {
+    const userAgent = req.headers.get('user-agent') || '';
+    const botPattern = /bot|crawler|spider|facebookexternalhit|whatsapp|telegrambot|twitterbot|slackbot|discordbot|curl|wget|python|node-fetch|axios|fetch|go-http-client/i;
+    return botPattern.test(userAgent);
+}
+
 export async function HEAD(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -254,18 +260,21 @@ export async function GET(
         const rangeHeader = req.headers.get('range');
         const downloadParam = req.nextUrl.searchParams.get('download') || req.nextUrl.searchParams.get('dl');
         const isExplicitDownload = downloadParam === '1' || downloadParam === 'true';
+        const isBot = isBotCrawler(req);
 
-        // Increment counts & check self-destruct triggers
-        if (isExplicitDownload) {
-            await incrementDownloads(id);
-            if (record.burn_after_download) {
-                purgeImage(id).catch(err => console.error('Self destruct burn_after_download error:', err));
-            }
-        } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
-            await incrementViews(id);
-            if (record.burn_after_view) {
-                // Purge after serving raw media to browser so image renders cleanly on screen
-                purgeImage(id).catch(err => console.error('Self destruct burn_after_view error:', err));
+        // Increment counts & check self-destruct triggers (only for real human users, ignore bot crawlers)
+        if (!isBot) {
+            if (isExplicitDownload) {
+                await incrementDownloads(id);
+                if (record.burn_after_download) {
+                    purgeImage(id).catch(err => console.error('Self destruct burn_after_download error:', err));
+                }
+            } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
+                await incrementViews(id);
+                if (record.burn_after_view) {
+                    // Purge after serving raw media to browser so image renders cleanly on screen
+                    purgeImage(id).catch(err => console.error('Self destruct burn_after_view error:', err));
+                }
             }
         }
 
@@ -343,8 +352,10 @@ export async function GET(
             return proxyImage();
         }
 
-        // Increment views for HTML page view
-        await incrementViews(id);
+        // Increment views for HTML page view (only for real human users)
+        if (!isBot) {
+            await incrementViews(id);
+        }
 
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const proxiedImgSrc = `/i/${id}${ext}`;
