@@ -259,12 +259,13 @@ export async function GET(
         if (isExplicitDownload) {
             await incrementDownloads(id);
             if (record.burn_after_download) {
-                await purgeImage(id);
+                purgeImage(id).catch(err => console.error('Self destruct burn_after_download error:', err));
             }
         } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
             await incrementViews(id);
             if (record.burn_after_view) {
-                await purgeImage(id);
+                // Purge after serving raw media to browser so image renders cleanly on screen
+                purgeImage(id).catch(err => console.error('Self destruct burn_after_view error:', err));
             }
         }
 
@@ -344,11 +345,6 @@ export async function GET(
 
         // Increment views for HTML page view
         await incrementViews(id);
-
-        // Self-destruct HTML page view (purges record so page can only be viewed once)
-        if (record.burn_after_view) {
-            await purgeImage(id);
-        }
 
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const proxiedImgSrc = `/i/${id}${ext}`;
