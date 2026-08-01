@@ -31,6 +31,9 @@ export interface ImageRecord {
     tags?: string[];
     // Hashed PIN or password for link protection
     password_hash?: string;
+    // Self-destruct (Burn after reading) toggles
+    burn_after_view?: boolean;
+    burn_after_download?: boolean;
     metadata: {
         size: number;
         type: string;
@@ -65,6 +68,8 @@ export async function saveImage(
             folder: (record as any).folder || '',
             tags: JSON.stringify((record as any).tags || []),
             password_hash: record.password_hash || '',
+            burn_after_view: record.burn_after_view ? 'true' : 'false',
+            burn_after_download: record.burn_after_download ? 'true' : 'false',
             metadata: JSON.stringify(record.metadata)
         });
 
@@ -144,6 +149,8 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
                 created_at: parseInt(data.created_at),
                 folder: data.folder || undefined,
                 tags: Array.isArray(parsedTags) ? parsedTags : [],
+                burn_after_view: data.burn_after_view === 'true' || data.burn_after_view === true,
+                burn_after_download: data.burn_after_download === 'true' || data.burn_after_download === true,
                 metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
             } as ImageRecord;
         })
@@ -156,7 +163,9 @@ export async function updateImageOrganization(
     userId: string,
     folder?: string,
     tags?: string[],
-    password?: string
+    password?: string,
+    burnAfterView?: boolean,
+    burnAfterDownload?: boolean
 ): Promise<boolean> {
     const cleanFolder = folder ? folder.trim() : '';
     const cleanTags = Array.isArray(tags)
@@ -213,6 +222,12 @@ export async function updateImageOrganization(
         };
         if (passwordHash !== undefined) {
             updateData.password_hash = passwordHash;
+        }
+        if (burnAfterView !== undefined) {
+            updateData.burn_after_view = burnAfterView ? 'true' : 'false';
+        }
+        if (burnAfterDownload !== undefined) {
+            updateData.burn_after_download = burnAfterDownload ? 'true' : 'false';
         }
 
         await redis.hset(`snap:${id}`, updateData);
@@ -390,6 +405,8 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             expires_at: data.expires_at ? parseInt(data.expires_at) || undefined : undefined,
             folder: data.folder || undefined,
             tags: Array.isArray(parsedTags) ? parsedTags : [],
+            burn_after_view: data.burn_after_view === 'true' || data.burn_after_view === true,
+            burn_after_download: data.burn_after_download === 'true' || data.burn_after_download === true,
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
         } as ImageRecord;
     }
@@ -466,6 +483,48 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const messageId = data.message_id ? parseInt(data.message_id) : undefined;
         await redis.del(`snap:${id}`);
         await redis.lrem(`user:${userId}:uploads`, 0, id);
+
+        if (messageId) {
+            deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+        }
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        const index = db.images.findIndex((img: any) => img.id === id);
+        if (index !== -1) {
+            const image = db.images[index];
+            const messageId = image?.message_id;
+            db.images.splice(index, 1);
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+
+            if (messageId) {
+                deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+            }
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+// System self-destruct purge (deletes Redis snap record and Telegram channel message without owner check)
+export async function purgeImage(id: string): Promise<boolean> {
+    if (useCloud() && redis) {
+        const data: any = await redis.hgetall(`snap:${id}`);
+        if (!data || Object.keys(data).length === 0) return false;
+
+        const userId = data.user_id;
+        const messageId = data.message_id ? parseInt(data.message_id) : undefined;
+        
+        await redis.del(`snap:${id}`);
+        if (userId) {
+            await redis.lrem(`user:${userId}:uploads`, 0, id);
+        }
 
         if (messageId) {
             deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));

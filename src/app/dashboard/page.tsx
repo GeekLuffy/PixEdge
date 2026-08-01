@@ -45,6 +45,7 @@ import {
     Command,
     ChevronLeft,
     ChevronRight,
+    Flame,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -577,6 +578,8 @@ export default function DashboardPage() {
     const [tagsInput, setTagsInput] = useState<string>("");
     const [passwordInput, setPasswordInput] = useState<string>("");
     const [showModalPassword, setShowModalPassword] = useState<boolean>(false);
+    const [burnViewModal, setBurnViewModal] = useState<boolean>(false);
+    const [burnDownloadModal, setBurnDownloadModal] = useState<boolean>(false);
     const [savingOrg, setSavingOrg] = useState<boolean>(false);
 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
@@ -619,7 +622,7 @@ export default function DashboardPage() {
         }
     };
 
-    // Save folder category, tags, and password protection for a specific upload
+    // Save folder category, tags, password protection, and burn-after-reading settings
     const handleSaveOrganization = async () => {
         if (!organizingItem) return;
         setSavingOrg(true);
@@ -637,6 +640,8 @@ export default function DashboardPage() {
                     folder: folderInput.trim(),
                     tags: parsedTags,
                     password: passwordInput,
+                    burnAfterView: burnViewModal,
+                    burnAfterDownload: burnDownloadModal,
                 }),
             });
 
@@ -649,12 +654,14 @@ export default function DashboardPage() {
                             folder: folderInput.trim() || undefined,
                             tags: parsedTags,
                             password_hash: passwordInput.trim() ? 'protected' : (passwordInput === '' ? '' : item.password_hash),
+                            burn_after_view: burnViewModal,
+                            burn_after_download: burnDownloadModal,
                         };
                     }
                     return item;
                 }));
                 setOrganizingItem(null);
-                setSuccess("Saved folder, tags & link protection!");
+                setSuccess("Saved folder, tags & self-destruct settings!");
                 setTimeout(() => setSuccess(""), 3000);
             }
         } catch (e) {
@@ -1674,6 +1681,26 @@ export default function DashboardPage() {
                                                         <Lock size={10} /> Protected
                                                     </div>
                                                 )}
+                                                {(upload.burn_after_view || upload.burn_after_download) && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: '8px',
+                                                        right: upload.password_hash ? '84px' : '8px',
+                                                        background: 'rgba(239, 68, 68, 0.85)',
+                                                        backdropFilter: 'blur(8px)',
+                                                        padding: '4px 8px',
+                                                        borderRadius: '6px',
+                                                        fontSize: '0.7rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        color: '#fff',
+                                                        fontWeight: 600,
+                                                        zIndex: 6,
+                                                    }}>
+                                                        <Flame size={10} /> {upload.burn_after_view ? 'Burn View' : 'Burn DL'}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Info */}
@@ -1761,6 +1788,10 @@ export default function DashboardPage() {
                                                             setOrganizingItem(upload);
                                                             setFolderInput(upload.folder || '');
                                                             setTagsInput(Array.isArray(upload.tags) ? upload.tags.join(', ') : '');
+                                                            setPasswordInput('');
+                                                            setShowModalPassword(false);
+                                                            setBurnViewModal(!!upload.burn_after_view);
+                                                            setBurnDownloadModal(!!upload.burn_after_download);
                                                         }}
                                                         title="Organize Folder & Tags"
                                                         style={{
@@ -2493,6 +2524,62 @@ export default function DashboardPage() {
                                                 {showModalPassword ? <EyeOff size={14} color="#ffffff" /> : <Eye size={14} color="#ffffff" />}
                                             </button>
                                         )}
+                                    </div>
+                                </div>
+
+                                {/* Self-Destruct Options */}
+                                <div style={{ marginBottom: "1.5rem" }}>
+                                    <label style={{ display: "block", fontSize: "0.825rem", color: "var(--text-muted)", marginBottom: "6px", fontWeight: 600 }}>
+                                        🔥 Burn After Reading (Self-Destruct)
+                                    </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setBurnViewModal(prev => !prev)}
+                                            style={{
+                                                padding: '10px 12px',
+                                                borderRadius: '12px',
+                                                border: burnViewModal ? '1px solid #ef4444' : '1px solid var(--border-color)',
+                                                background: burnViewModal ? 'rgba(239, 68, 68, 0.15)' : 'var(--input-bg)',
+                                                color: burnViewModal ? '#f87171' : 'var(--text-muted)',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                fontFamily: 'inherit',
+                                                transition: 'all 0.2s',
+                                            }}
+                                        >
+                                            <Flame size={14} color={burnViewModal ? '#f87171' : 'currentColor'} />
+                                            Burn 1st View
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setBurnDownloadModal(prev => !prev)}
+                                            style={{
+                                                padding: '10px 12px',
+                                                borderRadius: '12px',
+                                                border: burnDownloadModal ? '1px solid #ef4444' : '1px solid var(--border-color)',
+                                                background: burnDownloadModal ? 'rgba(239, 68, 68, 0.15)' : 'var(--input-bg)',
+                                                color: burnDownloadModal ? '#f87171' : 'var(--text-muted)',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '6px',
+                                                fontFamily: 'inherit',
+                                                transition: 'all 0.2s',
+                                            }}
+                                        >
+                                            <Flame size={14} color={burnDownloadModal ? '#f87171' : 'currentColor'} />
+                                            Burn Download
+                                        </button>
                                     </div>
                                 </div>
 

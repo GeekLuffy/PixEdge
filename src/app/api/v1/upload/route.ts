@@ -90,6 +90,13 @@ export async function POST(req: NextRequest) {
             password_hash = crypto.createHash('sha256').update(passwordRaw).digest('hex');
         }
 
+        // Optional Burn After Reading self-destruct settings
+        const burnAfterViewEntry = formData.get('burnAfterView');
+        const burnAfterView = burnAfterViewEntry === 'true' || burnAfterViewEntry === '1';
+
+        const burnAfterDownloadEntry = formData.get('burnAfterDownload');
+        const burnAfterDownload = burnAfterDownloadEntry === 'true' || burnAfterDownloadEntry === '1';
+
         if (!(fileEntry instanceof Blob)) {
             return NextResponse.json({
                 success: false,
@@ -176,6 +183,8 @@ export async function POST(req: NextRequest) {
                     created_at: Date.now(),
                     folder,
                     password_hash,
+                    burn_after_view: burnAfterView,
+                    burn_after_download: burnAfterDownload,
                     metadata: { size: file.size, type: file.type, version: 'v2' },
                 };
                 usedGram = true;
@@ -211,6 +220,8 @@ export async function POST(req: NextRequest) {
                 created_at: Date.now(),
                 folder,
                 password_hash,
+                burn_after_view: burnAfterView,
+                burn_after_download: burnAfterDownload,
                 metadata: { size: file.size, type: file.type, version: 'v1' },
             };
             usedGram = false;

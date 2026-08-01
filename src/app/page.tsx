@@ -32,6 +32,7 @@ import {
     FileText,
     CheckCheck,
     FileArchive,
+    Flame,
 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -177,6 +178,8 @@ export default function Home() {
     const [idError, setIdError] = useState<{ message: string; suggestions: string[] } | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const [expiresIn, setExpiresIn] = useState<string>("");
+    const [burnAfterView, setBurnAfterView] = useState<boolean>(false);
+    const [burnAfterDownload, setBurnAfterDownload] = useState<boolean>(false);
     const [batchQueue, setBatchQueue] = useState<BatchItem[]>([]);
     const [batchActive, setBatchActive] = useState(false);
     const [batchCopied, setBatchCopied] = useState(false);
@@ -275,6 +278,8 @@ export default function Home() {
         if (customId) formData.append("customId", customId);
         if (expiresIn) formData.append("expiresIn", expiresIn);
         if (password) formData.append("password", password);
+        if (burnAfterView) formData.append("burnAfterView", "true");
+        if (burnAfterDownload) formData.append("burnAfterDownload", "true");
 
         try {
             // Use XMLHttpRequest for chunk upload progress tracking
@@ -1009,6 +1014,59 @@ export default function Home() {
                             <option value="604800" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 7 Days</option>
                             <option value="2592000" style={{ background: "var(--bg-color)", color: "var(--text-main)" }}>Expires in 30 Days</option>
                         </select>
+                    </div>
+
+                    {/* Burn After Reading (Self-Destruct) Settings */}
+                    <div style={{ marginBottom: "1.5rem" }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                            <button
+                                type="button"
+                                onClick={() => setBurnAfterView(prev => !prev)}
+                                style={{
+                                    padding: '10px 12px',
+                                    borderRadius: '14px',
+                                    border: burnAfterView ? '1px solid #ef4444' : '1px solid var(--border-color)',
+                                    background: burnAfterView ? 'rgba(239, 68, 68, 0.15)' : 'var(--input-bg)',
+                                    color: burnAfterView ? '#f87171' : 'var(--text-muted)',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    fontFamily: 'inherit',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <Flame size={14} color={burnAfterView ? '#f87171' : 'currentColor'} />
+                                Burn 1st View
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setBurnAfterDownload(prev => !prev)}
+                                style={{
+                                    padding: '10px 12px',
+                                    borderRadius: '14px',
+                                    border: burnAfterDownload ? '1px solid #ef4444' : '1px solid var(--border-color)',
+                                    background: burnAfterDownload ? 'rgba(239, 68, 68, 0.15)' : 'var(--input-bg)',
+                                    color: burnAfterDownload ? '#f87171' : 'var(--text-muted)',
+                                    fontSize: '0.82rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '6px',
+                                    fontFamily: 'inherit',
+                                    transition: 'all 0.2s',
+                                }}
+                            >
+                                <Flame size={14} color={burnAfterDownload ? '#f87171' : 'currentColor'} />
+                                Burn Download
+                            </button>
+                        </div>
                     </div>
 
                     {/* Batch Upload Queue / Results Gallery */}

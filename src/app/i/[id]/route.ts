@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getImage, incrementViews, incrementDownloads } from '@/lib/db';
+import { getImage, incrementViews, incrementDownloads, purgeImage } from '@/lib/db';
 import { getTelegramFileUrl } from '@/lib/telegram';
 import { isGramConfigured, streamFileViaGram } from '@/lib/gramjs';
 
@@ -255,11 +255,17 @@ export async function GET(
         const downloadParam = req.nextUrl.searchParams.get('download') || req.nextUrl.searchParams.get('dl');
         const isExplicitDownload = downloadParam === '1' || downloadParam === 'true';
 
-        // Increment counts correctly
+        // Increment counts & check self-destruct triggers
         if (isExplicitDownload) {
             await incrementDownloads(id);
+            if (record.burn_after_download) {
+                await purgeImage(id);
+            }
         } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
             await incrementViews(id);
+            if (record.burn_after_view) {
+                await purgeImage(id);
+            }
         }
 
         // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
@@ -338,6 +344,11 @@ export async function GET(
 
         // Increment views for HTML page view
         await incrementViews(id);
+
+        // Self-destruct HTML page view (purges record so page can only be viewed once)
+        if (record.burn_after_view) {
+            await purgeImage(id);
+        }
 
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const proxiedImgSrc = `/i/${id}${ext}`;
@@ -688,6 +699,13 @@ export async function GET(
                         <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
                         <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
                     </div>
+
+                    ${record.burn_after_view
+                        ? `<div class="burn-pill">🔥 Burns After View</div>`
+                        : record.burn_after_download
+                        ? `<div class="burn-pill">🔥 Burns After Download</div>`
+                        : ''
+                    }
 
                     <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
