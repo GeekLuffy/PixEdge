@@ -46,7 +46,9 @@ import {
     ChevronLeft,
     ChevronRight,
     Flame,
+    QrCode,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import Link from "next/link";
 
 // STYLES
@@ -581,6 +583,8 @@ export default function DashboardPage() {
     const [burnViewModal, setBurnViewModal] = useState<boolean>(false);
     const [burnDownloadModal, setBurnDownloadModal] = useState<boolean>(false);
     const [savingOrg, setSavingOrg] = useState<boolean>(false);
+    const [qrModal, setQrModal] = useState<{ url: string; title: string } | null>(null);
+    const [copiedQr, setCopiedQr] = useState<boolean>(false);
 
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
@@ -1785,6 +1789,27 @@ export default function DashboardPage() {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
+                                                            setQrModal({ url: `${baseUrl}/i/${upload.id}`, title: `/${upload.id}` });
+                                                        }}
+                                                        title="Scan QR Code"
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            background: 'rgba(139, 92, 246, 0.1)',
+                                                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--accent-primary)',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <QrCode size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             setOrganizingItem(upload);
                                                             setFolderInput(upload.folder || '');
                                                             setTagsInput(Array.isArray(upload.tags) ? upload.tags.join(', ') : '');
@@ -2740,6 +2765,145 @@ export default function DashboardPage() {
                     )}
                 </AnimatePresence>
 
+                {/* QR Code Sharing Modal */}
+                <AnimatePresence>
+                    {qrModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.8)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 1050,
+                                padding: '1rem',
+                            }}
+                            onClick={() => { setQrModal(null); setCopiedQr(false); }}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '28px',
+                                    padding: '2rem',
+                                    width: '100%',
+                                    maxWidth: '380px',
+                                    textAlign: 'center',
+                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)',
+                                    position: 'relative',
+                                }}
+                            >
+                                <button
+                                    onClick={() => { setQrModal(null); setCopiedQr(false); }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '16px',
+                                        right: '16px',
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                                        borderRadius: '50%',
+                                        width: '32px',
+                                        height: '32px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'var(--text-muted)',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <X size={16} />
+                                </button>
+
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem', color: 'var(--accent-primary)', fontWeight: 700, fontSize: '0.95rem' }}>
+                                    <QrCode size={18} />
+                                    <span>Instant Mobile Scan</span>
+                                </div>
+
+                                <div
+                                    style={{
+                                        background: '#ffffff',
+                                        padding: '16px',
+                                        borderRadius: '20px',
+                                        display: 'inline-block',
+                                        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.3)',
+                                        marginBottom: '1.25rem',
+                                    }}
+                                >
+                                    <QRCodeSVG value={qrModal.url} size={180} />
+                                </div>
+
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '4px', wordBreak: 'break-all' }}>
+                                        {qrModal.title}
+                                    </div>
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', wordBreak: 'break-all' }}>
+                                        {qrModal.url}
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(qrModal.url);
+                                            setCopiedQr(true);
+                                            setTimeout(() => setCopiedQr(false), 2000);
+                                        }}
+                                        style={{
+                                            flex: 1,
+                                            background: copiedQr ? 'rgba(16, 185, 129, 0.15)' : 'var(--input-bg)',
+                                            border: `1px solid ${copiedQr ? '#10b981' : 'var(--border-color)'}`,
+                                            color: copiedQr ? '#10b981' : 'var(--text-main)',
+                                            padding: '10px 16px',
+                                            borderRadius: '14px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            transition: 'all 0.2s',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        {copiedQr ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy Link</>}
+                                    </button>
+                                    <a
+                                        href={qrModal.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{
+                                            padding: '10px 16px',
+                                            borderRadius: '14px',
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                            color: '#fff',
+                                            textDecoration: 'none',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        <ExternalLink size={15} /> Open
+                                    </a>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
                 {/* Quick-Preview Lightbox Modal (Spacebar / Click) */}
                 <AnimatePresence>
                     {lightboxItem && (
@@ -2865,6 +3029,12 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        onClick={() => setQrModal({ url: `${baseUrl}/i/${lightboxItem.id}`, title: `/${lightboxItem.id}` })}
+                                        style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                    >
+                                        <QrCode size={13} /> QR Code
+                                    </button>
                                     <button
                                         onClick={() => copyLink(lightboxItem.id)}
                                         style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}

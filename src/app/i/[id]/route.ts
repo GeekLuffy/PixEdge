@@ -364,6 +364,9 @@ export async function GET(
         const formattedDate = new Date(record.created_at).toLocaleDateString();
         const formattedSize = record.metadata?.size ? (record.metadata.size / 1024 / 1024).toFixed(2) + ' MB' : 'Unknown';
         const expiresAt = record.expires_at || 0;
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
+            (req.headers.get('host') ? `https://${req.headers.get('host')}` : 'https://pixedge.vercel.app');
+        const fullPageUrl = `${baseUrl}/i/${id}`;
 
         return new NextResponse(
             `<!DOCTYPE html>
@@ -595,7 +598,6 @@ export async function GET(
                         transform: translateX(-50%) translateY(0);
                     }
 
-                    /* Extend Expiry Modal Overlay */
                     .modal-backdrop {
                         position: fixed;
                         inset: 0;
@@ -679,7 +681,6 @@ export async function GET(
             <body>
                 <div class="toast" id="toast">Copied to clipboard!</div>
 
-                <!-- Extend Expiry Modal -->
                 <div class="modal-backdrop" id="extendModal">
                     <div class="modal-card">
                         <h3>⏳ Extend Link Expiry</h3>
@@ -695,13 +696,23 @@ export async function GET(
                     </div>
                 </div>
 
+                <div class="modal-backdrop" id="qrModal" onclick="closeQrModal()">
+                    <div class="modal-card" onclick="event.stopPropagation()">
+                        <h3>📱 QR Code</h3>
+                        <p>Scan to view this media on mobile:</p>
+                        <div style="background: white; padding: 12px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fullPageUrl)}" width="180" height="180" alt="QR Code">
+                        </div>
+                        <button class="btn btn-secondary" style="width: 100%; justify-content: center;" onclick="closeQrModal()">Close</button>
+                    </div>
+                </div>
+
                 <div class="toolbar">
                     <a href="/" class="btn btn-secondary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
                         Upload
                     </a>
 
-                    <!-- Live Ticking Expiry Badge -->
                     <div class="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
                         <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
                         <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
@@ -713,6 +724,11 @@ export async function GET(
                         ? `<div class="burn-pill">🔥 Burns After Download</div>`
                         : ''
                     }
+
+                    <button class="btn btn-secondary" onclick="openQrModal()">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                        QR
+                    </button>
 
                     <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -794,6 +810,14 @@ export async function GET(
 
                     function closeExtendModal() {
                         document.getElementById('extendModal').classList.remove('active');
+                    }
+
+                    function openQrModal() {
+                        document.getElementById('qrModal').classList.add('active');
+                    }
+
+                    function closeQrModal() {
+                        document.getElementById('qrModal').classList.remove('active');
                     }
 
                     async function extendExpiry(seconds) {

@@ -16,8 +16,12 @@ import {
     Sparkles,
     Play,
     Plus,
+    QrCode,
+    Copy,
+    ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { QRCodeSVG } from "qrcode.react";
 import JSZip from "jszip";
 
 interface AlbumItem {
@@ -52,6 +56,8 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
     // Lightbox & Actions
     const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
     const [isCopied, setIsCopied] = useState(false);
+    const [showQrModal, setShowQrModal] = useState(false);
+    const [copiedQr, setCopiedQr] = useState(false);
     const [zipProgress, setZipProgress] = useState<string | null>(null);
     const [downloadingAll, setDownloadingAll] = useState(false);
 
@@ -535,6 +541,11 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             <span className="mobile-show">Link</span>
                         </button>
 
+                        <button onClick={() => setShowQrModal(true)} className="btn-pill" title="Scan QR Code">
+                            <QrCode size={13} />
+                            <span className="mobile-hide">QR Code</span>
+                        </button>
+
                         <button
                             onClick={handleDownloadAll}
                             disabled={downloadingAll}
@@ -816,6 +827,126 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             </div>
                         </div>
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* QR Code Sharing Modal */}
+            <AnimatePresence>
+                {showQrModal && (
+                    <div
+                        style={{
+                            position: "fixed",
+                            inset: 0,
+                            background: "rgba(0,0,0,0.8)",
+                            backdropFilter: "blur(16px)",
+                            WebkitBackdropFilter: "blur(16px)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 1050,
+                            padding: "1rem",
+                        }}
+                        onClick={() => { setShowQrModal(false); setCopiedQr(false); }}
+                    >
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                background: "rgba(18, 18, 22, 0.9)",
+                                backdropFilter: "blur(24px)",
+                                border: "1px solid rgba(255, 255, 255, 0.15)",
+                                borderRadius: "28px",
+                                padding: "2rem",
+                                width: "100%",
+                                maxWidth: "380px",
+                                textAlign: "center",
+                                boxShadow: "0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)",
+                                position: "relative",
+                            }}
+                        >
+                            <button
+                                onClick={() => { setShowQrModal(false); setCopiedQr(false); }}
+                                style={{
+                                    position: "absolute",
+                                    top: "16px",
+                                    right: "16px",
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    borderRadius: "50%",
+                                    width: "32px",
+                                    height: "32px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "#a1a1aa",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s",
+                                }}
+                            >
+                                <X size={16} />
+                            </button>
+
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", marginBottom: "1.25rem", color: "#8b5cf6", fontWeight: 700, fontSize: "0.95rem" }}>
+                                <QrCode size={18} />
+                                <span>Scan Album on Mobile</span>
+                            </div>
+
+                            <div
+                                style={{
+                                    background: "#ffffff",
+                                    padding: "16px",
+                                    borderRadius: "20px",
+                                    display: "inline-block",
+                                    boxShadow: "0 12px 30px rgba(0, 0, 0, 0.3)",
+                                    marginBottom: "1.25rem",
+                                }}
+                            >
+                                <QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={180} />
+                            </div>
+
+                            <div style={{ marginBottom: "1.25rem" }}>
+                                <div style={{ fontSize: "0.88rem", fontWeight: 600, color: "#f4f4f5", marginBottom: "4px" }}>
+                                    {album?.title || "PixEdge Album"}
+                                </div>
+                                <div style={{ fontSize: "0.75rem", color: "#a1a1aa", wordBreak: "break-all" }}>
+                                    {typeof window !== "undefined" ? window.location.href : ""}
+                                </div>
+                            </div>
+
+                            <div style={{ display: "flex", gap: "10px" }}>
+                                <button
+                                    onClick={() => {
+                                        if (typeof window !== "undefined") {
+                                            navigator.clipboard.writeText(window.location.href);
+                                            setCopiedQr(true);
+                                            setTimeout(() => setCopiedQr(false), 2000);
+                                        }
+                                    }}
+                                    style={{
+                                        flex: 1,
+                                        background: copiedQr ? "rgba(16, 185, 129, 0.15)" : "rgba(255, 255, 255, 0.08)",
+                                        border: `1px solid ${copiedQr ? "#10b981" : "rgba(255, 255, 255, 0.15)"}`,
+                                        color: copiedQr ? "#10b981" : "#f4f4f5",
+                                        padding: "10px 16px",
+                                        borderRadius: "14px",
+                                        fontSize: "0.85rem",
+                                        fontWeight: 600,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        gap: "6px",
+                                        transition: "all 0.2s",
+                                        fontFamily: "inherit",
+                                    }}
+                                >
+                                    {copiedQr ? <><Check size={15} /> Copied</> : <><Copy size={15} /> Copy Link</>}
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </main>
