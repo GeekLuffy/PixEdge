@@ -47,8 +47,12 @@ import {
     ChevronRight,
     Flame,
     QrCode,
+    CheckSquare,
+    Square,
+    FileArchive,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import JSZip from "jszip";
 import Link from "next/link";
 
 // STYLES
@@ -586,6 +590,16 @@ export default function DashboardPage() {
     const [qrModal, setQrModal] = useState<{ url: string; title: string } | null>(null);
     const [copiedQr, setCopiedQr] = useState<boolean>(false);
 
+    // Batch Selection State
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [batchActionLoading, setBatchActionLoading] = useState<string | null>(null);
+    const [batchZipProgress, setBatchZipProgress] = useState<string | null>(null);
+    const [showBatchFolderModal, setShowBatchFolderModal] = useState<boolean>(false);
+    const [batchTargetFolder, setBatchTargetFolder] = useState<string>("");
+    const [showBatchTagsModal, setShowBatchTagsModal] = useState<boolean>(false);
+    const [batchTagsInput, setBatchTagsInput] = useState<string>("");
+    const [showBatchDeleteModal, setShowBatchDeleteModal] = useState<boolean>(false);
+
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     // Simple copy link
@@ -672,6 +686,176 @@ export default function DashboardPage() {
             console.error("Oops, couldn't save folder and tags:", e);
         }
         setSavingOrg(false);
+    };
+
+    // Batch Selection Helper Functions
+    const toggleSelect = (id: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+        );
+    };
+
+    const handleSelectAll = () => {
+        const visibleIds = filteredUploads.map(u => u.id);
+        const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedIds.includes(id));
+        if (allSelected) {
+            setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+        } else {
+            setSelectedIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+        }
+    };
+
+    const handleClearSelection = () => {
+        setSelectedIds([]);
+    };
+
+    // Batch Actions Handlers
+    const handleBatchDelete = async () => {
+        if (selectedIds.length === 0) return;
+        setBatchActionLoading('delete');
+        try {
+            const deletePromises = selectedIds.map(id =>
+                fetch(`/api/v1/delete/${id}`, { method: 'DELETE' })
+            );
+            await Promise.all(deletePromises);
+            setUploads(prev => prev.filter(u => !selectedIds.includes(u.id)));
+            setSuccess(`Deleted ${selectedIds.length} uploads.`);
+            setSelectedIds([]);
+            setShowBatchDeleteModal(false);
+            setTimeout(() => setSuccess(""), 3000);
+        } catch (err) {
+            console.error("Batch delete error", err);
+        }
+        setBatchActionLoading(null);
+    };
+
+    const handleBatchMoveFolder = async () => {
+        if (selectedIds.length === 0) return;
+        setBatchActionLoading('folder');
+        const folderVal = batchTargetFolder.trim();
+        try {
+            const updatePromises = selectedIds.map(id => {
+                const currentItem = uploads.find(u => u.id === id);
+                return fetch('/api/user/organize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id,
+                        folder: folderVal,
+                        tags: currentItem?.tags || [],
+                        burnAfterView: currentItem?.burn_after_view,
+                        burnAfterDownload: currentItem?.burn_after_download,
+                    }),
+                });
+            });
+            await Promise.all(updatePromises);
+
+            setUploads(prev => prev.map(item => {
+                if (selectedIds.includes(item.id)) {
+                    return { ...item, folder: folderVal || undefined };
+                }
+                return item;
+            }));
+
+            if (folderVal && !savedFolders.includes(folderVal)) {
+                setSavedFolders(prev => [...prev, folderVal].sort());
+            }
+
+            setSuccess(`Moved ${selectedIds.length} items to "${folderVal || 'Root'}"`);
+            setShowBatchFolderModal(false);
+            setBatchTargetFolder("");
+            setSelectedIds([]);
+            setTimeout(() => setSuccess(""), 3000);
+        } catch (err) {
+            console.error("Batch move error", err);
+        }
+        setBatchActionLoading(null);
+    };
+
+    const handleBatchAddTags = async () => {
+        if (selectedIds.length === 0) return;
+        setBatchActionLoading('tags');
+        const newTags = batchTagsInput
+            .split(',')
+            .map(t => t.trim())
+            .filter(Boolean);
+
+        try {
+            const updatePromises = selectedIds.map(id => {
+                const currentItem = uploads.find(u => u.id === id);
+                const mergedTags = Array.from(new Set([...(currentItem?.tags || []), ...newTags]));
+                return fetch('/api/user/organize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id,
+                        folder: currentItem?.folder || '',
+                        tags: mergedTags,
+                        burnAfterView: currentItem?.burn_after_view,
+                        burnAfterDownload: currentItem?.burn_after_download,
+                    }),
+                });
+            });
+            await Promise.all(updatePromises);
+
+            setUploads(prev => prev.map(item => {
+                if (selectedIds.includes(item.id)) {
+                    const mergedTags = Array.from(new Set([...(item.tags || []), ...newTags]));
+                    return { ...item, tags: mergedTags };
+                }
+                return item;
+            }));
+
+            setSuccess(`Added tags to ${selectedIds.length} items`);
+            setShowBatchTagsModal(false);
+            setBatchTagsInput("");
+            setSelectedIds([]);
+            setTimeout(() => setSuccess(""), 3000);
+        } catch (err) {
+            console.error("Batch tag error", err);
+        }
+        setBatchActionLoading(null);
+    };
+
+    const handleBatchDownloadZip = async () => {
+        if (selectedIds.length === 0) return;
+        setBatchActionLoading('zip');
+        setBatchZipProgress("Preparing...");
+
+        try {
+            const zip = new JSZip();
+            const selectedItems = uploads.filter(u => selectedIds.includes(u.id));
+            const folder = zip.folder("pixedge-selection");
+
+            for (let i = 0; i < selectedItems.length; i++) {
+                const item = selectedItems[i];
+                const isVid = item.metadata?.type?.startsWith('video/');
+                const ext = isVid ? 'mp4' : 'jpg';
+                const dlUrl = `/i/${item.id}.${ext}?download=1`;
+
+                setBatchZipProgress(`${i + 1}/${selectedItems.length}`);
+                const res = await fetch(dlUrl);
+                const blob = await res.blob();
+                folder?.file(`${item.folder ? `${item.folder}/` : ''}${item.id}.${ext}`, blob);
+            }
+
+            setBatchZipProgress("Zipping...");
+            const content = await zip.generateAsync({ type: "blob" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(content);
+            link.download = `pixedge-batch-${Date.now()}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            setSuccess(`Downloaded ZIP (${selectedItems.length} files)`);
+            setTimeout(() => setSuccess(""), 3000);
+        } catch (err) {
+            console.error("Batch ZIP download error", err);
+        }
+        setBatchZipProgress(null);
+        setBatchActionLoading(null);
     };
 
     // Keep track of explicit saved folders and folder creation modal state
@@ -1564,6 +1748,36 @@ export default function DashboardPage() {
                                     >
                                         <FolderPlus size={13} /> + New Folder
                                     </button>
+
+                                    {/* Select All Toggle Button */}
+                                    {filteredUploads.length > 0 && (
+                                        <button
+                                            onClick={handleSelectAll}
+                                            style={{
+                                                padding: '7px 14px',
+                                                borderRadius: '12px',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 500,
+                                                cursor: 'pointer',
+                                                border: `1px solid ${selectedIds.length > 0 ? 'rgba(139, 92, 246, 0.5)' : 'var(--border-color)'}`,
+                                                background: selectedIds.length > 0 ? 'rgba(139, 92, 246, 0.15)' : 'var(--panel-bg)',
+                                                color: selectedIds.length > 0 ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                fontFamily: 'inherit',
+                                                whiteSpace: 'nowrap',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                flexShrink: 0,
+                                                transition: 'all 0.2s',
+                                            }}
+                                        >
+                                            {filteredUploads.length > 0 && filteredUploads.every(u => selectedIds.includes(u.id)) ? (
+                                                <><CheckSquare size={13} color="var(--accent-primary)" /> Deselect All</>
+                                            ) : (
+                                                <><Square size={13} /> Select All ({filteredUploads.length})</>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1575,6 +1789,9 @@ export default function DashboardPage() {
                                 <div className="dashboard-uploads" style={styles.uploadsGrid}>
                                     {filteredUploads.map((upload, idx) => {
                                         const isVideo = upload.metadata?.type?.startsWith('video/');
+                                        const isSelected = selectedIds.includes(upload.id);
+                                        const isCheckboxVisible = selectedIds.length > 0 || hoveredCardId === upload.id || isSelected;
+
                                         return (
                                         <motion.div
                                             key={upload.id}
@@ -1582,10 +1799,43 @@ export default function DashboardPage() {
                                             initial={{ opacity: 0, scale: 0.95 }}
                                             animate={{ opacity: 1, scale: 1 }}
                                             transition={{ delay: idx * 0.03 }}
-                                            style={styles.uploadCard}
+                                            style={{
+                                                ...styles.uploadCard,
+                                                border: isSelected ? '2px solid var(--accent-primary)' : styles.uploadCard.border,
+                                                background: isSelected ? 'rgba(139, 92, 246, 0.08)' : styles.uploadCard.background,
+                                                boxShadow: isSelected ? '0 0 25px rgba(139, 92, 246, 0.25)' : undefined,
+                                                position: 'relative',
+                                            }}
                                             onMouseEnter={() => setHoveredCardId(upload.id)}
                                             onMouseLeave={() => setHoveredCardId(null)}
                                         >
+                                            {/* Selection Checkbox */}
+                                            <div
+                                                onClick={(e) => toggleSelect(upload.id, e)}
+                                                title={isSelected ? "Deselect" : "Select"}
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: '8px',
+                                                    left: '8px',
+                                                    width: '24px',
+                                                    height: '24px',
+                                                    borderRadius: '7px',
+                                                    background: isSelected ? 'var(--accent-primary)' : 'rgba(0, 0, 0, 0.65)',
+                                                    backdropFilter: 'blur(8px)',
+                                                    border: isSelected ? '1px solid var(--accent-primary)' : '1px solid rgba(255, 255, 255, 0.3)',
+                                                    display: isCheckboxVisible ? 'flex' : 'none',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    cursor: 'pointer',
+                                                    zIndex: 10,
+                                                    transition: 'all 0.15s ease',
+                                                    color: '#fff',
+                                                    boxShadow: isSelected ? '0 4px 12px rgba(139, 92, 246, 0.4)' : 'none',
+                                                }}
+                                            >
+                                                {isSelected ? <Check size={14} strokeWidth={3} /> : null}
+                                            </div>
+
                                             {/* Preview */}
                                             <div 
                                                 style={{ ...styles.uploadPreview, cursor: "pointer" }}
@@ -1609,7 +1859,7 @@ export default function DashboardPage() {
                                                         alt={upload.id}
                                                         style={styles.uploadImage}
                                                         onError={(e) => {
-                                                            (e.target as HTMLImageElement).src =
+                                                             (e.target as HTMLImageElement).src =
                                                                 "https://placehold.co/400x250/1a1a1a/444?text=Preview";
                                                         }}
                                                     />
@@ -1651,7 +1901,7 @@ export default function DashboardPage() {
                                                     <div style={{
                                                         position: 'absolute',
                                                         top: '8px',
-                                                        left: '8px',
+                                                        left: isCheckboxVisible ? '38px' : '8px',
                                                         background: 'rgba(0,0,0,0.7)',
                                                         padding: '4px 8px',
                                                         borderRadius: '6px',
@@ -1661,6 +1911,7 @@ export default function DashboardPage() {
                                                         gap: '4px',
                                                         color: '#fff',
                                                         zIndex: 6,
+                                                        transition: 'left 0.15s ease',
                                                     }}>
                                                         <Video size={10} /> Video
                                                     </div>
@@ -2898,6 +3149,535 @@ export default function DashboardPage() {
                                     >
                                         <ExternalLink size={15} /> Open
                                     </a>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Floating Batch Action Bar */}
+                <AnimatePresence>
+                    {selectedIds.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            style={{
+                                position: "fixed",
+                                bottom: "28px",
+                                left: "50%",
+                                transform: "translateX(-50%)",
+                                background: "rgba(18, 18, 24, 0.92)",
+                                backdropFilter: "blur(20px)",
+                                WebkitBackdropFilter: "blur(20px)",
+                                border: "1px solid rgba(139, 92, 246, 0.35)",
+                                boxShadow: "0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(139, 92, 246, 0.2)",
+                                borderRadius: "100px",
+                                padding: "8px 14px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "8px",
+                                zIndex: 900,
+                                maxWidth: "95vw",
+                                flexWrap: "nowrap",
+                                overflowX: "auto",
+                            }}
+                        >
+                            {/* Badge Count */}
+                            <div
+                                style={{
+                                    background: "rgba(139, 92, 246, 0.2)",
+                                    border: "1px solid rgba(139, 92, 246, 0.4)",
+                                    color: "#c4b5fd",
+                                    padding: "4px 12px",
+                                    borderRadius: "50px",
+                                    fontSize: "0.82rem",
+                                    fontWeight: 700,
+                                    whiteSpace: "nowrap",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                }}
+                            >
+                                <CheckSquare size={14} />
+                                <span>{selectedIds.length} Selected</span>
+                            </div>
+
+                            <div style={{ width: "1px", height: "20px", background: "rgba(255, 255, 255, 0.15)", margin: "0 2px" }} />
+
+                            {/* Action: Move to Folder */}
+                            <button
+                                onClick={() => setShowBatchFolderModal(true)}
+                                disabled={!!batchActionLoading}
+                                style={{
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                                    color: "#ffffff",
+                                    padding: "6px 14px",
+                                    borderRadius: "50px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                    fontFamily: "inherit",
+                                    transition: "all 0.2s",
+                                }}
+                            >
+                                <Folder size={13} color="#8b5cf6" /> Move Folder
+                            </button>
+
+                            {/* Action: Tag */}
+                            <button
+                                onClick={() => setShowBatchTagsModal(true)}
+                                disabled={!!batchActionLoading}
+                                style={{
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.12)",
+                                    color: "#ffffff",
+                                    padding: "6px 14px",
+                                    borderRadius: "50px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                    fontFamily: "inherit",
+                                    transition: "all 0.2s",
+                                }}
+                            >
+                                <Tag size={13} color="#06b6d4" /> Add Tags
+                            </button>
+
+                            {/* Action: Download ZIP */}
+                            <button
+                                onClick={handleBatchDownloadZip}
+                                disabled={!!batchActionLoading}
+                                style={{
+                                    background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+                                    border: "none",
+                                    color: "#ffffff",
+                                    padding: "6px 14px",
+                                    borderRadius: "50px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                    fontFamily: "inherit",
+                                    boxShadow: "0 4px 15px rgba(139, 92, 246, 0.3)",
+                                }}
+                            >
+                                {batchZipProgress ? (
+                                    <><Loader2 size={13} className="animate-spin" /> {batchZipProgress}</>
+                                ) : (
+                                    <><FileArchive size={13} /> Download ZIP</>
+                                )}
+                            </button>
+
+                            {/* Action: Batch Delete */}
+                            <button
+                                onClick={() => setShowBatchDeleteModal(true)}
+                                disabled={!!batchActionLoading}
+                                style={{
+                                    background: "rgba(239, 68, 68, 0.15)",
+                                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                                    color: "#f87171",
+                                    padding: "6px 14px",
+                                    borderRadius: "50px",
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "6px",
+                                    whiteSpace: "nowrap",
+                                    fontFamily: "inherit",
+                                }}
+                            >
+                                <Trash2 size={13} /> Delete
+                            </button>
+
+                            {/* Clear Selection */}
+                            <button
+                                onClick={handleClearSelection}
+                                title="Deselect All"
+                                style={{
+                                    background: "rgba(255, 255, 255, 0.08)",
+                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    color: "#a1a1aa",
+                                    width: "28px",
+                                    height: "28px",
+                                    borderRadius: "50%",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    cursor: "pointer",
+                                    marginLeft: "2px",
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Batch Move to Folder Modal */}
+                <AnimatePresence>
+                    {showBatchFolderModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.8)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 1050,
+                                padding: '1rem',
+                            }}
+                            onClick={() => setShowBatchFolderModal(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '24px',
+                                    padding: '2rem',
+                                    width: '100%',
+                                    maxWidth: '420px',
+                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
+                                    <div style={{ background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)', padding: '8px', borderRadius: '12px', display: 'flex', color: 'var(--accent-primary)' }}>
+                                        <Folder size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Move {selectedIds.length} Items</h3>
+                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Select an existing folder or type a new one</p>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Folder Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Work, Wallpapers, Wallpapers/Nature"
+                                        value={batchTargetFolder}
+                                        onChange={(e) => setBatchTargetFolder(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleBatchMoveFolder(); }}
+                                        autoFocus
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '10px 14px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                            marginBottom: '10px',
+                                        }}
+                                    />
+
+                                    {/* Quick Select Existing Folders */}
+                                    {allUserFolders.length > 0 && (
+                                        <div>
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>Or choose existing:</span>
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '100px', overflowY: 'auto' }}>
+                                                <button
+                                                    onClick={() => setBatchTargetFolder('')}
+                                                    style={{
+                                                        background: batchTargetFolder === '' ? 'rgba(139, 92, 246, 0.2)' : 'var(--input-bg)',
+                                                        border: `1px solid ${batchTargetFolder === '' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                                                        color: batchTargetFolder === '' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                        padding: '4px 10px',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.75rem',
+                                                        cursor: 'pointer',
+                                                        fontFamily: 'inherit',
+                                                    }}
+                                                >
+                                                    / (Root - No Folder)
+                                                </button>
+                                                {allUserFolders.map(f => (
+                                                    <button
+                                                        key={f}
+                                                        onClick={() => setBatchTargetFolder(f)}
+                                                        style={{
+                                                            background: batchTargetFolder === f ? 'rgba(139, 92, 246, 0.2)' : 'var(--input-bg)',
+                                                            border: `1px solid ${batchTargetFolder === f ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                                                            color: batchTargetFolder === f ? 'var(--accent-primary)' : 'var(--text-muted)',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '8px',
+                                                            fontSize: '0.75rem',
+                                                            cursor: 'pointer',
+                                                            fontFamily: 'inherit',
+                                                        }}
+                                                    >
+                                                        📁 {f}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => setShowBatchFolderModal(false)}
+                                        style={{
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            color: 'var(--text-muted)',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleBatchMoveFolder}
+                                        disabled={batchActionLoading === 'folder'}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                            border: 'none',
+                                            color: '#fff',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        {batchActionLoading === 'folder' ? <Loader2 size={15} className="animate-spin" /> : <Folder size={15} />} Apply Move
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Batch Add Tags Modal */}
+                <AnimatePresence>
+                    {showBatchTagsModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.8)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 1050,
+                                padding: '1rem',
+                            }}
+                            onClick={() => setShowBatchTagsModal(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '24px',
+                                    padding: '2rem',
+                                    width: '100%',
+                                    maxWidth: '420px',
+                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)',
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1.25rem' }}>
+                                    <div style={{ background: 'rgba(6, 182, 212, 0.15)', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '8px', borderRadius: '12px', display: 'flex', color: '#06b6d4' }}>
+                                        <Tag size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-main)' }}>Add Tags ({selectedIds.length} Items)</h3>
+                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0' }}>Comma-separated tags to attach to selected items</p>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
+                                        Tags
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. wallpaper, 4k, cyberpunk, landscape"
+                                        value={batchTagsInput}
+                                        onChange={(e) => setBatchTagsInput(e.target.value)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleBatchAddTags(); }}
+                                        autoFocus
+                                        style={{
+                                            width: '100%',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '14px',
+                                            padding: '10px 14px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            outline: 'none',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                                    <button
+                                        onClick={() => setShowBatchTagsModal(false)}
+                                        style={{
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            color: 'var(--text-muted)',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleBatchAddTags}
+                                        disabled={batchActionLoading === 'tags' || !batchTagsInput.trim()}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+                                            border: 'none',
+                                            color: '#fff',
+                                            padding: '9px 18px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                            opacity: (!batchTagsInput.trim() || batchActionLoading === 'tags') ? 0.6 : 1,
+                                        }}
+                                    >
+                                        {batchActionLoading === 'tags' ? <Loader2 size={15} className="animate-spin" /> : <Tag size={15} />} Add Tags
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Batch Delete Confirmation Modal */}
+                <AnimatePresence>
+                    {showBatchDeleteModal && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0,0,0,0.8)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 1050,
+                                padding: '1rem',
+                            }}
+                            onClick={() => setShowBatchDeleteModal(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    backdropFilter: 'blur(24px)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                                    borderRadius: '24px',
+                                    padding: '2rem',
+                                    width: '100%',
+                                    maxWidth: '400px',
+                                    boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(239, 68, 68, 0.15)',
+                                    textAlign: 'center',
+                                }}
+                            >
+                                <div style={{ width: '56px', height: '56px', borderRadius: '18px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+                                    <Trash2 size={26} />
+                                </div>
+
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: '0 0 8px', color: '#fff' }}>Delete {selectedIds.length} Uploads?</h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
+                                    This action will permanently delete all {selectedIds.length} selected files from your cloud storage. This cannot be undone.
+                                </p>
+
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => setShowBatchDeleteModal(false)}
+                                        style={{
+                                            flex: 1,
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            color: 'var(--text-muted)',
+                                            padding: '10px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleBatchDelete}
+                                        disabled={batchActionLoading === 'delete'}
+                                        style={{
+                                            flex: 1,
+                                            background: '#ef4444',
+                                            border: 'none',
+                                            color: '#fff',
+                                            padding: '10px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '6px',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        {batchActionLoading === 'delete' ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />} Confirm Delete
+                                    </button>
                                 </div>
                             </motion.div>
                         </div>
