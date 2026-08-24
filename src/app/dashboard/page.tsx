@@ -609,6 +609,26 @@ export default function DashboardPage() {
         setTimeout(() => setCopiedId(null), 2000);
     };
 
+    // Native Web Share with fallback
+    const handleNativeShare = async (id: string, title?: string) => {
+        const url = `${baseUrl}/i/${id}`;
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                await navigator.share({
+                    title: title || `PixEdge | ${id}`,
+                    text: "Check out this media on PixEdge",
+                    url,
+                });
+            } catch (err: any) {
+                if (err?.name !== 'AbortError') {
+                    copyLink(id);
+                }
+            }
+        } else {
+            copyLink(id);
+        }
+    };
+
     const handleShareFolderAsAlbum = async (folderName: string) => {
         const folderItems = uploads.filter(u => u.folder === folderName);
         if (folderItems.length === 0) return;
@@ -631,6 +651,20 @@ export default function DashboardPage() {
             });
             const data = await res.json();
             if (data.success && data.url) {
+                if (typeof navigator !== 'undefined' && navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: `Album: ${folderName}`,
+                            text: `Explore the "${folderName}" album on PixEdge`,
+                            url: data.url,
+                        });
+                        setSuccess(`Shared album "${folderName}"!`);
+                        setTimeout(() => setSuccess(""), 3500);
+                        return;
+                    } catch (err: any) {
+                        if (err?.name === 'AbortError') return;
+                    }
+                }
                 navigator.clipboard.writeText(data.url);
                 setSuccess(`Folder album link for "${folderName}" copied to clipboard!`);
                 setTimeout(() => setSuccess(""), 3500);
@@ -2036,6 +2070,27 @@ export default function DashboardPage() {
                                                         }}
                                                     >
                                                         {copiedId === upload.id ? <><Check size={12} /> Copied</> : <><Copy size={12} /> Copy</>}
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleNativeShare(upload.id);
+                                                        }}
+                                                        title="Share Media"
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            background: 'rgba(139, 92, 246, 0.1)',
+                                                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--accent-primary)',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <Share2 size={12} />
                                                     </button>
                                                     <button
                                                         onClick={(e) => {
@@ -3809,6 +3864,12 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        onClick={() => handleNativeShare(lightboxItem.id)}
+                                        style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                    >
+                                        <Share2 size={13} /> Share
+                                    </button>
                                     <button
                                         onClick={() => setQrModal({ url: `${baseUrl}/i/${lightboxItem.id}`, title: `/${lightboxItem.id}` })}
                                         style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}

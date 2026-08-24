@@ -125,9 +125,44 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
     };
 
     const handleCopyShareLink = () => {
-        navigator.clipboard.writeText(window.location.href);
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2500);
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.writeText(window.location.href);
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2500);
+        }
+    };
+
+    const handleShareAlbum = async () => {
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: album?.title || "PixEdge Album",
+                    text: `Explore the "${album?.title || "PixEdge"}" album on PixEdge`,
+                    url: window.location.href,
+                });
+                return;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+        handleCopyShareLink();
+    };
+
+    const handleShareItem = async (itemUrl: string, itemId: string) => {
+        const fullUrl = itemUrl.startsWith("http") ? itemUrl : `${window.location.origin}${itemUrl}`;
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: `PixEdge | ${itemId}`,
+                    text: "Check out this media on PixEdge",
+                    url: fullUrl,
+                });
+                return;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+        navigator.clipboard.writeText(fullUrl);
     };
 
     // Download each file individually
@@ -535,10 +570,10 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                             <Plus size={13} /> <span>Upload</span>
                         </Link>
 
-                        <button onClick={handleCopyShareLink} className="btn-pill">
+                        <button onClick={handleShareAlbum} className="btn-pill" title="Share Album">
                             {isCopied ? <Check size={13} color="#10b981" /> : <Share2 size={13} />}
-                            <span className="mobile-hide">Copy Link</span>
-                            <span className="mobile-show">Link</span>
+                            <span className="mobile-hide">{isCopied ? "Copied Link" : "Share Album"}</span>
+                            <span className="mobile-show">{isCopied ? "Copied" : "Share"}</span>
                         </button>
 
                         <button onClick={() => setShowQrModal(true)} className="btn-pill" title="Scan QR Code">
@@ -808,8 +843,21 @@ export default function AlbumPage({ params }: { params: Promise<{ id: string }> 
                                 />
                             )}
 
-                            {/* Download Action */}
-                            <div style={{ marginTop: "1.25rem", display: "flex", alignItems: "center", gap: "14px" }}>
+                            {/* Download & Share Actions */}
+                            <div style={{ marginTop: "1.25rem", display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", justifyContent: "center" }}>
+                                <button
+                                    onClick={() => handleShareItem(album.items[lightboxIndex].url, album.items[lightboxIndex].id)}
+                                    className="btn-pill"
+                                    style={{
+                                        padding: "8px 18px",
+                                        height: "38px",
+                                        fontSize: "0.88rem",
+                                        background: "rgba(255, 255, 255, 0.08)",
+                                        border: "1px solid rgba(255, 255, 255, 0.15)",
+                                    }}
+                                >
+                                    <Share2 size={15} /> Share Media
+                                </button>
                                 <a
                                     href={album.items[lightboxIndex].url}
                                     target="_blank"

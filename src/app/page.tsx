@@ -33,6 +33,7 @@ import {
     CheckCheck,
     FileArchive,
     Flame,
+    Share2,
 } from "lucide-react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
@@ -242,6 +243,24 @@ export default function Home() {
             document.execCommand("copy");
             performCopy();
             document.body.removeChild(textArea);
+        }
+    };
+
+    const handleShare = async (url: string, title = "PixEdge Media") => {
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title,
+                    text: "Check out this media on PixEdge",
+                    url,
+                });
+            } catch (err: any) {
+                if (err?.name !== "AbortError") {
+                    copyToClipboard(url);
+                }
+            }
+        } else {
+            copyToClipboard(url);
         }
     };
 
@@ -1180,31 +1199,54 @@ export default function Home() {
                                                     <span>Markdown</span>
                                                 </button>
                                                 {albumUrl && (
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(albumUrl);
-                                                            setAlbumCopied(true);
-                                                            setTimeout(() => setAlbumCopied(false), 2000);
-                                                        }}
-                                                        style={{
-                                                            background: "linear-gradient(135deg, #8b5cf6, #06b6d4)",
-                                                            border: "none",
-                                                            borderRadius: "10px",
-                                                            padding: "8px 14px",
-                                                            color: "#ffffff",
-                                                            fontSize: "0.82rem",
-                                                            fontWeight: 700,
-                                                            cursor: "pointer",
-                                                            display: "inline-flex",
-                                                            alignItems: "center",
-                                                            gap: "6px",
-                                                            whiteSpace: "nowrap",
-                                                            boxShadow: "0 4px 12px rgba(139, 92, 246, 0.4)",
-                                                        }}
-                                                    >
-                                                        {albumCopied ? <CheckCheck size={14} /> : <FileArchive size={14} />}
-                                                        <span>{albumCopied ? "Album Copied!" : "Copy Album Link"}</span>
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleShare(albumUrl, "PixEdge Album")}
+                                                            title="Share Album"
+                                                            style={{
+                                                                background: "rgba(139, 92, 246, 0.2)",
+                                                                border: "1px solid rgba(139, 92, 246, 0.4)",
+                                                                borderRadius: "10px",
+                                                                padding: "8px 12px",
+                                                                color: "var(--accent-primary)",
+                                                                fontSize: "0.82rem",
+                                                                fontWeight: 600,
+                                                                cursor: "pointer",
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                gap: "6px",
+                                                                whiteSpace: "nowrap",
+                                                            }}
+                                                        >
+                                                            <Share2 size={14} />
+                                                            <span>Share Album</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(albumUrl);
+                                                                setAlbumCopied(true);
+                                                                setTimeout(() => setAlbumCopied(false), 2000);
+                                                            }}
+                                                            style={{
+                                                                background: "linear-gradient(135deg, #8b5cf6, #06b6d4)",
+                                                                border: "none",
+                                                                borderRadius: "10px",
+                                                                padding: "8px 14px",
+                                                                color: "#ffffff",
+                                                                fontSize: "0.82rem",
+                                                                fontWeight: 700,
+                                                                cursor: "pointer",
+                                                                display: "inline-flex",
+                                                                alignItems: "center",
+                                                                gap: "6px",
+                                                                whiteSpace: "nowrap",
+                                                                boxShadow: "0 4px 12px rgba(139, 92, 246, 0.4)",
+                                                            }}
+                                                        >
+                                                            {albumCopied ? <CheckCheck size={14} /> : <FileArchive size={14} />}
+                                                            <span>{albumCopied ? "Album Copied!" : "Copy Album Link"}</span>
+                                                        </button>
+                                                    </>
                                                 )}
                                             </>
                                         )}
@@ -1271,27 +1313,47 @@ export default function Home() {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                                                 {item.status === 'complete' && item.url ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(item.url!);
-                                                        }}
-                                                        style={{
-                                                            background: "rgba(16, 185, 129, 0.15)",
-                                                            border: "1px solid rgba(16, 185, 129, 0.4)",
-                                                            borderRadius: "8px",
-                                                            padding: "6px 14px",
-                                                            color: "#10b981",
-                                                            fontSize: "0.8rem",
-                                                            fontWeight: 600,
-                                                            cursor: "pointer",
-                                                            transition: "all 0.2s",
-                                                            whiteSpace: "nowrap",
-                                                        }}
-                                                    >
-                                                        Copy Link
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleShare(item.url!, item.fileName)}
+                                                            title="Share Link"
+                                                            style={{
+                                                                background: "rgba(139, 92, 246, 0.15)",
+                                                                border: "1px solid rgba(139, 92, 246, 0.3)",
+                                                                borderRadius: "8px",
+                                                                padding: "6px 9px",
+                                                                color: "var(--accent-primary)",
+                                                                cursor: "pointer",
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                transition: "all 0.2s",
+                                                            }}
+                                                        >
+                                                            <Share2 size={13} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(item.url!);
+                                                            }}
+                                                            style={{
+                                                                background: "rgba(16, 185, 129, 0.15)",
+                                                                border: "1px solid rgba(16, 185, 129, 0.4)",
+                                                                borderRadius: "8px",
+                                                                padding: "6px 14px",
+                                                                color: "#10b981",
+                                                                fontSize: "0.8rem",
+                                                                fontWeight: 600,
+                                                                cursor: "pointer",
+                                                                transition: "all 0.2s",
+                                                                whiteSpace: "nowrap",
+                                                            }}
+                                                        >
+                                                            Copy Link
+                                                        </button>
+                                                    </>
                                                 ) : item.status === 'error' ? (
                                                     <span style={{ fontSize: "0.78rem", color: "#ef4444", fontWeight: 500 }}>Failed</span>
                                                 ) : (
@@ -1653,13 +1715,26 @@ export default function Home() {
                                                 background: "var(--input-bg)",
                                                 color: "var(--text-muted)",
                                             }}
+                                            onClick={() => handleShare(result.url, `PixEdge | ${result.id}`)}
+                                            title="Share Link"
+                                        >
+                                            <Share2 size={18} />
+                                        </button>
+                                        <button
+                                            className="copy-btn"
+                                            style={{
+                                                background: "var(--input-bg)",
+                                                color: "var(--text-muted)",
+                                            }}
                                             onClick={() => setShowQr(!showQr)}
+                                            title="Scan QR Code"
                                         >
                                             <QrCode size={18} />
                                         </button>
                                         <button
                                             className="copy-btn"
                                             onClick={() => copyToClipboard(result.url)}
+                                            title="Copy Link"
                                         >
                                             {copied ? <Check size={18} /> : <Copy size={18} />}
                                         </button>

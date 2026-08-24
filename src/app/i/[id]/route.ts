@@ -1082,6 +1082,11 @@ export async function GET(
                         QR
                     </button>
 
+                    <button class="btn btn-secondary" id="shareBtn" onclick="shareMedia()" title="Share Media (S)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                        Share
+                    </button>
+
                     <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         Copy Link
@@ -1453,7 +1458,7 @@ export async function GET(
                             const pct = (media.currentTime / media.duration) * 100;
                             if (playedBar) playedBar.style.width = pct + '%';
                             if (scrubHandle) scrubHandle.style.left = pct + '%';
-                            if (timeDisplay) timeDisplay.textContent = \`\${formatTime(media.currentTime)} / \${formatTime(media.duration)}\`;
+                            if (timeDisplay) timeDisplay.textContent = formatTime(media.currentTime) + ' / ' + formatTime(media.duration);
                         });
 
                         media.addEventListener('progress', () => {
@@ -1466,14 +1471,14 @@ export async function GET(
                             const duration = Math.round(media.duration);
                             const mins = Math.floor(duration / 60);
                             const secs = (duration % 60).toString().padStart(2, '0');
-                            const durStr = duration ? \` \${mins}:\${secs}\` : '';
+                            const durStr = duration ? ' (' + mins + ':' + secs + ')' : '';
 
                             if (isVideo) {
-                                resVal.textContent = \`\${media.videoWidth} × \${media.videoHeight}\${durStr ? ' (' + durStr + ')' : ''}\`;
+                                resVal.textContent = media.videoWidth + ' × ' + media.videoHeight + durStr;
                             } else if (isAudio) {
-                                resVal.textContent = \`Audio\${durStr ? ' (' + durStr + ')' : ''}\`;
+                                resVal.textContent = 'Audio' + durStr;
                             }
-                            if (timeDisplay) timeDisplay.textContent = \`0:00 / \${formatTime(media.duration)}\`;
+                            if (timeDisplay) timeDisplay.textContent = '0:00 / ' + formatTime(media.duration);
                         });
 
                         // Saved Volume Restoration
@@ -1502,10 +1507,10 @@ export async function GET(
                         }
                     } else if (media) {
                         if (media.complete) {
-                            resVal.textContent = \`\${media.naturalWidth} × \${media.naturalHeight}\`;
+                            resVal.textContent = media.naturalWidth + ' × ' + media.naturalHeight;
                         } else {
                             media.addEventListener('load', () => {
-                                resVal.textContent = \`\${media.naturalWidth} × \${media.naturalHeight}\`;
+                                resVal.textContent = media.naturalWidth + ' × ' + media.naturalHeight;
                             });
                         }
                     }
@@ -1515,7 +1520,25 @@ export async function GET(
                         img.classList.toggle('zoomed');
                     }
 
-                    // ── 3. Copy Link Toast ────────────────────────────────────────
+                    // ── 3. Native Web Share & Copy Link Toast ──────────────────────
+                    async function shareMedia() {
+                        if (navigator.share) {
+                            try {
+                                await navigator.share({
+                                    title: 'PixEdge | ${id}',
+                                    text: 'Check out this media on PixEdge',
+                                    url: window.location.href,
+                                });
+                            } catch (err) {
+                                if (err && err.name !== 'AbortError') {
+                                    copyLink();
+                                }
+                            }
+                        } else {
+                            copyLink();
+                        }
+                    }
+
                     function copyLink() {
                         navigator.clipboard.writeText(window.location.href).then(() => {
                             showToast('Direct link copied to clipboard!');
@@ -1567,6 +1590,9 @@ export async function GET(
                         } else if (key === 'p' && isVideo) {
                             e.preventDefault();
                             togglePiP();
+                        } else if (key === 's') {
+                            e.preventDefault();
+                            shareMedia();
                         } else if (key === 'c') {
                             e.preventDefault();
                             copyLink();
