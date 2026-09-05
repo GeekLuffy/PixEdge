@@ -47,6 +47,7 @@ import {
     ChevronRight,
     Flame,
     QrCode,
+    Code2,
     CheckSquare,
     Square,
     FileArchive,
@@ -589,6 +590,8 @@ export default function DashboardPage() {
     const [savingOrg, setSavingOrg] = useState<boolean>(false);
     const [qrModal, setQrModal] = useState<{ url: string; title: string } | null>(null);
     const [copiedQr, setCopiedQr] = useState<boolean>(false);
+    const [embedModalItem, setEmbedModalItem] = useState<{ id: string; isVideo: boolean; title?: string } | null>(null);
+    const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
     // Batch Selection State
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -2116,6 +2119,31 @@ export default function DashboardPage() {
                                                     <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
+                                                            setEmbedModalItem({
+                                                                id: upload.id,
+                                                                isVideo: !!upload.type?.startsWith('video/'),
+                                                                title: upload.filename || upload.id
+                                                            });
+                                                        }}
+                                                        title="Embed Snippets (Markdown, HTML, BBCode)"
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            background: 'rgba(139, 92, 246, 0.1)',
+                                                            border: '1px solid rgba(139, 92, 246, 0.2)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--accent-primary)',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontFamily: 'inherit',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        <Code2 size={12} />
+                                                    </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
                                                             setOrganizingItem(upload);
                                                             setFolderInput(upload.folder || '');
                                                             setTagsInput(Array.isArray(upload.tags) ? upload.tags.join(', ') : '');
@@ -2954,6 +2982,150 @@ export default function DashboardPage() {
                             </motion.div>
                         </div>
                     )}
+                </AnimatePresence>
+
+                {/* Embed Snippets Modal */}
+                <AnimatePresence>
+                    {embedModalItem && (() => {
+                        const ext = embedModalItem.isVideo ? '.mp4' : '.jpg';
+                        const pageUrl = `${baseUrl}/i/${embedModalItem.id}`;
+                        const directUrl = `${baseUrl}/i/${embedModalItem.id}${ext}`;
+                        const markdownSnippet = embedModalItem.isVideo
+                            ? `[![PixEdge Video](${baseUrl}/i/${embedModalItem.id}.jpg)](${pageUrl})`
+                            : `![PixEdge Media](${directUrl})`;
+                        const htmlSnippet = embedModalItem.isVideo
+                            ? `<video src="${directUrl}" controls playsinline poster="${baseUrl}/i/${embedModalItem.id}.jpg" style="max-width: 100%; border-radius: 12px;"></video>`
+                            : `<img src="${directUrl}" alt="PixEdge Media" style="max-width: 100%; border-radius: 12px;" />`;
+                        const bbCodeSnippet = embedModalItem.isVideo
+                            ? `[url=${pageUrl}][img]${baseUrl}/i/${embedModalItem.id}.jpg[/img][/url]`
+                            : `[img]${directUrl}[/img]`;
+
+                        const snippets = [
+                            { label: 'Direct Media Link', key: 'direct', value: directUrl },
+                            { label: 'Markdown (Reddit / GitHub)', key: 'md', value: markdownSnippet },
+                            { label: 'HTML Embed Code', key: 'html', value: htmlSnippet },
+                            { label: 'BBCode (Forums)', key: 'bb', value: bbCodeSnippet },
+                        ];
+
+                        return (
+                            <div
+                                style={{
+                                    position: 'fixed',
+                                    inset: 0,
+                                    background: 'rgba(0, 0, 0, 0.75)',
+                                    backdropFilter: 'blur(10px)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    zIndex: 1000,
+                                    padding: '20px',
+                                }}
+                                onClick={() => { setEmbedModalItem(null); setCopiedSnippet(null); }}
+                            >
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    style={{
+                                        background: 'var(--panel-bg)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '24px',
+                                        padding: '24px',
+                                        width: '100%',
+                                        maxWidth: '480px',
+                                        boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15)',
+                                        position: 'relative',
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-primary)', fontWeight: 700, fontSize: '1rem' }}>
+                                            <Code2 size={20} />
+                                            <span>Embed Snippets</span>
+                                        </div>
+                                        <button
+                                            onClick={() => { setEmbedModalItem(null); setCopiedSnippet(null); }}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: 'var(--text-muted)',
+                                                cursor: 'pointer',
+                                                padding: '4px',
+                                            }}
+                                        >
+                                            <X size={18} />
+                                        </button>
+                                    </div>
+                                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+                                        Copy ready-to-paste snippets for Reddit, GitHub, forums, or websites:
+                                    </p>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                                        {snippets.map((s) => (
+                                            <div key={s.key} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                                                    <span>{s.label}</span>
+                                                    <button
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(s.value);
+                                                            setCopiedSnippet(s.key);
+                                                            setTimeout(() => setCopiedSnippet(null), 2000);
+                                                        }}
+                                                        style={{
+                                                            background: copiedSnippet === s.key ? 'rgba(16, 185, 129, 0.2)' : 'rgba(139, 92, 246, 0.15)',
+                                                            border: `1px solid ${copiedSnippet === s.key ? '#10b981' : 'rgba(139, 92, 246, 0.3)'}`,
+                                                            color: copiedSnippet === s.key ? '#10b981' : '#c4b5fd',
+                                                            borderRadius: '6px',
+                                                            padding: '2px 8px',
+                                                            fontSize: '0.72rem',
+                                                            fontWeight: 600,
+                                                            cursor: 'pointer',
+                                                        }}
+                                                    >
+                                                        {copiedSnippet === s.key ? 'Copied!' : 'Copy'}
+                                                    </button>
+                                                </div>
+                                                <input
+                                                    readOnly
+                                                    value={s.value}
+                                                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                                                    style={{
+                                                        width: '100%',
+                                                        background: 'var(--input-bg)',
+                                                        border: '1px solid var(--border-color)',
+                                                        borderRadius: '8px',
+                                                        padding: '8px 10px',
+                                                        color: 'var(--text-main)',
+                                                        fontFamily: 'monospace',
+                                                        fontSize: '0.78rem',
+                                                        outline: 'none',
+                                                        boxSizing: 'border-box',
+                                                    }}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <button
+                                        onClick={() => { setEmbedModalItem(null); setCopiedSnippet(null); }}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px',
+                                            background: 'var(--input-bg)',
+                                            border: '1px solid var(--border-color)',
+                                            borderRadius: '12px',
+                                            color: 'var(--text-main)',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                        }}
+                                    >
+                                        Done
+                                    </button>
+                                </motion.div>
+                            </div>
+                        );
+                    })()}
                 </AnimatePresence>
 
                 {/* Create Folder Modal */}
@@ -3875,6 +4047,16 @@ export default function DashboardPage() {
                                         style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                                     >
                                         <QrCode size={13} /> QR Code
+                                    </button>
+                                    <button
+                                        onClick={() => setEmbedModalItem({
+                                            id: lightboxItem.id,
+                                            isVideo: !!lightboxItem.type?.startsWith('video/'),
+                                            title: lightboxItem.filename || lightboxItem.id
+                                        })}
+                                        style={{ padding: '6px 14px', fontSize: '0.78rem', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '50px', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                                    >
+                                        <Code2 size={13} /> Embed
                                     </button>
                                     <button
                                         onClick={() => copyLink(lightboxItem.id)}

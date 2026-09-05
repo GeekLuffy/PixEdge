@@ -370,6 +370,17 @@ export async function GET(
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
             (req.headers.get('host') ? `https://${req.headers.get('host')}` : 'https://pixedge.vercel.app');
         const fullPageUrl = `${baseUrl}/i/${id}`;
+        const absoluteMediaUrl = `${baseUrl}/i/${id}${ext}`;
+        const markdownSnippet = isVideo
+            ? `[![PixEdge Video](${baseUrl}/i/${id}.jpg)](${fullPageUrl})`
+            : `![PixEdge Media](${absoluteMediaUrl})`;
+        const htmlSnippet = isVideo
+            ? `<video src="${absoluteMediaUrl}" controls playsinline poster="${baseUrl}/i/${id}.jpg" style="max-width: 100%; border-radius: 12px;"></video>`
+            : `<img src="${absoluteMediaUrl}" alt="PixEdge Media" style="max-width: 100%; border-radius: 12px;" />`;
+        const htmlSnippetEscaped = htmlSnippet.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const bbCodeSnippet = isVideo
+            ? `[url=${fullPageUrl}][img]${baseUrl}/i/${id}.jpg[/img][/url]`
+            : `[img]${absoluteMediaUrl}[/img]`;
 
         return new NextResponse(
             `<!DOCTYPE html>
@@ -378,22 +389,42 @@ export async function GET(
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>PixEdge | ${id}</title>
-                <meta property="og:title" content="PixEdge Media">
+                <meta name="theme-color" content="#8b5cf6">
+                <meta property="og:title" content="PixEdge Media | ${id}">
                 <meta property="og:site_name" content="PixEdge">
+                <meta property="og:url" content="${fullPageUrl}">
+                <meta property="og:description" content="Free instant 2GB high-speed media hosting on PixEdge. Size: ${formattedSize}">
                 ${isVideo
                 ? `<meta property="og:type" content="video.other">
-                   <meta property="og:video" content="${proxiedImgSrc}">
+                   <meta property="og:video" content="${absoluteMediaUrl}">
+                   <meta property="og:video:secure_url" content="${absoluteMediaUrl}">
                    <meta property="og:video:type" content="${record.metadata?.type || 'video/mp4'}">
                    <meta property="og:video:width" content="1280">
-                   <meta property="og:video:height" content="720">`
+                   <meta property="og:video:height" content="720">
+                   <meta property="og:image" content="${baseUrl}/i/${id}.jpg">
+                   <meta name="twitter:card" content="player">
+                   <meta name="twitter:player" content="${fullPageUrl}">
+                   <meta name="twitter:player:width" content="1280">
+                   <meta name="twitter:player:height" content="720">
+                   <meta name="twitter:player:stream" content="${absoluteMediaUrl}">
+                   <meta name="twitter:player:stream:content_type" content="${record.metadata?.type || 'video/mp4'}">
+                   <meta name="twitter:image" content="${baseUrl}/i/${id}.jpg">`
                 : isAudio
                 ? `<meta property="og:type" content="music.song">
-                   <meta property="og:audio" content="${proxiedImgSrc}">
-                   <meta property="og:audio:type" content="${record.metadata?.type || 'audio/mpeg'}">`
+                   <meta property="og:audio" content="${absoluteMediaUrl}">
+                   <meta property="og:audio:secure_url" content="${absoluteMediaUrl}">
+                   <meta property="og:audio:type" content="${record.metadata?.type || 'audio/mpeg'}">
+                   <meta name="twitter:card" content="summary">
+                   <meta name="twitter:title" content="PixEdge Audio | ${id}">
+                   <meta name="twitter:description" content="${formattedSize} • Stream on PixEdge">`
                 : `<meta property="og:type" content="website">
-                   <meta property="og:image" content="${proxiedImgSrc}">`
+                   <meta property="og:image" content="${absoluteMediaUrl}">
+                   <meta property="og:image:secure_url" content="${absoluteMediaUrl}">
+                   <meta name="twitter:card" content="summary_large_image">
+                   <meta name="twitter:title" content="PixEdge Image | ${id}">
+                   <meta name="twitter:description" content="${formattedSize} • View on PixEdge">
+                   <meta name="twitter:image" content="${absoluteMediaUrl}">`
             }
-                <meta name="twitter:card" content="summary_large_image">
                 <link rel="preconnect" href="https://fonts.googleapis.com">
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -1028,6 +1059,52 @@ export async function GET(
                         background: rgba(16, 185, 129, 0.25);
                         border-color: rgba(16, 185, 129, 0.5);
                     }
+
+                    /* Embed Snippets Modal Styles */
+                    .snippet-box {
+                        margin-bottom: 12px;
+                        text-align: left;
+                    }
+                    .snippet-header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: #a1a1aa;
+                        margin-bottom: 5px;
+                    }
+                    .snippet-copy-btn {
+                        background: rgba(139, 92, 246, 0.15);
+                        border: 1px solid rgba(139, 92, 246, 0.3);
+                        color: #c4b5fd;
+                        border-radius: 6px;
+                        padding: 3px 9px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-family: inherit;
+                        transition: all 0.2s;
+                    }
+                    .snippet-copy-btn:hover {
+                        background: rgba(139, 92, 246, 0.35);
+                        color: #ffffff;
+                    }
+                    .snippet-input {
+                        width: 100%;
+                        background: rgba(255, 255, 255, 0.05);
+                        border: 1px solid rgba(255, 255, 255, 0.12);
+                        border-radius: 8px;
+                        padding: 8px 10px;
+                        color: #e4e4e7;
+                        font-family: monospace;
+                        font-size: 11px;
+                        outline: none;
+                        box-sizing: border-box;
+                    }
+                    .snippet-input:focus {
+                        border-color: #8b5cf6;
+                    }
                 </style>
             </head>
             <body>
@@ -1059,6 +1136,54 @@ export async function GET(
                     </div>
                 </div>
 
+                <!-- Embed Snippets Modal -->
+                <div class="modal-backdrop" id="embedModal" onclick="closeEmbedModal()">
+                    <div class="modal-card" onclick="event.stopPropagation()" style="max-width: 440px; text-align: left;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+                            <h3 style="margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                                Embed Snippets
+                            </h3>
+                            <button onclick="closeEmbedModal()" style="background: none; border: none; color: #a1a1aa; cursor: pointer; font-size: 16px; padding: 4px;">✕</button>
+                        </div>
+                        <p style="font-size: 12px; color: #a1a1aa; margin: 0 0 16px 0;">Pre-formatted links for Reddit, GitHub, blogs & forums:</p>
+
+                        <div class="snippet-box">
+                            <div class="snippet-header">
+                                <span>Direct Media Link</span>
+                                <button class="snippet-copy-btn" onclick="copySnippetText('${absoluteMediaUrl}', this)">Copy</button>
+                            </div>
+                            <input readonly class="snippet-input" value="${absoluteMediaUrl}" onclick="this.select()" />
+                        </div>
+
+                        <div class="snippet-box">
+                            <div class="snippet-header">
+                                <span>Markdown (Reddit / GitHub)</span>
+                                <button class="snippet-copy-btn" onclick="copySnippetText('${markdownSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                            </div>
+                            <input readonly class="snippet-input" value="${markdownSnippet.replace(/"/g, '&quot;')}" onclick="this.select()" />
+                        </div>
+
+                        <div class="snippet-box">
+                            <div class="snippet-header">
+                                <span>HTML Embed Code</span>
+                                <button class="snippet-copy-btn" onclick="copySnippetText('${htmlSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                            </div>
+                            <input readonly class="snippet-input" value="${htmlSnippetEscaped}" onclick="this.select()" />
+                        </div>
+
+                        <div class="snippet-box" style="margin-bottom: 18px;">
+                            <div class="snippet-header">
+                                <span>BBCode (Forums)</span>
+                                <button class="snippet-copy-btn" onclick="copySnippetText('${bbCodeSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                            </div>
+                            <input readonly class="snippet-input" value="${bbCodeSnippet}" onclick="this.select()" />
+                        </div>
+
+                        <button class="btn btn-secondary" style="width: 100%; justify-content: center; height: 38px;" onclick="closeEmbedModal()">Done</button>
+                    </div>
+                </div>
+
                 <div class="toolbar">
                     <a href="/" class="btn btn-secondary">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -1077,9 +1202,14 @@ export async function GET(
                         : ''
                     }
 
-                    <button class="btn btn-secondary" onclick="openQrModal()">
+                    <button class="btn btn-secondary" onclick="openQrModal()" title="QR Code">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
                         QR
+                    </button>
+
+                    <button class="btn btn-secondary" id="embedBtn" onclick="openEmbedModal()" title="Embed Snippets (E)">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        Embed
                     </button>
 
                     <button class="btn btn-secondary" id="shareBtn" onclick="shareMedia()" title="Share Media (S)">
@@ -1227,6 +1357,12 @@ export async function GET(
                     <div class="info-item"><b>Downloads</b> ${downloads}</div>
                     <div class="info-item"><b>Size</b> ${formattedSize}</div>
                     <div class="info-item"><b>Date</b> ${formattedDate}</div>
+                    <div class="info-item brand-item" style="margin-left: auto;">
+                        <a href="/" target="_blank" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="Upload free 2GB media on PixEdge">
+                            <span class="badge" style="background: linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(6,182,212,0.3) 100%); border: 1px solid rgba(139,92,246,0.4); color: #fff; font-weight: 700; cursor: pointer;">⚡ PixEdge</span>
+                            <span style="color: #c4b5fd; font-size: 11px; font-weight: 600;">Upload Free ↗</span>
+                        </a>
+                    </div>
                 </div>
 
                 <script>
@@ -1289,6 +1425,33 @@ export async function GET(
 
                     function closeQrModal() {
                         document.getElementById('qrModal').classList.remove('active');
+                    }
+
+                    function openEmbedModal() {
+                        document.getElementById('embedModal').classList.add('active');
+                    }
+
+                    function closeEmbedModal() {
+                        document.getElementById('embedModal').classList.remove('active');
+                    }
+
+                    function copySnippetText(text, btn) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            showToast('Snippet copied to clipboard!');
+                            if (btn) {
+                                const orig = btn.textContent;
+                                btn.textContent = 'Copied!';
+                                btn.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+                                btn.style.color = '#34d399';
+                                setTimeout(() => {
+                                    btn.textContent = orig;
+                                    btn.style.borderColor = '';
+                                    btn.style.color = '';
+                                }, 2000);
+                            }
+                        }).catch(() => {
+                            showToast('Failed to copy');
+                        });
                     }
 
                     async function extendExpiry(seconds) {
@@ -1596,6 +1759,13 @@ export async function GET(
                         } else if (key === 'c') {
                             e.preventDefault();
                             copyLink();
+                        } else if (key === 'e') {
+                            e.preventDefault();
+                            openEmbedModal();
+                        } else if (key === 'escape') {
+                            closeEmbedModal();
+                            closeQrModal();
+                            closeExtendModal();
                         }
                     });
                 </script>
