@@ -15,6 +15,7 @@ import {
     Upload,
     Image as ImageIcon,
     CheckCircle,
+    AlertCircle,
     Settings,
     History,
     BarChart3,
@@ -593,6 +594,11 @@ export default function DashboardPage() {
     const [embedModalItem, setEmbedModalItem] = useState<{ id: string; isVideo: boolean; title?: string } | null>(null);
     const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
+    // Paste Upload State
+    const [pastingUpload, setPastingUpload] = useState<boolean>(false);
+    const [pasteUploadProgress, setPasteUploadProgress] = useState<number>(0);
+    const [pasteToast, setPasteToast] = useState<{ message: string; id?: string; url?: string; type?: 'info' | 'success' | 'error' } | null>(null);
+
     // Batch Selection State
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [batchActionLoading, setBatchActionLoading] = useState<string | null>(null);
@@ -611,6 +617,129 @@ export default function DashboardPage() {
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
     };
+
+    // Upload file directly from clipboard paste or drop on Dashboard
+    const handleDashboardPasteFile = async (file: File) => {
+        if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) return;
+
+        if (file.size > 2 * 1024 * 1024 * 1024) {
+            alert("File too large. Maximum supported size is 2 GB.");
+            return;
+        }
+
+        let cleanFile = file;
+        if (!file.name || file.name === 'image.png' || file.name === 'blob') {
+            const ext = file.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+            const d = new Date();
+            const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+            cleanFile = new File([file], `pasted_image_${ts}.${ext}`, { type: file.type });
+        }
+
+        setPastingUpload(true);
+        setPasteUploadProgress(0);
+        setPasteToast({ message: `Uploading pasted ${cleanFile.name}...`, type: 'info' });
+
+        const formData = new FormData();
+        formData.append("file", cleanFile);
+
+        try {
+            const result = await new Promise<any>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener("progress", (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+                        setPasteUploadProgress(pct);
+                    }
+                });
+                xhr.addEventListener("load", () => {
+                    try {
+                        const json = JSON.parse(xhr.responseText);
+                        resolve(json);
+                    } catch {
+                        reject(new Error("Upload failed"));
+                    }
+                });
+                xhr.addEventListener("error", () => reject(new Error("Network error")));
+                xhr.open("POST", "/api/v1/upload");
+                xhr.send(formData);
+            });
+
+            if (result.success && result.data) {
+                const newUpload = {
+                    id: result.data.id,
+                    filename: cleanFile.name,
+                    size: cleanFile.size,
+                    type: cleanFile.type,
+                    views: 0,
+                    downloads: 0,
+                    created_at: Date.now(),
+                    url: result.data.url,
+                };
+                setUploads(prev => [newUpload, ...prev]);
+                setPasteToast({
+                    message: "Pasted image uploaded successfully!",
+                    id: result.data.id,
+                    url: result.data.url,
+                    type: 'success',
+                });
+                setTimeout(() => setPasteToast(null), 6000);
+            } else {
+                setPasteToast({ message: result.error?.message || "Paste upload failed.", type: 'error' });
+                setTimeout(() => setPasteToast(null), 4000);
+            }
+        } catch (err: any) {
+            setPasteToast({ message: err.message || "Failed to upload pasted image.", type: 'error' });
+            setTimeout(() => setPasteToast(null), 4000);
+        } finally {
+            setPastingUpload(false);
+            setPasteUploadProgress(0);
+        }
+    };
+
+    // Global paste listener on Dashboard
+    useEffect(() => {
+        const handleDashboardPaste = (e: ClipboardEvent) => {
+            const target = e.target as HTMLElement | null;
+            const isTextInput = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+            if (isTextInput) return;
+
+            const clipboardData = e.clipboardData;
+            if (!clipboardData) return;
+
+            const filesToUpload: File[] = [];
+
+            if (clipboardData.files && clipboardData.files.length > 0) {
+                for (let i = 0; i < clipboardData.files.length; i++) {
+                    const f = clipboardData.files[i];
+                    if (f.type.startsWith("image/") || f.type.startsWith("video/")) {
+                        filesToUpload.push(f);
+                    }
+                }
+            }
+
+            if (filesToUpload.length === 0 && clipboardData.items) {
+                for (let i = 0; i < clipboardData.items.length; i++) {
+                    const item = clipboardData.items[i];
+                    if (item.kind === 'file') {
+                        const f = item.getAsFile();
+                        if (f && (f.type.startsWith("image/") || f.type.startsWith("video/"))) {
+                            filesToUpload.push(f);
+                        }
+                    }
+                }
+            }
+
+            if (filesToUpload.length > 0) {
+                e.preventDefault();
+                for (const f of filesToUpload) {
+                    handleDashboardPasteFile(f);
+                }
+            }
+        };
+
+        window.addEventListener("paste", handleDashboardPaste);
+        return () => window.removeEventListener("paste", handleDashboardPaste);
+    }, []);
 
     // Native Web Share with fallback
     const handleNativeShare = async (id: string, title?: string) => {
@@ -1474,6 +1603,24 @@ export default function DashboardPage() {
                                 + New Upload
                             </motion.button>
                         </Link>
+                        <span
+                            title="Copy any image or screenshot and press Ctrl+V anywhere on this page to upload instantly"
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                background: "rgba(139, 92, 246, 0.1)",
+                                border: "1px solid rgba(139, 92, 246, 0.25)",
+                                padding: "8px 14px",
+                                borderRadius: "14px",
+                                color: "#c4b5fd",
+                                fontSize: "0.82rem",
+                                fontWeight: 500,
+                            }}
+                        >
+                            <kbd style={{ background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.12)", padding: "2px 6px", borderRadius: "5px", color: "#fff", fontWeight: 700, fontSize: "0.75rem", fontFamily: "inherit" }}>Ctrl+V</kbd>
+                            <span>paste to upload</span>
+                        </span>
                     </div>
                 </motion.div>
 
@@ -3908,6 +4055,110 @@ export default function DashboardPage() {
                                 </div>
                             </motion.div>
                         </div>
+                    )}
+                </AnimatePresence>
+
+                {/* Floating Paste Upload Toast */}
+                <AnimatePresence>
+                    {pasteToast && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+                            transition={{ duration: 0.2 }}
+                            style={{
+                                position: 'fixed',
+                                bottom: '32px',
+                                right: '32px',
+                                background: 'rgba(18, 18, 24, 0.95)',
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)',
+                                border: `1px solid ${pasteToast.type === 'error' ? 'rgba(239, 68, 68, 0.5)' : pasteToast.type === 'success' ? 'rgba(16, 185, 129, 0.5)' : 'rgba(139, 92, 246, 0.5)'}`,
+                                borderRadius: '16px',
+                                padding: '14px 20px',
+                                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(139, 92, 246, 0.2)',
+                                zIndex: 1100,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                maxWidth: '420px',
+                            }}
+                        >
+                            {pastingUpload ? (
+                                <Loader2 size={18} className="animate-spin" style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            ) : pasteToast.type === 'success' ? (
+                                <CheckCircle size={18} style={{ color: '#10b981', flexShrink: 0 }} />
+                            ) : pasteToast.type === 'error' ? (
+                                <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                            ) : (
+                                <Sparkles size={18} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                            )}
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#fff' }}>
+                                    {pasteToast.message}
+                                </div>
+                                {pastingUpload && (
+                                    <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', marginTop: '6px', overflow: 'hidden' }}>
+                                        <div style={{ width: `${pasteUploadProgress}%`, height: '100%', background: 'linear-gradient(90deg, #8b5cf6, #06b6d4)', transition: 'width 0.2s ease' }} />
+                                    </div>
+                                )}
+                            </div>
+                            {pasteToast.url && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <button
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(pasteToast.url!);
+                                            setCopiedId(pasteToast.id || 'paste');
+                                            setTimeout(() => setCopiedId(null), 2000);
+                                        }}
+                                        style={{
+                                            padding: '5px 10px',
+                                            background: 'rgba(139, 92, 246, 0.2)',
+                                            border: '1px solid rgba(139, 92, 246, 0.4)',
+                                            borderRadius: '8px',
+                                            color: '#c4b5fd',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                        }}
+                                    >
+                                        <Copy size={12} /> {copiedId === (pasteToast.id || 'paste') ? 'Copied' : 'Copy'}
+                                    </button>
+                                    <a
+                                        href={pasteToast.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{
+                                            padding: '5px 8px',
+                                            background: 'rgba(255, 255, 255, 0.1)',
+                                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                                            borderRadius: '8px',
+                                            color: '#fff',
+                                            fontSize: '0.75rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <ExternalLink size={12} />
+                                    </a>
+                                </div>
+                            )}
+                            <button
+                                onClick={() => setPasteToast(null)}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: '#a1a1aa',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                }}
+                            >
+                                <X size={14} />
+                            </button>
+                        </motion.div>
                     )}
                 </AnimatePresence>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
     Upload,
@@ -186,6 +186,7 @@ export default function Home() {
     const [batchCopied, setBatchCopied] = useState(false);
     const [albumUrl, setAlbumUrl] = useState<string | null>(null);
     const [albumCopied, setAlbumCopied] = useState(false);
+    const [pasteToast, setPasteToast] = useState<string | null>(null);
 
     // Load history and theme from localStorage
     useEffect(() => {
@@ -684,26 +685,59 @@ export default function Home() {
         }
     };
 
+    const processBatchUploadRef = useRef(processBatchUpload);
+    useEffect(() => {
+        processBatchUploadRef.current = processBatchUpload;
+    });
+
     useEffect(() => {
         const handlePaste = (e: ClipboardEvent) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
+            const clipboardData = e.clipboardData;
+            if (!clipboardData) return;
 
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].kind === 'file') {
-                    const file = items[i].getAsFile();
-                    if (file && (file.type.startsWith("image/") || file.type.startsWith("video/"))) {
-                        e.preventDefault();
-                        uploadFile(file);
-                        return; // Only upload the first valid file
+            const filesToUpload: File[] = [];
+
+            // 1. Check clipboard files
+            if (clipboardData.files && clipboardData.files.length > 0) {
+                for (let i = 0; i < clipboardData.files.length; i++) {
+                    const f = clipboardData.files[i];
+                    if (f.type.startsWith("image/") || f.type.startsWith("video/")) {
+                        filesToUpload.push(f);
                     }
                 }
+            }
+
+            // 2. Check clipboard items (for screenshots or web images)
+            if (filesToUpload.length === 0 && clipboardData.items) {
+                for (let i = 0; i < clipboardData.items.length; i++) {
+                    const item = clipboardData.items[i];
+                    if (item.kind === 'file') {
+                        const f = item.getAsFile();
+                        if (f && (f.type.startsWith("image/") || f.type.startsWith("video/"))) {
+                            let cleanFile = f;
+                            if (!f.name || f.name === 'image.png' || f.name === 'blob') {
+                                const ext = f.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png';
+                                const d = new Date();
+                                const ts = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}${String(d.getSeconds()).padStart(2,'0')}`;
+                                cleanFile = new File([f], `pasted_image_${ts}.${ext}`, { type: f.type });
+                            }
+                            filesToUpload.push(cleanFile);
+                        }
+                    }
+                }
+            }
+
+            if (filesToUpload.length > 0) {
+                e.preventDefault();
+                setPasteToast(`Pasting ${filesToUpload.length} file${filesToUpload.length > 1 ? 's' : ''} from clipboard...`);
+                setTimeout(() => setPasteToast(null), 3500);
+                processBatchUploadRef.current(filesToUpload);
             }
         };
 
         window.addEventListener("paste", handlePaste);
         return () => window.removeEventListener("paste", handlePaste);
-    }, [uploadFile]);
+    }, []);
 
     return (
         <>
@@ -1664,9 +1698,63 @@ export default function Home() {
                                         <span style={{ opacity: 0.4 }}>•</span>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{uploadEta}</span>
                                     </div>
-                                ) : "or click to browse your files (up to 2 GB)"}
+                                ) : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                                        <span>or click to browse</span>
+                                        <span style={{ opacity: 0.4 }}>•</span>
+                                        <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            background: 'rgba(139, 92, 246, 0.12)',
+                                            border: '1px solid rgba(139, 92, 246, 0.28)',
+                                            padding: '2px 8px',
+                                            borderRadius: '6px',
+                                            color: '#c4b5fd',
+                                            fontSize: '0.78rem',
+                                            fontWeight: 600,
+                                        }}>
+                                            <kbd style={{ fontFamily: 'inherit', background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '4px' }}>Ctrl</kbd>+<kbd style={{ fontFamily: 'inherit', background: 'rgba(255,255,255,0.08)', padding: '1px 5px', borderRadius: '4px' }}>V</kbd> to paste
+                                        </span>
+                                        <span style={{ opacity: 0.4 }}>•</span>
+                                        <span>up to 2 GB</span>
+                                    </span>
+                                )}
                             </div>
                         </div>
+
+                        <AnimatePresence>
+                            {pasteToast && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                                    style={{
+                                        position: 'absolute',
+                                        top: '-42px',
+                                        left: '50%',
+                                        transform: 'translateX(-50%)',
+                                        background: 'rgba(18, 18, 24, 0.95)',
+                                        border: '1px solid rgba(139, 92, 246, 0.5)',
+                                        borderRadius: '50px',
+                                        padding: '6px 18px',
+                                        color: '#c4b5fd',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 600,
+                                        boxShadow: '0 10px 30px rgba(0,0,0,0.5), 0 0 20px rgba(139,92,246,0.3)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        zIndex: 100,
+                                        pointerEvents: 'none',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    <Sparkles size={14} color="#8b5cf6" />
+                                    <span>{pasteToast}</span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
                         {uploading && (
                             <div className="progress-container">
