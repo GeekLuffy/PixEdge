@@ -377,10 +377,26 @@ export async function GET(
         const htmlSnippet = isVideo
             ? `<video src="${absoluteMediaUrl}" controls playsinline poster="${baseUrl}/i/${id}.jpg" style="max-width: 100%; border-radius: 12px;"></video>`
             : `<img src="${absoluteMediaUrl}" alt="PixEdge Media" style="max-width: 100%; border-radius: 12px;" />`;
-        const htmlSnippetEscaped = htmlSnippet.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const bbCodeSnippet = isVideo
             ? `[url=${fullPageUrl}][img]${baseUrl}/i/${id}.jpg[/img][/url]`
             : `[img]${absoluteMediaUrl}[/img]`;
+
+        // ── Safe escaping helpers for HTML attributes & inline JS handlers ─────────
+        const escapeHtmlAttr = (str: string): string => {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        };
+
+        const escapeForInlineHandler = (value: string): string => {
+            return JSON.stringify(value)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        };
 
         return new NextResponse(
             `<!DOCTYPE html>
@@ -1151,33 +1167,33 @@ export async function GET(
                         <div class="snippet-box">
                             <div class="snippet-header">
                                 <span>Direct Media Link</span>
-                                <button class="snippet-copy-btn" onclick="copySnippetText('${absoluteMediaUrl}', this)">Copy</button>
+                                <button class="snippet-copy-btn" onclick="copySnippetText(${escapeForInlineHandler(absoluteMediaUrl)}, this)">Copy</button>
                             </div>
-                            <input readonly class="snippet-input" value="${absoluteMediaUrl}" onclick="this.select()" />
+                            <input readonly class="snippet-input" value="${escapeHtmlAttr(absoluteMediaUrl)}" onclick="this.select()" />
                         </div>
 
                         <div class="snippet-box">
                             <div class="snippet-header">
                                 <span>Markdown (Reddit / GitHub)</span>
-                                <button class="snippet-copy-btn" onclick="copySnippetText('${markdownSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                                <button class="snippet-copy-btn" onclick="copySnippetText(${escapeForInlineHandler(markdownSnippet)}, this)">Copy</button>
                             </div>
-                            <input readonly class="snippet-input" value="${markdownSnippet.replace(/"/g, '&quot;')}" onclick="this.select()" />
+                            <input readonly class="snippet-input" value="${escapeHtmlAttr(markdownSnippet)}" onclick="this.select()" />
                         </div>
 
                         <div class="snippet-box">
                             <div class="snippet-header">
                                 <span>HTML Embed Code</span>
-                                <button class="snippet-copy-btn" onclick="copySnippetText('${htmlSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                                <button class="snippet-copy-btn" onclick="copySnippetText(${escapeForInlineHandler(htmlSnippet)}, this)">Copy</button>
                             </div>
-                            <input readonly class="snippet-input" value="${htmlSnippetEscaped}" onclick="this.select()" />
+                            <input readonly class="snippet-input" value="${escapeHtmlAttr(htmlSnippet)}" onclick="this.select()" />
                         </div>
 
                         <div class="snippet-box" style="margin-bottom: 18px;">
                             <div class="snippet-header">
                                 <span>BBCode (Forums)</span>
-                                <button class="snippet-copy-btn" onclick="copySnippetText('${bbCodeSnippet.replace(/'/g, "\\'")}', this)">Copy</button>
+                                <button class="snippet-copy-btn" onclick="copySnippetText(${escapeForInlineHandler(bbCodeSnippet)}, this)">Copy</button>
                             </div>
-                            <input readonly class="snippet-input" value="${bbCodeSnippet}" onclick="this.select()" />
+                            <input readonly class="snippet-input" value="${escapeHtmlAttr(bbCodeSnippet)}" onclick="this.select()" />
                         </div>
 
                         <button class="btn btn-secondary" style="width: 100%; justify-content: center; height: 38px;" onclick="closeEmbedModal()">Done</button>
