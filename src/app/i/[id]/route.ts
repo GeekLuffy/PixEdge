@@ -1266,7 +1266,7 @@ export async function GET(
                 <div class="player-wrapper">
                     ${isVideo ? `
                         <div class="custom-player-container" id="playerContainer">
-                            <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="metadata" onclick="togglePlay()"></video>
+                            <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
                             
                             <!-- Big Center Play Button -->
                             <div class="big-play-btn" id="bigPlayBtn" onclick="togglePlay()">
@@ -1318,7 +1318,7 @@ export async function GET(
                         </div>
                     ` : isAudio ? `
                         <div class="audio-player-card" id="audioPlayerCard">
-                            <audio id="mediaElement" src="${proxiedImgSrc}" preload="metadata"></audio>
+                            <audio id="mediaElement" src="${proxiedImgSrc}" preload="auto"></audio>
                             
                             <div class="vinyl-disc-wrap">
                                 <div class="vinyl-disc" id="vinylDisc">
