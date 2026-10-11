@@ -13,6 +13,7 @@ import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import { Api } from 'telegram';
 import { CustomFile } from 'telegram/client/uploads';
+import bigInt from 'big-integer';
 
 // ─── Singleton state ──────────────────────────────────────────────────────────
 
@@ -369,7 +370,7 @@ export async function streamFileViaGram(
                 try {
                     for await (const chunkRaw of (client as any).iterDownload({
                         file: fileLocation,
-                        offset: BigInt(alignedStart),
+                        offset: bigInt(alignedStart),
                         requestSize: 1024 * 1024, // 1 MB chunks
                         dcId: doc.dcId,
                     })) {
