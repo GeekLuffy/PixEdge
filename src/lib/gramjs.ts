@@ -359,19 +359,21 @@ export async function streamFileViaGram(
             thumbSize: '',
         });
 
-        // 4 KB alignment calculation for Telegram MTProto
-        const alignedStart = Math.floor(start / 4096) * 4096;
+        // Telegram MTProto boundary rule: chunks must never cross a 1 MB (1048576 byte) boundary.
+        // Aligning start to 1 MB guarantees every 512 KB chunk stays cleanly within its 1 MB block.
+        const ONE_MB = 1024 * 1024;
+        const alignedStart = Math.floor(start / ONE_MB) * ONE_MB;
         let skipFirst = start - alignedStart;
         let remainingToSend = contentLength;
 
-        // True streaming — 1 MB per Telegram API round-trip, flat RAM usage
+        // True streaming — 512 KB MTProto chunks, flat RAM usage
         const stream = new ReadableStream<Uint8Array>({
             async start(controller) {
                 try {
                     for await (const chunkRaw of (client as any).iterDownload({
                         file: fileLocation,
                         offset: bigInt(alignedStart),
-                        requestSize: 1024 * 1024, // 1 MB chunks
+                        requestSize: 512 * 1024,
                         dcId: doc.dcId,
                     })) {
                         let chunk = Buffer.from(chunkRaw as Buffer);
