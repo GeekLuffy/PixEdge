@@ -193,7 +193,7 @@ export async function updateImageOrganization(
 
         // Check if currentOwner matches targetUser directly or via linked Telegram account
         let isOwner = false;
-        if (!currentOwner || currentOwner === targetUser) {
+        if (currentOwner && currentOwner === targetUser) {
             isOwner = true;
         } else {
             const [userUploads, linkedTg, linkedWeb] = await Promise.all([
@@ -211,9 +211,8 @@ export async function updateImageOrganization(
             }
         }
 
-        // Always allow logged in user to organize & claim ownership of their image from dashboard
         if (!isOwner) {
-            isOwner = true;
+            return false;
         }
 
         const updateData: any = {
@@ -244,6 +243,7 @@ export async function updateImageOrganization(
         const db = JSON.parse(content);
         const image = db.images.find((img: any) => img.id === id);
         if (!image) return false;
+        if (image.user_id && image.user_id !== targetUser) return false;
 
         image.user_id = targetUser;
         image.folder = cleanFolder || undefined;

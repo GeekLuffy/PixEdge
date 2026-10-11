@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveAlbum, generateId } from '@/lib/db';
+import { saveAlbum, generateId, getAlbum } from '@/lib/db';
 import crypto from 'crypto';
 
 export async function POST(req: NextRequest) {
@@ -10,9 +10,19 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'At least 1 file is required to create an album' }, { status: 400 });
         }
 
-        const id = customId
-            ? customId.toLowerCase().replace(/[^a-z0-9-]/g, '-')
-            : generateId();
+        let id: string;
+        if (customId && typeof customId === 'string') {
+            id = customId.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+            if (!id) {
+                return NextResponse.json({ error: 'Invalid customId' }, { status: 400 });
+            }
+            const existing = await getAlbum(id);
+            if (existing) {
+                return NextResponse.json({ error: `The Album ID "${id}" is already taken` }, { status: 409 });
+            }
+        } else {
+            id = generateId();
+        }
 
         const password_hash = password
             ? crypto.createHash('sha256').update(password.trim()).digest('hex')
