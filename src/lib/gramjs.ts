@@ -200,7 +200,7 @@ export interface GramUploadResult {
  * @param caption     Optional HTML caption stored in the channel message.
  */
 export async function uploadFileViaGram(
-    fileBuffer: Buffer,
+    fileSource: Buffer | string,
     fileName: string,
     fileSize: number,
     caption = '',
@@ -208,14 +208,17 @@ export async function uploadFileViaGram(
 ): Promise<GramUploadResult> {
     const { client, channel } = await getGramClientWithChannel();
 
-    // Scale parallel workers with file size (more workers = faster large uploads)
+    // Scale parallel workers conservatively for low-memory container environments (e.g. 512MB RAM)
+    // Avoids massive socket buffer and chunk spikes that trigger OOMKilled
     const workers =
-        fileSize > 500 * 1024 * 1024 ? 16  // > 500 MB
-            : fileSize > 100 * 1024 * 1024 ? 8   // > 100 MB
-            : fileSize > 10  * 1024 * 1024 ? 4   // > 10 MB
-            : 1;                                   // small
+        fileSize > 500 * 1024 * 1024 ? 4
+            : fileSize > 50 * 1024 * 1024 ? 3
+            : 2;
 
-    const file = new CustomFile(fileName, fileSize, '', fileBuffer);
+    const isPath = typeof fileSource === 'string';
+    const file = isPath
+        ? new CustomFile(fileName, fileSize, fileSource)
+        : new CustomFile(fileName, fileSize, '', fileSource);
 
     let lastProgressTime = Date.now();
     let lastUploadedBytes = 0;

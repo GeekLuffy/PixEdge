@@ -2,8 +2,8 @@
 const nextConfig = {
     experimental: {
         serverActions: {
-            // Server Actions body limit (not related to API route uploads)
-            bodySizeLimit: '50mb',
+            // Server Actions body limit
+            bodySizeLimit: '2gb',
         },
     },
     // Allow long-running upload requests in production

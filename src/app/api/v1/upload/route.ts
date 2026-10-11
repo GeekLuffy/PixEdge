@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { uploadToTelegram, sendLog } from '@/lib/telegram';
 import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/db';
 import { isGramConfigured, uploadFileViaGram } from '@/lib/gramjs';
@@ -160,6 +165,8 @@ export async function POST(req: NextRequest) {
         let record: any;
         let usedGram = false;
 
+        let tempFilePath: string | null = null;
+
         if (gramReady) {
             // ── v2: MTProto via gramjs — supports up to 2 GB ──
             try {
@@ -167,14 +174,35 @@ export async function POST(req: NextRequest) {
                 const fileMime = file.type || 'application/octet-stream';
                 const extension = (fileMime.split('/')[1] || 'bin').toLowerCase();
                 const fileName = fileObj.name || `upload.${extension}`;
-                const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
 
-                const gramResult = await uploadFileViaGram(
-                    fileBuffer,
-                    fileName,
-                    file.size,
-                    `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
-                );
+                let gramResult: any;
+
+                // For files > 20 MB, stream chunk-by-chunk to disk to prevent OOM
+                // in memory-constrained containers (such as 512MB RAM on Northflank)
+                if (file.size > 20 * 1024 * 1024) {
+                    const tempDir = os.tmpdir();
+                    const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
+                    tempFilePath = path.join(tempDir, `pixedge_${safeId}_${Date.now()}.${extension}`);
+
+                    const fileStream = Readable.fromWeb(file.stream() as any);
+                    const writeStream = fs.createWriteStream(tempFilePath);
+                    await pipeline(fileStream, writeStream);
+
+                    gramResult = await uploadFileViaGram(
+                        tempFilePath,
+                        fileName,
+                        file.size,
+                        `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+                    );
+                } else {
+                    const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
+                    gramResult = await uploadFileViaGram(
+                        fileBuffer,
+                        fileName,
+                        file.size,
+                        `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+                    );
+                }
 
                 record = {
                     id,
@@ -200,6 +228,14 @@ export async function POST(req: NextRequest) {
                             message: 'Large uploads currently require MTProto. Fix TELEGRAM_SESSION_STRING and retry.',
                         }
                     }, { status: 503 });
+                }
+            } finally {
+                if (tempFilePath) {
+                    try {
+                        await fs.promises.unlink(tempFilePath);
+                    } catch {
+                        // Ignore cleanup error if already removed
+                    }
                 }
             }
         }
