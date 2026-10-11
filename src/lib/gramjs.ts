@@ -371,7 +371,7 @@ export async function streamFileViaGram(
                     for await (const chunkRaw of (client as any).iterDownload({
                         file: fileLocation,
                         offset: bigInt(alignedStart),
-                        requestSize: 1024 * 1024, // 1 MB chunks
+                        requestSize: 512 * 1024, // 512 KB (GramJS MAX_CHUNK_SIZE)
                         dcId: doc.dcId,
                     })) {
                         let chunk = Buffer.from(chunkRaw as Buffer);

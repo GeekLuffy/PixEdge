@@ -9,7 +9,7 @@ const nextConfig = {
     // Allow long-running upload requests in production
     // Self-hosted / Railway / VPS: no platform timeout enforced
     // Vercel Pro: respects maxDuration set per-route
-    serverExternalPackages: ['telegram'],
+    serverExternalPackages: ['telegram', 'big-integer'],
 };
 
 module.exports = nextConfig;
