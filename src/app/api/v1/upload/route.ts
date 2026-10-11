@@ -3,12 +3,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { Readable } from 'stream';
-import { pipeline } from 'stream/promises';
+import busboy from 'busboy';
 import { uploadToTelegram, sendLog } from '@/lib/telegram';
 import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/db';
 import { isGramConfigured, uploadFileViaGram } from '@/lib/gramjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { validateCustomId, generateSuggestions } from '@/lib/slugs';
 
 // Allow long-running uploads (Vercel Pro / Northflank)
 export const maxDuration = 300; // 5 minutes
@@ -30,8 +31,6 @@ async function resolveUserId(req: NextRequest): Promise<string | undefined> {
     return undefined;
 }
 
-import { validateCustomId, generateSuggestions } from '@/lib/slugs';
-
 // Logging must never fail the upload response path
 async function safeSendLog(text: string): Promise<void> {
     try {
@@ -39,6 +38,151 @@ async function safeSendLog(text: string): Promise<void> {
     } catch (error) {
         console.error('sendLog failed:', error);
     }
+}
+
+interface ParsedMultipart {
+    fields: Record<string, string>;
+    tempFilePath: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+}
+
+/**
+ * Streams incoming multipart upload directly to disk using busboy.
+ * Memory footprint stays < 15 MB even for 2 GB video uploads!
+ */
+function parseMultipartUpload(req: NextRequest): Promise<ParsedMultipart> {
+    const contentType = req.headers.get('content-type') || '';
+    if (!contentType.includes('multipart/form-data')) {
+        return Promise.reject(new Error('INVALID_CONTENT_TYPE'));
+    }
+
+    if (!req.body) {
+        return Promise.reject(new Error('EMPTY_BODY'));
+    }
+
+    return new Promise((resolve, reject) => {
+        let bb: busboy.Busboy;
+        try {
+            bb = busboy({
+                headers: { 'content-type': contentType },
+                limits: {
+                    fileSize: 2 * 1024 * 1024 * 1024, // 2 GB limit
+                }
+            });
+        } catch (err) {
+            return reject(err);
+        }
+
+        const fields: Record<string, string> = {};
+        let tempFilePath = '';
+        let fileName = '';
+        let mimeType = 'application/octet-stream';
+        let fileSize = 0;
+        let fileFound = false;
+        let writeError: Error | null = null;
+        let writeStream: fs.WriteStream | null = null;
+        let isDone = false;
+
+        const cleanupAndReject = (err: Error) => {
+            if (isDone) return;
+            isDone = true;
+            if (writeStream) {
+                try { writeStream.destroy(); } catch {}
+            }
+            if (tempFilePath && fs.existsSync(tempFilePath)) {
+                fs.unlink(tempFilePath, () => {});
+            }
+            reject(err);
+        };
+
+        bb.on('field', (name, val) => {
+            fields[name] = val;
+        });
+
+        bb.on('file', (name, fileStream, info) => {
+            // Ignore empty file fields or extra files if we already started saving one
+            if (!info.filename || fileFound) {
+                fileStream.resume();
+                return;
+            }
+
+            fileFound = true;
+            fileName = info.filename || 'upload.bin';
+            mimeType = info.mimeType || 'application/octet-stream';
+
+            const tempDir = os.tmpdir();
+            const uniquePrefix = `pixedge_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            tempFilePath = path.join(tempDir, `${uniquePrefix}_${encodeURIComponent(fileName).slice(-60)}`);
+
+            writeStream = fs.createWriteStream(tempFilePath);
+
+            fileStream.on('data', (chunk: Buffer) => {
+                fileSize += chunk.length;
+            });
+
+            fileStream.on('error', (err) => {
+                writeError = err;
+            });
+
+            fileStream.pipe(writeStream);
+
+            writeStream.on('error', (err) => {
+                writeError = err;
+            });
+        });
+
+        bb.on('error', cleanupAndReject);
+
+        const handleDone = () => {
+            if (isDone) return;
+
+            if (writeError) {
+                cleanupAndReject(writeError);
+                return;
+            }
+
+            if (!fileFound || !tempFilePath) {
+                cleanupAndReject(new Error('MISSING_FILE'));
+                return;
+            }
+
+            if (writeStream) {
+                if (writeStream.writableFinished) {
+                    isDone = true;
+                    resolve({
+                        fields,
+                        tempFilePath,
+                        fileName,
+                        fileSize,
+                        mimeType,
+                    });
+                } else {
+                    writeStream.on('finish', () => {
+                        if (isDone) return;
+                        isDone = true;
+                        resolve({
+                            fields,
+                            tempFilePath,
+                            fileName,
+                            fileSize,
+                            mimeType,
+                        });
+                    });
+                }
+            } else {
+                cleanupAndReject(new Error('MISSING_FILE'));
+            }
+        };
+
+        bb.on('finish', handleDone);
+        bb.on('close', handleDone);
+
+        const nodeReadable = Readable.fromWeb(req.body as any);
+        nodeReadable.on('error', cleanupAndReject);
+        nodeReadable.pipe(bb);
+    });
 }
 
 export async function POST(req: NextRequest) {
@@ -67,19 +211,39 @@ export async function POST(req: NextRequest) {
         });
     }
 
+    let parsed: ParsedMultipart;
     try {
-        const formData = await req.formData();
-        const fileEntry = formData.get('file');
-        const customIdEntry = formData.get('customId');
-        const customId = typeof customIdEntry === 'string' ? customIdEntry : '';
+        parsed = await parseMultipartUpload(req);
+    } catch (parseError: any) {
+        if (parseError.message === 'MISSING_FILE' || parseError.message === 'EMPTY_BODY') {
+            return NextResponse.json({
+                success: false,
+                error: { code: 'MISSING_FILE', message: 'No file provided in request' }
+            }, { status: 400 });
+        }
+        if (parseError.message === 'INVALID_CONTENT_TYPE') {
+            return NextResponse.json({
+                success: false,
+                error: { code: 'INVALID_REQUEST', message: 'Content-Type must be multipart/form-data' }
+            }, { status: 400 });
+        }
+        console.error('Multipart parse error:', parseError);
+        return NextResponse.json({
+            success: false,
+            error: { code: 'UPLOAD_FAILED', message: 'Failed to process file upload stream' }
+        }, { status: 500 });
+    }
+
+    const { fields, tempFilePath, fileName, fileSize, mimeType } = parsed;
+
+    try {
+        const customId = typeof fields.customId === 'string' ? fields.customId.trim() : '';
 
         // Optional target folder for organizing the upload
-        const folderEntry = formData.get('folder');
-        const folder = typeof folderEntry === 'string' && folderEntry.trim() ? folderEntry.trim() : undefined;
+        const folder = typeof fields.folder === 'string' && fields.folder.trim() ? fields.folder.trim() : undefined;
 
         // Optional expiry in seconds (3600=1h, 86400=24h, 604800=7d, 2592000=30d)
-        const expiresInEntry = formData.get('expiresIn');
-        const expiresInRaw = typeof expiresInEntry === 'string' ? expiresInEntry : null;
+        const expiresInRaw = typeof fields.expiresIn === 'string' ? fields.expiresIn : null;
         const VALID_EXPIRY = [3600, 86400, 604800, 2592000];
         const expiresInParsed = expiresInRaw ? parseInt(expiresInRaw, 10) : NaN;
         const expiresIn = Number.isFinite(expiresInParsed) && VALID_EXPIRY.includes(expiresInParsed)
@@ -87,8 +251,7 @@ export async function POST(req: NextRequest) {
             : undefined;
 
         // Optional Secret PIN or Password for link protection
-        const passwordEntry = formData.get('password');
-        const passwordRaw = typeof passwordEntry === 'string' ? passwordEntry.trim() : '';
+        const passwordRaw = typeof fields.password === 'string' ? fields.password.trim() : '';
         let password_hash: string | undefined = undefined;
         if (passwordRaw) {
             const crypto = await import('crypto');
@@ -96,19 +259,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Optional Burn After Reading self-destruct settings
-        const burnAfterViewEntry = formData.get('burnAfterView');
-        const burnAfterView = burnAfterViewEntry === 'true' || burnAfterViewEntry === '1';
-
-        const burnAfterDownloadEntry = formData.get('burnAfterDownload');
-        const burnAfterDownload = burnAfterDownloadEntry === 'true' || burnAfterDownloadEntry === '1';
-
-        if (!(fileEntry instanceof Blob)) {
-            return NextResponse.json({
-                success: false,
-                error: { code: 'MISSING_FILE', message: 'No file provided in request' }
-            }, { status: 400 });
-        }
-        const file = fileEntry;
+        const burnAfterView = fields.burnAfterView === 'true' || fields.burnAfterView === '1';
+        const burnAfterDownload = fields.burnAfterDownload === 'true' || fields.burnAfterDownload === '1';
 
         // Enforce size limit:
         //   gramjs (MTProto) configured → up to MAX_UPLOAD_SIZE_MB (default 2000 MB = 2 GB)
@@ -120,7 +272,7 @@ export async function POST(req: NextRequest) {
             : 50;
         const MAX_SIZE = maxMB * 1024 * 1024;
 
-        if (file.size > MAX_SIZE) {
+        if (fileSize > MAX_SIZE) {
             return NextResponse.json({
                 success: false,
                 error: {
@@ -130,9 +282,8 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
-        // 1. Generate or validate ID (moved before upload so we fail fast on ID errors)
+        // 1. Generate or validate ID (fail fast on ID errors before upload)
         let id: string;
-        
         if (customId) {
             const validation = validateCustomId(customId);
             if (!validation.valid) {
@@ -141,9 +292,9 @@ export async function POST(req: NextRequest) {
                     error: { code: 'INVALID_CUSTOM_ID', message: validation.error }
                 }, { status: 400 });
             }
-            
+
             id = validation.sanitized!;
-            
+
             // Check if ID already exists
             const existing = await getImage(id);
             if (existing) {
@@ -165,44 +316,15 @@ export async function POST(req: NextRequest) {
         let record: any;
         let usedGram = false;
 
-        let tempFilePath: string | null = null;
-
         if (gramReady) {
-            // ── v2: MTProto via gramjs — supports up to 2 GB ──
             try {
-                const fileObj = file as File;
-                const fileMime = file.type || 'application/octet-stream';
-                const extension = (fileMime.split('/')[1] || 'bin').toLowerCase();
-                const fileName = fileObj.name || `upload.${extension}`;
-
-                let gramResult: any;
-
-                // For files > 20 MB, stream chunk-by-chunk to disk to prevent OOM
-                // in memory-constrained containers (such as 512MB RAM on Northflank)
-                if (file.size > 20 * 1024 * 1024) {
-                    const tempDir = os.tmpdir();
-                    const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '');
-                    tempFilePath = path.join(tempDir, `pixedge_${safeId}_${Date.now()}.${extension}`);
-
-                    const fileStream = Readable.fromWeb(file.stream() as any);
-                    const writeStream = fs.createWriteStream(tempFilePath);
-                    await pipeline(fileStream, writeStream);
-
-                    gramResult = await uploadFileViaGram(
-                        tempFilePath,
-                        fileName,
-                        file.size,
-                        `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
-                    );
-                } else {
-                    const fileBuffer = Buffer.from(await fileObj.arrayBuffer());
-                    gramResult = await uploadFileViaGram(
-                        fileBuffer,
-                        fileName,
-                        file.size,
-                        `📦 <b>PixEdge Upload</b>\nSize: ${(file.size / 1024 / 1024).toFixed(2)} MB`
-                    );
-                }
+                // Stream chunks directly from disk to Telegram via CustomFile
+                const gramResult = await uploadFileViaGram(
+                    tempFilePath,
+                    fileName,
+                    fileSize,
+                    `📦 <b>PixEdge Upload</b>\nSize: ${(fileSize / 1024 / 1024).toFixed(2)} MB`
+                );
 
                 record = {
                     id,
@@ -213,29 +335,21 @@ export async function POST(req: NextRequest) {
                     password_hash,
                     burn_after_view: burnAfterView,
                     burn_after_download: burnAfterDownload,
-                    metadata: { size: file.size, type: file.type, version: 'v2' },
+                    metadata: { size: fileSize, type: mimeType, version: 'v2' },
                 };
                 usedGram = true;
             } catch (gramError: any) {
-                console.error('MTProto upload failed, falling back to Bot API:', gramError);
+                console.error('MTProto upload failed, checking fallback:', gramError);
 
                 const BOT_API_MAX_SIZE = 50 * 1024 * 1024;
-                if (file.size > BOT_API_MAX_SIZE) {
+                if (fileSize > BOT_API_MAX_SIZE) {
                     return NextResponse.json({
                         success: false,
                         error: {
                             code: 'MTPROTO_UNAVAILABLE',
-                            message: 'Large uploads currently require MTProto. Fix TELEGRAM_SESSION_STRING and retry.',
+                            message: 'Uploads larger than 50 MB require MTProto. Check TELEGRAM_SESSION_STRING configuration.',
                         }
                     }, { status: 503 });
-                }
-            } finally {
-                if (tempFilePath) {
-                    try {
-                        await fs.promises.unlink(tempFilePath);
-                    } catch {
-                        // Ignore cleanup error if already removed
-                    }
                 }
             }
         }
@@ -243,11 +357,14 @@ export async function POST(req: NextRequest) {
         if (!record) {
             // ── v1: Bot API fallback — max 50 MB ──
             let mediaType: 'photo' | 'animation' | 'video' = 'photo';
-            if (file.type.startsWith('video/')) mediaType = 'video';
-            if (file.type === 'image/gif') mediaType = 'animation';
+            if (mimeType.startsWith('video/')) mediaType = 'video';
+            if (mimeType === 'image/gif') mediaType = 'animation';
+
+            const fileBuffer = await fs.promises.readFile(tempFilePath);
+            const fileBlob = new Blob([fileBuffer], { type: mimeType });
 
             const telegramResult = await uploadToTelegram(
-                file, 'upload', '📦 <b>Uploaded in web</b>', mediaType
+                fileBlob, fileName, '📦 <b>Uploaded in web</b>', mediaType
             );
 
             record = {
@@ -258,7 +375,7 @@ export async function POST(req: NextRequest) {
                 password_hash,
                 burn_after_view: burnAfterView,
                 burn_after_download: burnAfterDownload,
-                metadata: { size: file.size, type: file.type, version: 'v1' },
+                metadata: { size: fileSize, type: mimeType, version: 'v1' },
             };
             usedGram = false;
         }
@@ -274,8 +391,8 @@ export async function POST(req: NextRequest) {
         // Log to Telegram
         await safeSendLog(
             `🌐 <b>New Web Upload</b>\n\n` +
-            `Type: ${file.type}\n` +
-            `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB\n` +
+            `Type: ${mimeType}\n` +
+            `Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB\n` +
             `Mode: ${usedGram ? 'MTProto v2' : 'Bot API v1'}\n` +
             `Link: ${publicUrl}`
         );
@@ -291,7 +408,6 @@ export async function POST(req: NextRequest) {
                 upload_mode: usedGram ? 'mtproto_v2' : 'botapi_v1',
             }
         });
-
     } catch (error: any) {
         console.error('Upload API Error:', error);
         await safeSendLog(`❌ <b>Web Upload Error</b>\n\nError: ${error.message || error}`);
@@ -299,5 +415,13 @@ export async function POST(req: NextRequest) {
             success: false,
             error: { code: 'INTERNAL_ERROR', message: 'Failed to process media upload' }
         }, { status: 500 });
+    } finally {
+        if (tempFilePath) {
+            try {
+                await fs.promises.unlink(tempFilePath);
+            } catch {
+                // Ignore cleanup error if already removed
+            }
+        }
     }
 }

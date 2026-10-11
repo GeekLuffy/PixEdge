@@ -17,6 +17,7 @@
     "@vercel/analytics": "^1.6.1",
     "@vercel/kv": "^3.0.0",
     "bcryptjs": "^3.0.3",
+    "busboy": "^1.6.0",
     "framer-motion": "latest",
     "jsonwebtoken": "^9.0.3",
     "jszip": "^3.10.1",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/busboy": "^1.5.5",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "latest",
     "@types/react": "latest",
