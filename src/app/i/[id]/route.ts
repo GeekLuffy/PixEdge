@@ -57,6 +57,28 @@ export async function HEAD(
         const record = await getImage(id);
         if (!record) return new NextResponse(null, { status: 404 });
 
+        if (record.password_hash) {
+            const cookiePass = req.cookies.get(`pe_pass_${id}`)?.value;
+            const queryPass = req.nextUrl.searchParams.get('password') || req.nextUrl.searchParams.get('pass');
+            const headerPass = req.headers.get('x-media-password');
+            const candidate = queryPass || headerPass || '';
+
+            let authorized = false;
+            if (cookiePass && cookiePass === record.password_hash) {
+                authorized = true;
+            } else if (candidate) {
+                const crypto = await import('crypto');
+                const candHash = crypto.createHash('sha256').update(candidate.trim()).digest('hex');
+                if (candHash === record.password_hash) {
+                    authorized = true;
+                }
+            }
+
+            if (!authorized) {
+                return new NextResponse(null, { status: 401 });
+            }
+        }
+
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const contentType = record.metadata?.type || (ext === '.mp4' ? 'video/mp4' : 'image/jpeg');
         const fileSize = record.metadata?.size || 0;
