@@ -278,9 +278,9 @@ export async function GET(
             }
         }
 
-        // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
-        if (record.message_id && isGramConfigured()) {
-            if (serveRaw) {
+        if (serveRaw) {
+            // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
+            if (record.message_id && isGramConfigured()) {
                 try {
                     const fileSizeHint = record.metadata?.size || 0;
                     const parsedRange = fileSizeHint ? parseRangeHeader(rangeHeader, fileSizeHint) : null;
@@ -313,16 +313,15 @@ export async function GET(
 
                     return new Response(stream, { status, headers });
                 } catch (gramErr) {
-                    console.error('[gramjs] stream error, falling back to Bot API:', gramErr);
-                    // fall through to Bot API below
+                    console.error('[gramjs] stream error:', gramErr);
+                    if (record.metadata?.version === 'v2') {
+                        return new NextResponse('Error streaming media from Telegram Cloud', { status: 502 });
+                    }
                 }
             }
-        }
 
-        // ── v1 path: Bot API redirect / proxy (original behaviour with Range support) ───────────
-        const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
-
-        const proxyImage = async () => {
+            // ── v1 path: Bot API redirect / proxy (only for files uploaded with Bot API) ───────────
+            const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
             const fetchHeaders: Record<string, string> = {};
             if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
@@ -346,10 +345,6 @@ export async function GET(
             headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
             return new NextResponse(blob, { status: response.status, headers });
-        };
-
-        if (serveRaw) {
-            return proxyImage();
         }
 
         // Increment views for HTML page view (only for real human users)
