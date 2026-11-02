@@ -13,6 +13,7 @@ import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import { Api } from 'telegram';
 import { CustomFile } from 'telegram/client/uploads';
+import bigInt from 'big-integer';
 
 // ─── Singleton state ──────────────────────────────────────────────────────────
 
@@ -200,7 +201,7 @@ export interface GramUploadResult {
  * @param caption     Optional HTML caption stored in the channel message.
  */
 export async function uploadFileViaGram(
-    fileBuffer: Buffer,
+    fileSource: Buffer | string,
     fileName: string,
     fileSize: number,
     caption = '',
@@ -208,14 +209,17 @@ export async function uploadFileViaGram(
 ): Promise<GramUploadResult> {
     const { client, channel } = await getGramClientWithChannel();
 
-    // Scale parallel workers with file size (more workers = faster large uploads)
+    // Scale parallel workers conservatively for low-memory container environments (e.g. 512MB RAM)
+    // Avoids massive socket buffer and chunk spikes that trigger OOMKilled
     const workers =
-        fileSize > 500 * 1024 * 1024 ? 16  // > 500 MB
-            : fileSize > 100 * 1024 * 1024 ? 8   // > 100 MB
-            : fileSize > 10  * 1024 * 1024 ? 4   // > 10 MB
-            : 1;                                   // small
+        fileSize > 500 * 1024 * 1024 ? 4
+            : fileSize > 50 * 1024 * 1024 ? 3
+            : 2;
 
-    const file = new CustomFile(fileName, fileSize, '', fileBuffer);
+    const isPath = typeof fileSource === 'string';
+    const file = isPath
+        ? new CustomFile(fileName, fileSize, fileSource)
+        : new CustomFile(fileName, fileSize, '', fileSource);
 
     let lastProgressTime = Date.now();
     let lastUploadedBytes = 0;
@@ -355,50 +359,112 @@ export async function streamFileViaGram(
             thumbSize: '',
         });
 
-        // 4 KB alignment calculation for Telegram MTProto
-        const alignedStart = Math.floor(start / 4096) * 4096;
+        // Telegram MTProto boundary rule: chunks must never cross a 1 MB (1048576 byte) boundary.
+        // Aligning start to 1 MB guarantees every 512 KB chunk stays cleanly within its 1 MB block.
+        const ONE_MB = 1024 * 1024;
+        const alignedStart = Math.floor(start / ONE_MB) * ONE_MB;
         let skipFirst = start - alignedStart;
         let remainingToSend = contentLength;
 
-        // True streaming — 1 MB per Telegram API round-trip, flat RAM usage
+        // True streaming with pre-fetch pipeline — keeps up to 3 chunks (~1.5 MB) pre-buffered
+        // from Telegram MTProto to eliminate stop-and-go network round-trip latency.
+        const PREFETCH_MAX = 3;
+        const queue: Buffer[] = [];
+        let producerDone = false;
+        let producerError: any = null;
+        let isCancelled = false;
+        let pushResolver: (() => void) | null = null;
+        let popResolver: (() => void) | null = null;
+
+        const notifyPush = () => {
+            if (pushResolver) {
+                const fn = pushResolver;
+                pushResolver = null;
+                fn();
+            }
+        };
+
+        const notifyPop = () => {
+            if (popResolver) {
+                const fn = popResolver;
+                popResolver = null;
+                fn();
+            }
+        };
+
+        // Background pre-fetch producer
+        (async () => {
+            try {
+                for await (const chunkRaw of (client as any).iterDownload({
+                    file: fileLocation,
+                    offset: bigInt(alignedStart),
+                    requestSize: 512 * 1024, // 512 KB (GramJS MAX_CHUNK_SIZE)
+                    dcId: doc.dcId,
+                })) {
+                    if (isCancelled) break;
+
+                    while (queue.length >= PREFETCH_MAX && !isCancelled) {
+                        await new Promise<void>((r) => { popResolver = r; });
+                    }
+                    if (isCancelled) break;
+
+                    queue.push(Buffer.from(chunkRaw as Buffer));
+                    notifyPush();
+                }
+            } catch (err) {
+                producerError = err;
+            } finally {
+                producerDone = true;
+                notifyPush();
+            }
+        })();
+
         const stream = new ReadableStream<Uint8Array>({
-            async start(controller) {
-                try {
-                    for await (const chunkRaw of (client as any).iterDownload({
-                        file: fileLocation,
-                        offset: BigInt(alignedStart),
-                        requestSize: 1024 * 1024, // 1 MB chunks
-                        dcId: doc.dcId,
-                    })) {
-                        let chunk = Buffer.from(chunkRaw as Buffer);
+            async pull(controller) {
+                if (isCancelled) return;
 
-                        if (skipFirst > 0) {
-                            if (chunk.length <= skipFirst) {
-                                skipFirst -= chunk.length;
-                                continue;
-                            }
-                            chunk = chunk.subarray(skipFirst);
-                            skipFirst = 0;
-                        }
+                while (queue.length === 0 && !producerDone && !producerError && !isCancelled) {
+                    await new Promise<void>((r) => { pushResolver = r; });
+                }
 
-                        if (chunk.length >= remainingToSend) {
-                            controller.enqueue(new Uint8Array(chunk.subarray(0, remainingToSend)));
-                            remainingToSend = 0;
-                            controller.close();
-                            break;
-                        } else {
-                            controller.enqueue(new Uint8Array(chunk));
-                            remainingToSend -= chunk.length;
+                if (producerError) {
+                    controller.error(producerError);
+                    return;
+                }
+
+                if (queue.length > 0) {
+                    let chunk = queue.shift()!;
+                    notifyPop();
+
+                    if (skipFirst > 0) {
+                        if (chunk.length <= skipFirst) {
+                            skipFirst -= chunk.length;
+                            return;
                         }
+                        chunk = chunk.subarray(skipFirst);
+                        skipFirst = 0;
                     }
 
-                    if (remainingToSend > 0) {
+                    if (chunk.length >= remainingToSend) {
+                        controller.enqueue(new Uint8Array(chunk.subarray(0, remainingToSend)));
+                        remainingToSend = 0;
                         controller.close();
+                        isCancelled = true;
+                        notifyPop();
+                        return;
+                    } else {
+                        controller.enqueue(new Uint8Array(chunk));
+                        remainingToSend -= chunk.length;
                     }
-                } catch (err) {
-                    controller.error(err);
+                } else if (producerDone) {
+                    controller.close();
                 }
             },
+            cancel() {
+                isCancelled = true;
+                notifyPop();
+                notifyPush();
+            }
         });
 
         return {

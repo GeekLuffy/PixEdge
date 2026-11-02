@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { uploadToTelegram } from '@/lib/telegram';
-import { saveImage, generateId } from '@/lib/db';
+import { saveImage, generateId, getImage } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
     try {
@@ -12,13 +12,25 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 });
         }
 
+        // Validate custom ID if provided before uploading
+        let id: string;
+        if (customId && typeof customId === 'string') {
+            id = customId.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-');
+            if (!id) {
+                return NextResponse.json({ error: 'Invalid customId' }, { status: 400 });
+            }
+            const existing = await getImage(id);
+            if (existing) {
+                return NextResponse.json({ error: `The ID "${id}" is already taken` }, { status: 409 });
+            }
+        } else {
+            id = generateId();
+        }
+
         // 1. Upload to Telegram
         const telegramResult = await uploadToTelegram(file, 'upload.jpg');
 
-        // 2. Generate ID (use custom if provided)
-        const id = customId ? customId.toLowerCase().replace(/[^a-z0-9-]/g, '-') : generateId();
-
-        // Save to DB
+        // 2. Save to DB
         await saveImage({
             id,
             telegram_file_id: telegramResult.file_id,

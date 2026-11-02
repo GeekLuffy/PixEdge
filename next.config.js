@@ -2,14 +2,14 @@
 const nextConfig = {
     experimental: {
         serverActions: {
-            // Server Actions body limit (not related to API route uploads)
-            bodySizeLimit: '50mb',
+            // Server Actions body limit
+            bodySizeLimit: '2gb',
         },
     },
     // Allow long-running upload requests in production
     // Self-hosted / Railway / VPS: no platform timeout enforced
     // Vercel Pro: respects maxDuration set per-route
-    serverExternalPackages: ['telegram'],
+    serverExternalPackages: ['telegram', 'big-integer'],
 };
 
 module.exports = nextConfig;

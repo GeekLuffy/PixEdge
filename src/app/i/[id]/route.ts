@@ -57,6 +57,28 @@ export async function HEAD(
         const record = await getImage(id);
         if (!record) return new NextResponse(null, { status: 404 });
 
+        if (record.password_hash) {
+            const cookiePass = req.cookies.get(`pe_pass_${id}`)?.value;
+            const queryPass = req.nextUrl.searchParams.get('password') || req.nextUrl.searchParams.get('pass');
+            const headerPass = req.headers.get('x-media-password');
+            const candidate = queryPass || headerPass || '';
+
+            let authorized = false;
+            if (cookiePass && cookiePass === record.password_hash) {
+                authorized = true;
+            } else if (candidate) {
+                const crypto = await import('crypto');
+                const candHash = crypto.createHash('sha256').update(candidate.trim()).digest('hex');
+                if (candHash === record.password_hash) {
+                    authorized = true;
+                }
+            }
+
+            if (!authorized) {
+                return new NextResponse(null, { status: 401 });
+            }
+        }
+
         const ext = record.metadata?.type?.startsWith('video/') ? '.mp4' : '.jpg';
         const contentType = record.metadata?.type || (ext === '.mp4' ? 'video/mp4' : 'image/jpeg');
         const fileSize = record.metadata?.size || 0;
@@ -278,9 +300,9 @@ export async function GET(
             }
         }
 
-        // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
-        if (record.message_id && isGramConfigured()) {
-            if (serveRaw) {
+        if (serveRaw) {
+            // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
+            if (record.message_id && isGramConfigured()) {
                 try {
                     const fileSizeHint = record.metadata?.size || 0;
                     const parsedRange = fileSizeHint ? parseRangeHeader(rangeHeader, fileSizeHint) : null;
@@ -313,16 +335,15 @@ export async function GET(
 
                     return new Response(stream, { status, headers });
                 } catch (gramErr) {
-                    console.error('[gramjs] stream error, falling back to Bot API:', gramErr);
-                    // fall through to Bot API below
+                    console.error('[gramjs] stream error:', gramErr);
+                    if (record.metadata?.version === 'v2') {
+                        return new NextResponse('Error streaming media from Telegram Cloud', { status: 502 });
+                    }
                 }
             }
-        }
 
-        // ── v1 path: Bot API redirect / proxy (original behaviour with Range support) ───────────
-        const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
-
-        const proxyImage = async () => {
+            // ── v1 path: Bot API redirect / proxy (only for files uploaded with Bot API) ───────────
+            const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
             const fetchHeaders: Record<string, string> = {};
             if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
@@ -346,10 +367,6 @@ export async function GET(
             headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
             return new NextResponse(blob, { status: response.status, headers });
-        };
-
-        if (serveRaw) {
-            return proxyImage();
         }
 
         // Increment views for HTML page view (only for real human users)
@@ -1249,7 +1266,7 @@ export async function GET(
                 <div class="player-wrapper">
                     ${isVideo ? `
                         <div class="custom-player-container" id="playerContainer">
-                            <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="metadata" onclick="togglePlay()"></video>
+                            <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
                             
                             <!-- Big Center Play Button -->
                             <div class="big-play-btn" id="bigPlayBtn" onclick="togglePlay()">
@@ -1301,7 +1318,7 @@ export async function GET(
                         </div>
                     ` : isAudio ? `
                         <div class="audio-player-card" id="audioPlayerCard">
-                            <audio id="mediaElement" src="${proxiedImgSrc}" preload="metadata"></audio>
+                            <audio id="mediaElement" src="${proxiedImgSrc}" preload="auto"></audio>
                             
                             <div class="vinyl-disc-wrap">
                                 <div class="vinyl-disc" id="vinylDisc">
