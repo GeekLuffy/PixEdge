@@ -48,11 +48,20 @@ interface ParsedMultipart {
     mimeType: string;
 }
 
+function getMaxUploadBytes(): { maxBytes: number; maxMB: number; gramReady: boolean } {
+    const gramReady = isGramConfigured();
+    const configuredMaxMB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10);
+    const maxMB = gramReady
+        ? (Number.isFinite(configuredMaxMB) && configuredMaxMB > 0 ? configuredMaxMB : 2000)
+        : 50;
+    return { maxBytes: maxMB * 1024 * 1024, maxMB, gramReady };
+}
+
 /**
  * Streams incoming multipart upload directly to disk using busboy.
  * Memory footprint stays < 15 MB even for 2 GB video uploads!
  */
-function parseMultipartUpload(req: NextRequest): Promise<ParsedMultipart> {
+function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<ParsedMultipart> {
     const contentType = req.headers.get('content-type') || '';
     if (!contentType.includes('multipart/form-data')) {
         return Promise.reject(new Error('INVALID_CONTENT_TYPE'));
@@ -63,12 +72,13 @@ function parseMultipartUpload(req: NextRequest): Promise<ParsedMultipart> {
     }
 
     return new Promise((resolve, reject) => {
+        let limitExceeded = false;
         let bb: busboy.Busboy;
         try {
             bb = busboy({
                 headers: { 'content-type': contentType },
                 limits: {
-                    fileSize: 2 * 1024 * 1024 * 1024, // 2 GB limit
+                    fileSize: maxBytes,
                 }
             });
         } catch (err) {
@@ -112,6 +122,11 @@ function parseMultipartUpload(req: NextRequest): Promise<ParsedMultipart> {
             fileName = info.filename || 'upload.bin';
             mimeType = info.mimeType || 'application/octet-stream';
 
+            fileStream.on('limit', () => {
+                limitExceeded = true;
+                cleanupAndReject(new Error('FILE_TOO_LARGE'));
+            });
+
             const tempDir = os.tmpdir();
             const uniquePrefix = `pixedge_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             tempFilePath = path.join(tempDir, `${uniquePrefix}_${encodeURIComponent(fileName).slice(-60)}`);
@@ -137,6 +152,11 @@ function parseMultipartUpload(req: NextRequest): Promise<ParsedMultipart> {
 
         const handleDone = () => {
             if (isDone) return;
+
+            if (limitExceeded) {
+                cleanupAndReject(new Error('FILE_TOO_LARGE'));
+                return;
+            }
 
             if (writeError) {
                 cleanupAndReject(writeError);
@@ -211,10 +231,18 @@ export async function POST(req: NextRequest) {
         });
     }
 
+    const { maxBytes, maxMB, gramReady } = getMaxUploadBytes();
+
     let parsed: ParsedMultipart;
     try {
-        parsed = await parseMultipartUpload(req);
+        parsed = await parseMultipartUpload(req, maxBytes);
     } catch (parseError: any) {
+        if (parseError.message === 'FILE_TOO_LARGE') {
+            return NextResponse.json({
+                success: false,
+                error: { code: 'FILE_TOO_LARGE', message: `File too large. Max size is ${maxMB} MB.` }
+            }, { status: 400 });
+        }
         if (parseError.message === 'MISSING_FILE' || parseError.message === 'EMPTY_BODY') {
             return NextResponse.json({
                 success: false,
@@ -262,17 +290,7 @@ export async function POST(req: NextRequest) {
         const burnAfterView = fields.burnAfterView === 'true' || fields.burnAfterView === '1';
         const burnAfterDownload = fields.burnAfterDownload === 'true' || fields.burnAfterDownload === '1';
 
-        // Enforce size limit:
-        //   gramjs (MTProto) configured → up to MAX_UPLOAD_SIZE_MB (default 2000 MB = 2 GB)
-        //   Bot API fallback            → up to 50 MB (Telegram Bot API hard limit)
-        let gramReady = isGramConfigured();
-        const configuredMaxMB = parseInt(process.env.MAX_UPLOAD_SIZE_MB || '2000', 10);
-        const maxMB = gramReady
-            ? (Number.isFinite(configuredMaxMB) && configuredMaxMB > 0 ? configuredMaxMB : 2000)
-            : 50;
-        const MAX_SIZE = maxMB * 1024 * 1024;
-
-        if (fileSize > MAX_SIZE) {
+        if (fileSize > maxBytes) {
             return NextResponse.json({
                 success: false,
                 error: {

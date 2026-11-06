@@ -20,8 +20,8 @@ declare module "next-auth" {
 
 // Initialize Redis client
 const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    url: (process.env.UPSTASH_REDIS_REST_URL || "").trim(),
+    token: (process.env.UPSTASH_REDIS_REST_TOKEN || "").trim(),
 });
 
 export const authOptions: NextAuthOptions = {
@@ -51,7 +51,8 @@ export const authOptions: NextAuthOptions = {
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) return null;
 
-                const userEmailKey = `user:email:${credentials.email}`;
+                const email = credentials.email.trim().toLowerCase();
+                const userEmailKey = `user:email:${email}`;
                 const userId = await redis.get(userEmailKey);
 
                 if (!userId) return null;
@@ -140,6 +141,13 @@ export const authOptions: NextAuthOptions = {
                     ? `${credentials.first_name} ${credentials.last_name}`
                     : (credentials.first_name || credentials.username || 'Telegram User');
 
+                try {
+                    const { linkTelegramToAccount } = await import('@/lib/db');
+                    await linkTelegramToAccount(rawId.toString(), rawId.toString());
+                } catch (linkErr) {
+                    console.error('[auth] Failed to link telegram widget account:', linkErr);
+                }
+
                 return {
                     id: rawId,
                     name: displayName,
@@ -167,6 +175,48 @@ export const authOptions: NextAuthOptions = {
                 await redis.del(pinKey);
 
                 const userData = typeof data === 'string' ? JSON.parse(data) : data;
+                const telegramId = userData.id?.toString();
+
+                if (telegramId) {
+                    // Remove active login tracker
+                    try {
+                        await redis.del(`telegram:active_login:${telegramId}`);
+                    } catch {}
+
+                    // 1. Link Telegram account to web account in Redis (Fixes /status & syncs uploads)
+                    try {
+                        const { linkTelegramToAccount } = await import('@/lib/db');
+                        await linkTelegramToAccount(telegramId, telegramId);
+                    } catch (linkErr) {
+                        console.error('[auth] Failed to link telegram account:', linkErr);
+                    }
+
+                    // 2. Instantly delete the original Telegram login message & send success confirmation
+                    if (userData.chat_id && userData.message_id) {
+                        try {
+                            const { deleteTelegramMessage, sendMessage, escapeHtml } = await import('@/lib/telegram');
+                            await deleteTelegramMessage(userData.chat_id, userData.message_id);
+
+                            const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
+                            const userName = escapeHtml(userData.first_name || userData.name || 'User');
+                            await sendMessage(
+                                userData.chat_id,
+                                `✅ <b>Login Successful!</b>\n\n` +
+                                `Welcome, <b>${userName}</b>! You are now logged in to PixEdge Web.\n\n` +
+                                `• Your Telegram account is now <b>linked</b>.\n` +
+                                `• All uploads via this bot will automatically sync to your dashboard.`,
+                                'HTML',
+                                {
+                                    inline_keyboard: [[
+                                        { text: "📊 Open Dashboard", url: `${baseUrl}/dashboard` }
+                                    ]]
+                                }
+                            );
+                        } catch (msgErr) {
+                            console.error('[auth] Failed to delete prompt / send login success message:', msgErr);
+                        }
+                    }
+                }
 
                 return {
                     id: userData.id.toString(),

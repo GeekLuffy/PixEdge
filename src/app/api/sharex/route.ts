@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         FileFormName: 'file',
         URL: '$json:data.url$',
         ThumbnailURL: '$json:data.direct_url$',
-        DeletionURL: `${baseUrl}/api/v1/delete/$json:data.id$`,
+        DeletionURL: `${baseUrl}/api/v1/delete/$json:data.id$?key=${apiKey}`,
         ErrorMessage: '$json:error.message$',
     };
 

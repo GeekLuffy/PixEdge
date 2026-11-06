@@ -50,8 +50,8 @@ export async function HEAD(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id: rawId } = await params;
-    const hasExtension = rawId.includes('.');
-    const id = hasExtension ? rawId.split('.')[0] : rawId;
+    const id = rawId.replace(/\.(jpe?g|png|gif|webp|avif|bmp|tiff|mp4|webm|mov|mkv|mpeg|3gp|mp3|m4a|ogg|wav|bin)$/i, '');
+    const hasExtension = id !== rawId;
 
     try {
         const record = await getImage(id);
@@ -101,9 +101,8 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id: rawId } = await params;
-
-    const hasExtension = rawId.includes('.');
-    const id = hasExtension ? rawId.split('.')[0] : rawId;
+    const id = rawId.replace(/\.(jpe?g|png|gif|webp|avif|bmp|tiff|mp4|webm|mov|mkv|mpeg|3gp|mp3|m4a|ogg|wav|bin)$/i, '');
+    const hasExtension = id !== rawId;
 
     try {
         const record = await getImage(id);
@@ -342,15 +341,22 @@ export async function GET(
                 }
             }
 
-            // ── v1 path: Bot API redirect / proxy (only for files uploaded with Bot API) ───────────
+            if (record.metadata?.version === 'v2' && !isGramConfigured()) {
+                return new NextResponse('Media requires MTProto streaming backend. Please check server configuration.', { status: 503 });
+            }
+
+            // ── v1 path: Bot API streaming proxy (only for files uploaded with Bot API) ───────────
+            if (record.metadata?.size && record.metadata.size > 20 * 1024 * 1024 && !record.message_id) {
+                return new NextResponse('Files over 20 MB uploaded via Telegram Bot API cannot be retrieved directly. Please configure MTProto.', { status: 503 });
+            }
+
             const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
             const fetchHeaders: Record<string, string> = {};
             if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
             const response = await fetch(fileUrl, { headers: fetchHeaders });
-            const blob = await response.blob();
             const headers = new Headers();
-            headers.set('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
+            headers.set('Content-Type', response.headers.get('Content-Type') || record.metadata?.type || 'image/jpeg');
             headers.set('Accept-Ranges', 'bytes');
             headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
@@ -366,7 +372,7 @@ export async function GET(
             const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
             headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
-            return new NextResponse(blob, { status: response.status, headers });
+            return new Response(response.body, { status: response.status, headers });
         }
 
         // Increment views for HTML page view (only for real human users)
@@ -420,13 +426,13 @@ export async function GET(
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
                 <title>PixEdge | ${id}</title>
                 <meta name="theme-color" content="#8b5cf6">
                 <meta property="og:title" content="PixEdge Media | ${id}">
                 <meta property="og:site_name" content="PixEdge">
                 <meta property="og:url" content="${fullPageUrl}">
-                <meta property="og:description" content="Free instant 2GB high-speed media hosting on PixEdge. Size: ${formattedSize}">
+                <meta property="og:description" content="Free instant 20MB high-speed media hosting on PixEdge. Size: ${formattedSize}">
                 ${isVideo
                 ? `<meta property="og:type" content="video.other">
                    <meta property="og:video" content="${absoluteMediaUrl}">
@@ -462,20 +468,49 @@ export async function GET(
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                 <style>
-                    * { box-sizing: border-box; }
-                    body { 
-                        margin: 0; 
-                        background: #09090b; 
-                        color: #f4f4f5; 
-                        font-family: 'Inter', system-ui, -apple-system, sans-serif; 
-                        display: flex; 
-                        flex-direction: column; 
-                        align-items: center; 
-                        justify-content: center; 
-                        min-height: 100vh; 
-                        overflow: hidden; 
-                        user-select: none;
+                    *, *::before, *::after { box-sizing: border-box; }
+                    :root {
+                        --bg: #09090b;
+                        --surface: rgba(18, 18, 24, 0.72);
+                        --border: rgba(255, 255, 255, 0.09);
+                        --border-accent: rgba(139, 92, 246, 0.32);
+                        --text: #f4f4f5;
+                        --text-muted: #a1a1aa;
+                        --text-soft: #d4d4d8;
+                        --violet: #8b5cf6;
+                        --violet-bright: #c084fc;
+                        --violet-deep: #7c3aed;
+                        --violet-soft: #c4b5fd;
+                        --radius-lg: 20px;
+                        --radius-md: 14px;
+                        --radius-pill: 999px;
+                        --shadow-lg: 0 25px 60px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.04);
+                        --shadow-violet: 0 10px 40px -8px rgba(139, 92, 246, 0.45);
+                        --safe-top: env(safe-area-inset-top, 0px);
+                        --safe-bottom: env(safe-area-inset-bottom, 0px);
+                        --safe-left: env(safe-area-inset-left, 0px);
+                        --safe-right: env(safe-area-inset-right, 0px);
                     }
+                    html, body { margin: 0; padding: 0; height: 100%; }
+                    body {
+                        background:
+                            radial-gradient(1100px 600px at 50% -10%, rgba(139, 92, 246, 0.16), transparent 60%),
+                            radial-gradient(900px 500px at 100% 110%, rgba(6, 182, 212, 0.08), transparent 55%),
+                            var(--bg);
+                        color: var(--text);
+                        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                        min-height: 100vh;
+                        min-height: 100dvh;
+                        overflow: hidden;
+                        user-select: none;
+                        -webkit-tap-highlight-color: transparent;
+                    }
+
+                    /* ════════════════════════════════════════════════════════════════
+                       DESKTOP (default) — layout from File 1
+                       Fixed absolute-positioned toolbar & info-bar, full-viewport
+                       player wrapper. Pixel-perfect to the original desktop view.
+                       ════════════════════════════════════════════════════════════════ */
                     .player-wrapper {
                         position: relative;
                         display: flex;
@@ -483,6 +518,7 @@ export async function GET(
                         justify-content: center;
                         width: 100vw;
                         height: 100vh;
+                        height: 100dvh;
                         padding: 80px 20px 90px;
                     }
                     .media-container {
@@ -498,7 +534,7 @@ export async function GET(
                         max-width: 100%;
                         max-height: 78vh;
                         object-fit: contain;
-                        border-radius: 14px;
+                        border-radius: var(--radius-md);
                         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.08);
                         background: #000;
                         cursor: zoom-in;
@@ -506,7 +542,7 @@ export async function GET(
                     }
                     img.zoomed { transform: scale(1.6); cursor: zoom-out; }
 
-                    /* Custom Video Player Styles */
+                    /* Custom Video Player (desktop) */
                     .custom-player-container {
                         position: relative;
                         max-width: 92vw;
@@ -574,10 +610,7 @@ export async function GET(
                         transition: opacity 0.3s ease;
                         user-select: none;
                     }
-                    .custom-controls.autohide {
-                        opacity: 0;
-                        pointer-events: none;
-                    }
+                    .custom-controls.autohide { opacity: 0; pointer-events: none; }
                     .progress-bar-wrap {
                         position: relative;
                         width: 100%;
@@ -586,14 +619,12 @@ export async function GET(
                         border-radius: 10px;
                         cursor: pointer;
                         transition: height 0.15s ease;
+                        touch-action: none;
                     }
-                    .progress-bar-wrap:hover {
-                        height: 9px;
-                    }
+                    .progress-bar-wrap:hover { height: 9px; }
                     .buffered-bar {
                         position: absolute;
-                        top: 0;
-                        left: 0;
+                        top: 0; left: 0;
                         height: 100%;
                         background: rgba(255, 255, 255, 0.35);
                         border-radius: 10px;
@@ -601,30 +632,26 @@ export async function GET(
                     }
                     .played-bar {
                         position: absolute;
-                        top: 0;
-                        left: 0;
+                        top: 0; left: 0;
                         height: 100%;
-                        background: linear-gradient(90deg, #8b5cf6 0%, #c084fc 100%);
+                        background: linear-gradient(90deg, var(--violet) 0%, var(--violet-bright) 100%);
                         border-radius: 10px;
                         width: 0%;
                         box-shadow: 0 0 12px rgba(139, 92, 246, 0.7);
                     }
                     .scrub-handle {
                         position: absolute;
-                        top: 50%;
-                        left: 0%;
+                        top: 50%; left: 0%;
                         transform: translate(-50%, -50%);
                         width: 13px;
                         height: 13px;
                         border-radius: 50%;
                         background: #ffffff;
-                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 10px #8b5cf6;
+                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 10px var(--violet);
                         opacity: 0;
                         transition: opacity 0.15s ease;
                     }
-                    .progress-bar-wrap:hover .scrub-handle {
-                        opacity: 1;
-                    }
+                    .progress-bar-wrap:hover .scrub-handle { opacity: 1; }
                     .controls-row {
                         display: flex;
                         align-items: center;
@@ -649,6 +676,7 @@ export async function GET(
                         cursor: pointer;
                         transition: all 0.15s ease;
                         padding: 0;
+                        flex-shrink: 0;
                     }
                     .ctrl-btn:hover {
                         color: #ffffff;
@@ -656,16 +684,17 @@ export async function GET(
                         transform: scale(1.05);
                     }
                     .ctrl-btn.active {
-                        color: #c4b5fd;
+                        color: var(--violet-soft);
                         background: rgba(139, 92, 246, 0.25);
                     }
                     .time-display {
                         font-size: 12px;
-                        color: #d4d4d8;
+                        color: var(--text-soft);
                         font-weight: 500;
                         margin-left: 6px;
                         letter-spacing: 0.3px;
                         white-space: nowrap;
+                        font-variant-numeric: tabular-nums;
                     }
                     .speed-btn {
                         font-size: 11px;
@@ -676,12 +705,12 @@ export async function GET(
                         background: rgba(255, 255, 255, 0.1);
                         border: 1px solid rgba(255, 255, 255, 0.15);
                         border-radius: 6px;
-                        color: #f4f4f5;
+                        color: var(--text);
                     }
                     .speed-btn:hover {
                         background: rgba(139, 92, 246, 0.3);
-                        border-color: #8b5cf6;
-                        color: #c4b5fd;
+                        border-color: var(--violet);
+                        color: var(--violet-soft);
                     }
                     .volume-container {
                         display: flex;
@@ -710,12 +739,12 @@ export async function GET(
                         box-shadow: 0 0 6px rgba(0, 0, 0, 0.5);
                     }
 
-                    /* Custom Audio Player Card */
+                    /* Audio Player Card (desktop) */
                     .audio-player-card {
                         background: rgba(18, 18, 24, 0.85);
                         backdrop-filter: blur(24px);
                         -webkit-backdrop-filter: blur(24px);
-                        border: 1px solid rgba(139, 92, 246, 0.3);
+                        border: 1px solid var(--border-accent);
                         border-radius: 28px;
                         padding: 32px 28px;
                         width: 90vw;
@@ -747,17 +776,13 @@ export async function GET(
                         position: relative;
                         border: 2px solid rgba(255, 255, 255, 0.08);
                     }
-                    .vinyl-disc.spinning {
-                        animation: spin 6s linear infinite;
-                    }
-                    @keyframes spin {
-                        100% { transform: rotate(360deg); }
-                    }
+                    .vinyl-disc.spinning { animation: spin 6s linear infinite; }
+                    @keyframes spin { 100% { transform: rotate(360deg); } }
                     .vinyl-center {
                         width: 54px;
                         height: 54px;
                         border-radius: 50%;
-                        background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+                        background: linear-gradient(135deg, var(--violet) 0%, #6d28d9 100%);
                         display: flex;
                         align-items: center;
                         justify-content: center;
@@ -767,7 +792,7 @@ export async function GET(
                         width: 14px;
                         height: 14px;
                         border-radius: 50%;
-                        background: #09090b;
+                        background: var(--bg);
                         border: 2px solid rgba(255, 255, 255, 0.4);
                     }
                     .equalizer-wrap {
@@ -781,7 +806,7 @@ export async function GET(
                     .eq-bar {
                         width: 3px;
                         height: 6px;
-                        background: #8b5cf6;
+                        background: var(--violet);
                         border-radius: 3px;
                         transition: height 0.2s ease;
                     }
@@ -794,29 +819,25 @@ export async function GET(
                     .equalizer-wrap.playing .eq-bar:nth-child(7) { animation: eqPulse 0.8s ease infinite alternate; animation-delay: 0.18s; }
                     .equalizer-wrap.playing .eq-bar:nth-child(8) { animation: eqPulse 1.0s ease infinite alternate; animation-delay: 0.3s; }
                     @keyframes eqPulse {
-                        0% { height: 4px; background: #8b5cf6; }
-                        100% { height: 22px; background: #c084fc; }
+                        0% { height: 4px; background: var(--violet); }
+                        100% { height: 22px; background: var(--violet-bright); }
                     }
-                    .audio-meta {
-                        margin-bottom: 14px;
-                    }
+                    .audio-meta { margin-bottom: 14px; }
                     .audio-title {
                         font-size: 1.15rem;
                         font-weight: 700;
-                        color: #f4f4f5;
+                        color: var(--text);
                         margin-bottom: 4px;
                     }
-                    .audio-subtitle {
-                        font-size: 0.8rem;
-                        color: #a1a1aa;
-                    }
+                    .audio-subtitle { font-size: 0.8rem; color: var(--text-muted); }
                     .audio-time-row {
                         width: 100%;
                         display: flex;
                         justify-content: space-between;
                         font-size: 11px;
-                        color: #a1a1aa;
+                        color: var(--text-muted);
                         margin-bottom: 14px;
+                        font-variant-numeric: tabular-nums;
                     }
                     .audio-controls-row {
                         display: flex;
@@ -829,7 +850,7 @@ export async function GET(
                         width: 52px;
                         height: 52px;
                         border-radius: 50%;
-                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+                        background: linear-gradient(135deg, var(--violet) 0%, var(--violet-deep) 100%);
                         color: #fff;
                         display: flex;
                         align-items: center;
@@ -838,48 +859,47 @@ export async function GET(
                         cursor: pointer;
                         box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
                         transition: all 0.2s ease;
+                        flex-shrink: 0;
                     }
                     .audio-play-btn:hover {
                         transform: scale(1.08);
                         box-shadow: 0 10px 30px rgba(139, 92, 246, 0.7);
                     }
 
-                    .toolbar { 
-                        position: fixed; 
-                        top: 20px; 
-                        left: 50%; 
-                        transform: translateX(-50%); 
-                        display: flex; 
+                    /* Toolbar (desktop — fixed at top center) */
+                    .toolbar {
+                        position: fixed;
+                        top: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        display: flex;
                         align-items: center;
-                        gap: 8px; 
-                        background: rgba(18, 18, 22, 0.75); 
-                        backdrop-filter: blur(16px); 
+                        gap: 8px;
+                        background: rgba(18, 18, 22, 0.75);
+                        backdrop-filter: blur(16px);
                         -webkit-backdrop-filter: blur(16px);
-                        padding: 6px 10px; 
-                        border-radius: 100px; 
+                        padding: 6px 10px;
+                        border-radius: var(--radius-pill);
                         border: 1px solid rgba(255, 255, 255, 0.12);
                         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
                         z-index: 100;
+                        max-width: calc(100vw - 24px);
                     }
                     .expiry-pill {
                         display: inline-flex;
                         align-items: center;
                         gap: 8px;
                         background: rgba(139, 92, 246, 0.12);
-                        border: 1px solid rgba(139, 92, 246, 0.28);
-                        color: #c4b5fd;
+                        border: 1px solid var(--border-accent);
+                        color: var(--violet-soft);
                         padding: 4px 12px;
-                        border-radius: 50px;
+                        border-radius: var(--radius-pill);
                         font-size: 12px;
                         font-weight: 500;
                         height: 32px;
                         white-space: nowrap;
                     }
-                    .expiry-pill b {
-                        color: #ffffff;
-                        font-weight: 700;
-                        letter-spacing: 0.5px;
-                    }
+                    .expiry-pill b { color: #fff; font-weight: 700; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
                     .btn-extend-trigger {
                         background: linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(124, 58, 237, 0.3) 100%);
                         border: 1px solid rgba(139, 92, 246, 0.5);
@@ -894,53 +914,77 @@ export async function GET(
                         align-items: center;
                         gap: 4px;
                         font-family: inherit;
+                        white-space: nowrap;
                     }
                     .btn-extend-trigger:hover {
-                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+                        background: linear-gradient(135deg, var(--violet) 0%, var(--violet-deep) 100%);
                         color: #ffffff;
                         box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
                         transform: translateY(-1px);
                     }
-                    .info-bar { 
-                        position: fixed; 
-                        bottom: 24px; 
-                        left: 50%; 
-                        transform: translateX(-50%); 
-                        background: rgba(18, 18, 22, 0.75); 
-                        backdrop-filter: blur(16px); 
+                    .burn-pill {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: rgba(239, 68, 68, 0.15);
+                        border: 1px solid rgba(239, 68, 68, 0.3);
+                        color: #fca5a5;
+                        padding: 4px 12px;
+                        border-radius: var(--radius-pill);
+                        font-size: 12px;
+                        font-weight: 600;
+                        height: 32px;
+                        white-space: nowrap;
+                    }
+                    .info-bar {
+                        position: fixed;
+                        bottom: 24px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(18, 18, 22, 0.75);
+                        backdrop-filter: blur(16px);
                         -webkit-backdrop-filter: blur(16px);
-                        padding: 10px 22px; 
-                        border-radius: 100px; 
-                        display: flex; 
-                        align-items: center; 
-                        gap: 24px; 
-                        font-size: 13px; 
-                        color: #a1a1aa; 
+                        padding: 10px 22px;
+                        border-radius: var(--radius-pill);
+                        display: flex;
+                        align-items: center;
+                        gap: 24px;
+                        font-size: 13px;
+                        color: var(--text-muted);
                         border: 1px solid rgba(255, 255, 255, 0.12);
                         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
                         z-index: 100;
                         white-space: nowrap;
+                        max-width: calc(100vw - 24px);
+                        flex-wrap: wrap;
+                        justify-content: center;
                     }
                     .info-item { display: flex; align-items: center; gap: 6px; }
-                    .info-item b { color: #f4f4f5; font-weight: 600; }
+                    .info-item b { color: var(--text); font-weight: 600; }
+                    .brand-item { margin-left: auto; }
                     .badge {
                         background: rgba(139, 92, 246, 0.2);
-                        color: #c4b5fd;
+                        color: var(--violet-soft);
                         border: 1px solid rgba(139, 92, 246, 0.3);
                         padding: 2px 8px;
                         border-radius: 6px;
                         font-size: 11px;
                         font-weight: 600;
                         letter-spacing: 0.5px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        white-space: nowrap;
+                        max-width: 100%;
                     }
-                    
-                    button, a.btn { 
-                        color: #f4f4f5; 
-                        text-decoration: none; 
-                        font-size: 13px; 
+
+                    /* Buttons (shared) */
+                    button, a.btn {
+                        color: var(--text);
+                        text-decoration: none;
+                        font-size: 13px;
                         font-weight: 500;
-                        padding: 7px 16px; 
-                        border-radius: 50px; 
+                        padding: 7px 16px;
+                        border-radius: var(--radius-pill);
                         transition: all 0.2s ease;
                         display: inline-flex;
                         align-items: center;
@@ -950,24 +994,30 @@ export async function GET(
                         cursor: pointer;
                         font-family: inherit;
                         height: 32px;
+                        white-space: nowrap;
+                        line-height: 1;
                     }
-                    a.btn-primary, button.btn-primary { 
-                        background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); 
-                        color: white; 
-                        box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+                    button:focus-visible, a.btn:focus-visible {
+                        outline: 2px solid var(--violet-bright);
+                        outline-offset: 2px;
+                    }
+                    a.btn-primary, button.btn-primary {
+                        background: linear-gradient(135deg, var(--violet) 0%, var(--violet-deep) 100%);
+                        color: white;
+                        box-shadow: var(--shadow-violet);
                         font-weight: 600;
                     }
-                    a.btn-primary:hover, button.btn-primary:hover { 
+                    a.btn-primary:hover, button.btn-primary:hover {
                         transform: translateY(-1px);
                         box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
                     }
-                    a.btn-secondary, button.btn-secondary { 
-                        background: rgba(255, 255, 255, 0.08); 
-                        color: #d4d4d8; 
+                    a.btn-secondary, button.btn-secondary {
+                        background: rgba(255, 255, 255, 0.08);
+                        color: var(--text-soft);
                     }
-                    a.btn-secondary:hover, button.btn-secondary:hover { 
-                        background: rgba(255, 255, 255, 0.16); 
-                        color: #ffffff; 
+                    a.btn-secondary:hover, button.btn-secondary:hover {
+                        background: rgba(255, 255, 255, 0.16);
+                        color: #ffffff;
                     }
                     .icon-btn {
                         width: 32px;
@@ -978,29 +1028,24 @@ export async function GET(
                         align-items: center;
                         justify-content: center;
                         background: rgba(255, 255, 255, 0.08);
-                        color: #d4d4d8;
+                        color: var(--text-soft);
                         border: none;
                         cursor: pointer;
                         transition: all 0.2s ease;
+                        flex-shrink: 0;
                     }
                     .icon-btn:hover {
                         background: rgba(255, 255, 255, 0.16);
                         color: #ffffff;
                         transform: scale(1.05);
                     }
-                    .burn-pill {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        background: rgba(239, 68, 68, 0.15);
-                        border: 1px solid rgba(239, 68, 68, 0.3);
-                        color: #fca5a5;
-                        padding: 4px 12px;
-                        border-radius: 50px;
-                        font-size: 12px;
-                        font-weight: 600;
-                        height: 32px;
-                    }
+
+                    /* Toolbar labels are visible everywhere by default.
+                       They're only hidden on ultra-narrow phones (≤360px)
+                       via the media query further down. */
+                    .toolbar .mobile-text { display: inline; }
+
+                    /* Toast */
                     .toast {
                         position: fixed;
                         top: 24px;
@@ -1008,20 +1053,21 @@ export async function GET(
                         transform: translateX(-50%) translateY(-100px);
                         background: rgba(18, 18, 22, 0.95);
                         border: 1px solid rgba(139, 92, 246, 0.4);
-                        color: #f4f4f5;
+                        color: var(--text);
                         padding: 10px 20px;
-                        border-radius: 100px;
+                        border-radius: var(--radius-pill);
                         font-size: 13px;
                         font-weight: 500;
                         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
                         z-index: 1000;
                         transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
                         pointer-events: none;
+                        max-width: calc(100vw - 24px);
+                        text-align: center;
                     }
-                    .toast.show {
-                        transform: translateX(-50%) translateY(0);
-                    }
+                    .toast.show { transform: translateX(-50%) translateY(0); }
 
+                    /* Modals */
                     .modal-backdrop {
                         position: fixed;
                         inset: 0;
@@ -1035,6 +1081,7 @@ export async function GET(
                         opacity: 0;
                         pointer-events: none;
                         transition: opacity 0.2s ease;
+                        padding: calc(var(--safe-top) + 16px) 16px calc(var(--safe-bottom) + 16px);
                     }
                     .modal-backdrop.active {
                         opacity: 1;
@@ -1042,13 +1089,15 @@ export async function GET(
                     }
                     .modal-card {
                         background: rgba(18, 18, 24, 0.95);
-                        border: 1px solid rgba(139, 92, 246, 0.3);
+                        border: 1px solid var(--border-accent);
                         box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 35px rgba(139, 92, 246, 0.15);
-                        border-radius: 24px;
+                        border-radius: var(--radius-lg);
                         padding: 24px;
-                        width: 90%;
-                        max-width: 360px;
+                        width: 100%;
+                        max-width: 440px;
                         text-align: center;
+                        max-height: calc(100dvh - 32px - var(--safe-top) - var(--safe-bottom));
+                        overflow-y: auto;
                     }
                     .modal-card h3 {
                         margin: 0 0 6px 0;
@@ -1058,7 +1107,7 @@ export async function GET(
                     .modal-card p {
                         margin: 0 0 16px 0;
                         font-size: 0.8rem;
-                        color: #a1a1aa;
+                        color: var(--text-muted);
                     }
                     .modal-grid {
                         display: grid;
@@ -1071,7 +1120,7 @@ export async function GET(
                         border: 1px solid rgba(255, 255, 255, 0.1);
                         border-radius: 12px;
                         padding: 10px;
-                        color: #f4f4f5;
+                        color: var(--text);
                         font-size: 0.82rem;
                         font-weight: 600;
                         cursor: pointer;
@@ -1080,7 +1129,7 @@ export async function GET(
                     .modal-option:hover {
                         background: rgba(139, 92, 246, 0.2);
                         border-color: rgba(139, 92, 246, 0.4);
-                        color: #c4b5fd;
+                        color: var(--violet-soft);
                     }
                     .modal-option-never {
                         grid-column: span 2;
@@ -1093,24 +1142,22 @@ export async function GET(
                         border-color: rgba(16, 185, 129, 0.5);
                     }
 
-                    /* Embed Snippets Modal Styles */
-                    .snippet-box {
-                        margin-bottom: 12px;
-                        text-align: left;
-                    }
+                    /* Embed Snippets */
+                    .snippet-box { margin-bottom: 12px; text-align: left; }
                     .snippet-header {
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
                         font-size: 11px;
                         font-weight: 600;
-                        color: #a1a1aa;
+                        color: var(--text-muted);
                         margin-bottom: 5px;
+                        gap: 8px;
                     }
                     .snippet-copy-btn {
                         background: rgba(139, 92, 246, 0.15);
                         border: 1px solid rgba(139, 92, 246, 0.3);
-                        color: #c4b5fd;
+                        color: var(--violet-soft);
                         border-radius: 6px;
                         padding: 3px 9px;
                         font-size: 11px;
@@ -1118,6 +1165,7 @@ export async function GET(
                         cursor: pointer;
                         font-family: inherit;
                         transition: all 0.2s;
+                        flex-shrink: 0;
                     }
                     .snippet-copy-btn:hover {
                         background: rgba(139, 92, 246, 0.35);
@@ -1134,15 +1182,450 @@ export async function GET(
                         font-size: 11px;
                         outline: none;
                         box-sizing: border-box;
+                        min-width: 0;
                     }
-                    .snippet-input:focus {
-                        border-color: #8b5cf6;
+                    .snippet-input:focus { border-color: var(--violet); }
+
+                    /* ════════════════════════════════════════════════════════════════
+                       MOBILE — layout from File 2
+                       Flex-column app shell: toolbar / stage / info-card. Safe-area
+                       aware, wraps toolbar, scalable media, responsive typography.
+                       ════════════════════════════════════════════════════════════════ */
+                    @media (max-width: 720px) {
+                        body {
+                            overflow-x: hidden;
+                            overflow-y: auto;
+                        }
+
+                        .app-shell {
+                            display: flex;
+                            flex-direction: column;
+                            min-height: 100vh;
+                            min-height: 100dvh;
+                            width: 100%;
+                        }
+                        .toolbar-zone {
+                            flex: 0 0 auto;
+                            padding-top: calc(var(--safe-top) + 12px);
+                            padding-left: calc(clamp(12px, 3vw, 20px) + var(--safe-left));
+                            padding-right: calc(clamp(12px, 3vw, 20px) + var(--safe-right));
+                            display: flex;
+                            justify-content: center;
+                            z-index: 100;
+                        }
+                        .stage {
+                            flex: 1 1 auto;
+                            min-height: 0;
+                            min-width: 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: clamp(10px, 2.4vw, 20px);
+                        }
+                        .info-zone {
+                            flex: 0 0 auto;
+                            padding-left: calc(clamp(12px, 3vw, 20px) + var(--safe-left));
+                            padding-right: calc(clamp(12px, 3vw, 20px) + var(--safe-right));
+                            padding-bottom: calc(var(--safe-bottom) + 14px);
+                        }
+
+                        /* Toolbar becomes in-flow, wraps */
+                        .toolbar {
+                            position: static;
+                            transform: none;
+                            width: 100%;
+                            max-width: 100%;
+                            flex-wrap: wrap;
+                            justify-content: center;
+                            border-radius: clamp(16px, 4vw, 22px);
+                            row-gap: 4px;
+                            gap: clamp(3px, 1vw, 6px);
+                            padding: clamp(5px, 1vw, 7px);
+                        }
+                        .toolbar a.btn,
+                        .toolbar button.btn {
+                            font-size: clamp(11px, 1.6vw, 13px);
+                            padding: 6px clamp(9px, 1.6vw, 12px);
+                            gap: 5px;
+                            height: 34px;
+                        }
+                        .toolbar .icon-btn {
+                            width: 34px;
+                            height: 34px;
+                        }
+                        .expiry-pill { height: 32px; padding: 4px 10px; font-size: 11.5px; }
+                        .burn-pill { height: 32px; padding: 4px 10px; font-size: 11.5px; }
+
+                        /* Player wrapper now fills stage (no absolute padding) */
+                        .player-wrapper {
+                            position: static;
+                            width: 100%;
+                            height: 100%;
+                            padding: 0;
+                            min-height: 0;
+                        }
+                        .media-container {
+                            max-width: 100%;
+                            max-height: 100%;
+                            width: 100%;
+                            height: 100%;
+                        }
+                        img {
+                            max-width: 100%;
+                            max-height: 100%;
+                            width: auto;
+                            height: auto;
+                        }
+                        img.zoomed {
+                            transform: scale(1.6);
+                            z-index: 5;
+                        }
+
+                        /* Video container scales to stage */
+                        .custom-player-container {
+                            max-width: 100%;
+                            max-height: 100%;
+                            width: 100%;
+                            height: 100%;
+                            border-radius: var(--radius-lg);
+                            box-shadow: var(--shadow-lg);
+                            line-height: 0;
+                        }
+                        .custom-player-container video {
+                            max-width: 100%;
+                            max-height: 100%;
+                            width: auto;
+                            height: auto;
+                            border-radius: var(--radius-lg);
+                        }
+
+                        /* Controls scale down */
+                        .custom-controls {
+                            padding: clamp(14px, 3vw, 22px) clamp(10px, 2vw, 16px) clamp(10px, 2vw, 12px);
+                        }
+                        .controls-row {
+                            gap: clamp(6px, 1.5vw, 10px);
+                            flex-wrap: wrap;
+                            min-width: 0;
+                        }
+                        .controls-left, .controls-right {
+                            gap: clamp(2px, 0.8vw, 5px);
+                            min-width: 0;
+                            flex-wrap: wrap;
+                        }
+                        .ctrl-btn {
+                            width: clamp(30px, 5vw, 32px);
+                            height: clamp(30px, 5vw, 32px);
+                        }
+                        .time-display { font-size: clamp(10px, 1.8vw, 12px); }
+                        .speed-btn { height: 24px; padding: 2px 6px; font-size: 11px; }
+                        .vol-slider { width: clamp(40px, 9vw, 56px); }
+
+                        /* Audio card scales */
+                        .audio-player-card {
+                            padding: clamp(18px, 4vw, 28px) clamp(16px, 3.5vw, 24px);
+                            max-width: min(420px, 92vw);
+                            width: 100%;
+                        }
+                        .vinyl-disc-wrap {
+                            width: clamp(110px, 34vw, 150px);
+                            height: clamp(110px, 34vw, 150px);
+                            margin-bottom: clamp(12px, 2.4vw, 18px);
+                        }
+                        .vinyl-center {
+                            width: 34%;
+                            height: 34%;
+                        }
+                        .vinyl-dot {
+                            width: 28%;
+                            height: 28%;
+                        }
+                        .audio-title { font-size: clamp(1rem, 2.4vw, 1.15rem); }
+                        .audio-subtitle { font-size: clamp(0.72rem, 1.8vw, 0.8rem); }
+                        .audio-controls-row { gap: clamp(8px, 2.4vw, 14px); }
+                        .audio-play-btn {
+                            width: clamp(44px, 12vw, 52px);
+                            height: clamp(44px, 12vw, 52px);
+                        }
+
+                        /* Info-bar becomes in-flow card with grid */
+                        .info-bar {
+                            position: static;
+                            transform: none;
+                            width: 100%;
+                            max-width: 100%;
+                            margin: 0 auto;
+                            border-radius: clamp(14px, 2.6vw, 18px);
+                            padding: clamp(10px, 1.8vw, 14px) clamp(12px, 2.2vw, 18px);
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+                            align-items: center;
+                            gap: clamp(8px, 1.4vw, 12px) clamp(10px, 2vw, 20px);
+                            font-size: clamp(12px, 1.5vw, 13px);
+                            white-space: normal;
+                            flex-wrap: unset;
+                            justify-content: unset;
+                        }
+                        .brand-item {
+                            margin-left: 0;
+                            justify-content: flex-start;
+                            grid-column: span 2;
+                        }
+
+                        .toast { top: calc(var(--safe-top) + 20px); }
+                    }
+
+                    /* Extra-narrow mobile */
+                    @media (max-width: 480px) {
+                        .toolbar {
+                            gap: 3px;
+                            padding: 4px;
+                        }
+                        .toolbar a.btn,
+                        .toolbar button.btn {
+                            font-size: 11.5px;
+                            padding: 6px 10px;
+                            gap: 5px;
+                            height: 32px;
+                        }
+                        .toolbar .icon-btn { width: 32px; height: 32px; }
+                        .expiry-pill { height: 30px; padding: 3px 9px; font-size: 11px; }
+                        .burn-pill { height: 30px; padding: 3px 9px; font-size: 11px; }
+                        .ctrl-btn { width: 28px; height: 28px; }
+                        .time-display { font-size: 10px; }
+                        .custom-controls { padding-bottom: 8px; gap: 6px; }
+                        .info-bar {
+                            grid-template-columns: repeat(2, 1fr);
+                            row-gap: 10px;
+                        }
+                        .brand-item { grid-column: span 2; }
+                        .audio-player-card { padding: 16px 14px; }
+                        .audio-controls-row { gap: 6px; }
+                    }
+                    @media (max-width: 360px) {
+                        /* Ultra-narrow: drop toolbar labels, icon-only */
+                        .toolbar a.btn .mobile-text,
+                        .toolbar button.btn .mobile-text { display: none; }
+                        .info-bar { grid-template-columns: 1fr; }
+                        .brand-item { grid-column: span 1; }
+                    }
+
+                    /* Landscape phone: reclaim vertical space */
+                    @media (max-width: 900px) and (max-height: 520px) and (orientation: landscape) {
+                        .stage { padding-top: 8px; padding-bottom: 8px; }
+                        .info-bar { padding: 6px 12px; }
+                        .toolbar { padding: 4px; }
+                    }
+
+                    @media (prefers-reduced-motion: reduce) {
+                        *, *::before, *::after {
+                            animation-duration: 0.001ms !important;
+                            animation-iteration-count: 1 !important;
+                            transition-duration: 0.001ms !important;
+                        }
                     }
                 </style>
             </head>
             <body>
                 <div class="toast" id="toast">Copied to clipboard!</div>
 
+                <!-- ═══════════════════════════════════════════════════════════════
+                     APP SHELL — mobile uses this flex structure, desktop CSS
+                     overrides with fixed positioning for toolbar & info-bar
+                     ═══════════════════════════════════════════════════════════════ -->
+                <div class="app-shell">
+                    <!-- Toolbar zone -->
+                    <div class="toolbar-zone">
+                        <div class="toolbar">
+                            <a href="/" class="btn btn-secondary">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+                                <span class="mobile-text">Upload</span>
+                            </a>
+
+                            <div class="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
+                                <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
+                                <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
+                            </div>
+
+                            ${record.burn_after_view
+                                ? `<div class="burn-pill">🔥 Burns After View</div>`
+                                : record.burn_after_download
+                                ? `<div class="burn-pill">🔥 Burns After Download</div>`
+                                : ''
+                            }
+
+                            <button class="btn btn-secondary" onclick="openQrModal()" title="QR Code">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                                <span class="mobile-text">QR</span>
+                            </button>
+
+                            <button class="btn btn-secondary" id="embedBtn" onclick="openEmbedModal()" title="Embed Snippets (E)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                                <span class="mobile-text">Embed</span>
+                            </button>
+
+                            <button class="btn btn-secondary" id="shareBtn" onclick="shareMedia()" title="Share Media (S)">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                <span class="mobile-text">Share</span>
+                            </button>
+
+                            <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                                <span class="mobile-text">Copy Link</span>
+                            </button>
+                            <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (F)" onclick="toggleFullscreen()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                            </button>
+                            <a href="${proxiedImgSrc}?download=1" download class="btn btn-primary">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <span class="mobile-text">Download</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Stage zone -->
+                    <div class="stage">
+                        <div class="player-wrapper">
+                            ${isVideo ? `
+                                <div class="custom-player-container" id="playerContainer">
+                                    <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
+
+                                    <!-- Big Center Play Button -->
+                                    <div class="big-play-btn" id="bigPlayBtn" onclick="togglePlay()">
+                                        <svg id="bigPlayIcon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                    </div>
+
+                                    <!-- Custom Floating Controls Bar -->
+                                    <div class="custom-controls" id="customControls">
+                                        <div class="progress-bar-wrap" id="progressWrap" onclick="seek(event)">
+                                            <div class="buffered-bar" id="bufferedBar"></div>
+                                            <div class="played-bar" id="playedBar"></div>
+                                            <div class="scrub-handle" id="scrubHandle"></div>
+                                        </div>
+
+                                        <div class="controls-row">
+                                            <div class="controls-left">
+                                                <button class="ctrl-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause (Space)">
+                                                    <svg id="playIcon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                                </button>
+                                                <button class="ctrl-btn" onclick="skip(-10)" title="Rewind 10s (J / ←)">
+                                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+                                                </button>
+                                                <button class="ctrl-btn" onclick="skip(10)" title="Forward 10s (L / →)">
+                                                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+                                                </button>
+                                                <div class="volume-container">
+                                                    <button class="ctrl-btn" id="volBtn" onclick="toggleMute()" title="Mute/Unmute (M)">
+                                                        <svg id="volIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                                    </button>
+                                                    <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
+                                                </div>
+                                                <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                                            </div>
+
+                                            <div class="controls-right">
+                                                <button class="ctrl-btn speed-btn" id="speedBtn" onclick="cycleSpeed()" title="Playback Speed">1x</button>
+                                                <button class="ctrl-btn" id="loopBtn" onclick="toggleLoop()" title="Toggle Loop">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                                </button>
+                                                <button class="ctrl-btn" id="pipBtn" onclick="togglePiP()" title="Picture in Picture (P)">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="10" width="8" height="8" rx="1" fill="currentColor" fill-opacity="0.3"/></svg>
+                                                </button>
+                                                <button class="ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen (F)">
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : isAudio ? `
+                                <div class="audio-player-card" id="audioPlayerCard">
+                                    <audio id="mediaElement" src="${proxiedImgSrc}" preload="auto"></audio>
+
+                                    <div class="vinyl-disc-wrap">
+                                        <div class="vinyl-disc" id="vinylDisc">
+                                            <div class="vinyl-center">
+                                                <div class="vinyl-dot"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="equalizer-wrap" id="eqWrap">
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                        <span class="eq-bar"></span>
+                                    </div>
+
+                                    <div class="audio-meta">
+                                        <div class="audio-title">/${id}</div>
+                                        <div class="audio-subtitle">Audio Track • ${formattedSize}</div>
+                                    </div>
+
+                                    <div class="progress-bar-wrap" id="progressWrap" onclick="seek(event)" style="margin: 16px 0 10px;">
+                                        <div class="buffered-bar" id="bufferedBar"></div>
+                                        <div class="played-bar" id="playedBar"></div>
+                                        <div class="scrub-handle" id="scrubHandle"></div>
+                                    </div>
+
+                                    <div class="audio-time-row">
+                                        <span id="timeDisplay">0:00 / 0:00</span>
+                                    </div>
+
+                                    <div class="audio-controls-row">
+                                        <button class="ctrl-btn speed-btn" id="speedBtn" onclick="cycleSpeed()" title="Playback Speed">1x</button>
+                                        <button class="ctrl-btn" onclick="skip(-10)" title="Rewind 10s">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+                                        </button>
+                                        <button class="audio-play-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause">
+                                            <svg id="playIcon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                        </button>
+                                        <button class="ctrl-btn" onclick="skip(10)" title="Forward 10s">
+                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+                                        </button>
+                                        <button class="ctrl-btn" id="loopBtn" onclick="toggleLoop()" title="Toggle Loop">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                                        </button>
+                                    </div>
+
+                                    <div class="volume-container" style="justify-content: center; margin-top: 18px; width: 100%;">
+                                        <button class="ctrl-btn" id="volBtn" onclick="toggleMute()" title="Mute/Unmute">
+                                            <svg id="volIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                                        </button>
+                                        <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)" style="width: 130px; opacity: 1;">
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="media-container" id="mediaContainer">
+                                    <img id="mediaElement" src="${proxiedImgSrc}" alt="PixEdge Media" onclick="toggleZoom(this)">
+                                </div>
+                            `}
+                        </div>
+                    </div>
+
+                    <!-- Info zone (mobile card; desktop overrides to fixed bar) -->
+                    <div class="info-zone">
+                        <div class="info-bar">
+                            <div class="info-item"><b>Res</b> <span id="resolutionVal" class="badge">Detecting...</span></div>
+                            <div class="info-item"><b>Views</b> <span>${views}</span></div>
+                            <div class="info-item"><b>Downloads</b> <span>${downloads}</span></div>
+                            <div class="info-item"><b>Size</b> <span>${formattedSize}</span></div>
+                            <div class="info-item"><b>Date</b> <span>${formattedDate}</span></div>
+                            <div class="info-item brand-item">
+                                <a href="/" target="_blank" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="Upload free 2GB media on PixEdge">
+                                    <span class="badge" style="background: linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(6,182,212,0.3) 100%); border: 1px solid rgba(139,92,246,0.4); color: #fff; font-weight: 700; cursor: pointer;">⚡ PixEdge</span>
+                                    <span style="color: #c4b5fd; font-size: 11px; font-weight: 600; white-space: nowrap;">Upload Free ↗</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modals -->
                 <div class="modal-backdrop" id="extendModal">
                     <div class="modal-card">
                         <h3>⏳ Extend Link Expiry</h3>
@@ -1163,7 +1646,7 @@ export async function GET(
                         <h3>📱 QR Code</h3>
                         <p>Scan to view this media on mobile:</p>
                         <div style="background: white; padding: 12px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fullPageUrl)}" width="180" height="180" alt="QR Code">
+                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(fullPageUrl)}" width="180" height="180" alt="QR Code" style="border-radius: 8px; box-shadow: none; cursor: default; max-width: 100%; height: auto;">
                         </div>
                         <button class="btn btn-secondary" style="width: 100%; justify-content: center;" onclick="closeQrModal()">Close</button>
                     </div>
@@ -1217,187 +1700,6 @@ export async function GET(
                     </div>
                 </div>
 
-                <div class="toolbar">
-                    <a href="/" class="btn btn-secondary">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-                        Upload
-                    </a>
-
-                    <div class="expiry-pill" id="expiryBadge" style="display: ${expiresAt ? 'inline-flex' : 'none'};">
-                        <span>⏳ Expires in: <b id="countdownTimer">--:--:--</b></span>
-                        <button class="btn-extend-trigger" onclick="openExtendModal()">+ Extend</button>
-                    </div>
-
-                    ${record.burn_after_view
-                        ? `<div class="burn-pill">🔥 Burns After View</div>`
-                        : record.burn_after_download
-                        ? `<div class="burn-pill">🔥 Burns After Download</div>`
-                        : ''
-                    }
-
-                    <button class="btn btn-secondary" onclick="openQrModal()" title="QR Code">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                        QR
-                    </button>
-
-                    <button class="btn btn-secondary" id="embedBtn" onclick="openEmbedModal()" title="Embed Snippets (E)">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-                        Embed
-                    </button>
-
-                    <button class="btn btn-secondary" id="shareBtn" onclick="shareMedia()" title="Share Media (S)">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                        Share
-                    </button>
-
-                    <button class="btn btn-secondary" id="copyBtn" onclick="copyLink()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                        Copy Link
-                    </button>
-                    <button class="icon-btn" id="fullscreenBtn" title="Toggle Fullscreen (F)" onclick="toggleFullscreen()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                    </button>
-                    <a href="${proxiedImgSrc}?download=1" download class="btn btn-primary">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Download
-                    </a>
-                </div>
-
-                <div class="player-wrapper">
-                    ${isVideo ? `
-                        <div class="custom-player-container" id="playerContainer">
-                            <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
-                            
-                            <!-- Big Center Play Button -->
-                            <div class="big-play-btn" id="bigPlayBtn" onclick="togglePlay()">
-                                <svg id="bigPlayIcon" width="34" height="34" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                            </div>
-
-                            <!-- Custom Floating Controls Bar -->
-                            <div class="custom-controls" id="customControls">
-                                <div class="progress-bar-wrap" id="progressWrap" onclick="seek(event)">
-                                    <div class="buffered-bar" id="bufferedBar"></div>
-                                    <div class="played-bar" id="playedBar"></div>
-                                    <div class="scrub-handle" id="scrubHandle"></div>
-                                </div>
-
-                                <div class="controls-row">
-                                    <div class="controls-left">
-                                        <button class="ctrl-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause (Space)">
-                                            <svg id="playIcon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                        </button>
-                                        <button class="ctrl-btn" onclick="skip(-10)" title="Rewind 10s (J / ←)">
-                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
-                                        </button>
-                                        <button class="ctrl-btn" onclick="skip(10)" title="Forward 10s (L / →)">
-                                            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
-                                        </button>
-                                        <div class="volume-container">
-                                            <button class="ctrl-btn" id="volBtn" onclick="toggleMute()" title="Mute/Unmute (M)">
-                                                <svg id="volIcon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                                            </button>
-                                            <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)">
-                                        </div>
-                                        <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
-                                    </div>
-
-                                    <div class="controls-right">
-                                        <button class="ctrl-btn speed-btn" id="speedBtn" onclick="cycleSpeed()" title="Playback Speed">1x</button>
-                                        <button class="ctrl-btn" id="loopBtn" onclick="toggleLoop()" title="Toggle Loop">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                                        </button>
-                                        <button class="ctrl-btn" id="pipBtn" onclick="togglePiP()" title="Picture in Picture (P)">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="10" width="8" height="8" rx="1" fill="currentColor" fill-opacity="0.3"/></svg>
-                                        </button>
-                                        <button class="ctrl-btn" onclick="toggleFullscreen()" title="Fullscreen (F)">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    ` : isAudio ? `
-                        <div class="audio-player-card" id="audioPlayerCard">
-                            <audio id="mediaElement" src="${proxiedImgSrc}" preload="auto"></audio>
-                            
-                            <div class="vinyl-disc-wrap">
-                                <div class="vinyl-disc" id="vinylDisc">
-                                    <div class="vinyl-center">
-                                        <div class="vinyl-dot"></div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="equalizer-wrap" id="eqWrap">
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                                <span class="eq-bar"></span>
-                            </div>
-
-                            <div class="audio-meta">
-                                <div class="audio-title">/${id}</div>
-                                <div class="audio-subtitle">Audio Track • ${formattedSize}</div>
-                            </div>
-
-                            <div class="progress-bar-wrap" id="progressWrap" onclick="seek(event)" style="margin: 16px 0 10px;">
-                                <div class="buffered-bar" id="bufferedBar"></div>
-                                <div class="played-bar" id="playedBar"></div>
-                                <div class="scrub-handle" id="scrubHandle"></div>
-                            </div>
-
-                            <div class="audio-time-row">
-                                <span id="timeDisplay">0:00 / 0:00</span>
-                            </div>
-
-                            <div class="audio-controls-row">
-                                <button class="ctrl-btn speed-btn" id="speedBtn" onclick="cycleSpeed()" title="Playback Speed">1x</button>
-                                <button class="ctrl-btn" onclick="skip(-10)" title="Rewind 10s">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
-                                </button>
-                                <button class="audio-play-btn" id="playBtn" onclick="togglePlay()" title="Play/Pause">
-                                    <svg id="playIcon" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                                </button>
-                                <button class="ctrl-btn" onclick="skip(10)" title="Forward 10s">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
-                                </button>
-                                <button class="ctrl-btn" id="loopBtn" onclick="toggleLoop()" title="Toggle Loop">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-                                </button>
-                            </div>
-
-                            <div class="volume-container" style="justify-content: center; margin-top: 18px; width: 100%;">
-                                <button class="ctrl-btn" id="volBtn" onclick="toggleMute()" title="Mute/Unmute">
-                                    <svg id="volIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                                </button>
-                                <input type="range" class="vol-slider" id="volSlider" min="0" max="1" step="0.05" value="1" oninput="setVolume(this.value)" style="width: 130px; opacity: 1;">
-                            </div>
-                        </div>
-                    ` : `
-                        <div class="media-container" id="mediaContainer">
-                            <img id="mediaElement" src="${proxiedImgSrc}" alt="PixEdge Media" onclick="toggleZoom(this)">
-                        </div>
-                    `}
-                </div>
-
-                <div class="info-bar">
-                    <div class="info-item"><b>Res</b> <span id="resolutionVal" class="badge">Detecting...</span></div>
-                    <div class="info-item"><b>Views</b> ${views}</div>
-                    <div class="info-item"><b>Downloads</b> ${downloads}</div>
-                    <div class="info-item"><b>Size</b> ${formattedSize}</div>
-                    <div class="info-item"><b>Date</b> ${formattedDate}</div>
-                    <div class="info-item brand-item" style="margin-left: auto;">
-                        <a href="/" target="_blank" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;" title="Upload free 2GB media on PixEdge">
-                            <span class="badge" style="background: linear-gradient(135deg, rgba(139,92,246,0.3) 0%, rgba(6,182,212,0.3) 100%); border: 1px solid rgba(139,92,246,0.4); color: #fff; font-weight: 700; cursor: pointer;">⚡ PixEdge</span>
-                            <span style="color: #c4b5fd; font-size: 11px; font-weight: 600;">Upload Free ↗</span>
-                        </a>
-                    </div>
-                </div>
-
                 <script>
                     const media = document.getElementById('mediaElement');
                     const resVal = document.getElementById('resolutionVal');
@@ -1447,23 +1749,18 @@ export async function GET(
                     function openExtendModal() {
                         document.getElementById('extendModal').classList.add('active');
                     }
-
                     function closeExtendModal() {
                         document.getElementById('extendModal').classList.remove('active');
                     }
-
                     function openQrModal() {
                         document.getElementById('qrModal').classList.add('active');
                     }
-
                     function closeQrModal() {
                         document.getElementById('qrModal').classList.remove('active');
                     }
-
                     function openEmbedModal() {
                         document.getElementById('embedModal').classList.add('active');
                     }
-
                     function closeEmbedModal() {
                         document.getElementById('embedModal').classList.remove('active');
                     }
@@ -1609,14 +1906,14 @@ export async function GET(
                         media.volume = v;
                         media.muted = v === 0;
                         updateVolIcon();
-                        localStorage.setItem('pixedge_volume', v);
+                        localStorage.setItem('PixEdge_volume', v);
                     }
 
                     function toggleMute() {
                         if (!media) return;
                         media.muted = !media.muted;
                         updateVolIcon();
-                        localStorage.setItem('pixedge_muted', media.muted);
+                        localStorage.setItem('PixEdge_muted', media.muted);
                     }
 
                     function updateVolIcon() {
@@ -1678,8 +1975,8 @@ export async function GET(
                         });
 
                         // Saved Volume Restoration
-                        const savedVol = localStorage.getItem('pixedge_volume');
-                        const savedMute = localStorage.getItem('pixedge_muted');
+                        const savedVol = localStorage.getItem('PixEdge_volume');
+                        const savedMute = localStorage.getItem('PixEdge_muted');
                         if (savedVol !== null) media.volume = parseFloat(savedVol);
                         if (savedMute !== null) media.muted = savedMute === 'true';
                         updateVolIcon();
