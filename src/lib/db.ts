@@ -836,16 +836,33 @@ export async function extendImageExpiry(
             return { success: false, error: 'Upload record not found' };
         }
 
-        // Ownership verification (if upload is owned by a specific user)
-        if (data.user_id && data.user_id !== '') {
-            if (!userId || data.user_id !== userId) {
-                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        const currentOwner = (data.user_id || '').toString().trim();
+        const targetUser = userId ? userId.toString().trim() : '';
+
+        // Ownership verification (including bidirectional linked accounts)
+        let isOwner = false;
+        if (currentOwner && targetUser && currentOwner === targetUser) {
+            isOwner = true;
+        } else if (currentOwner && targetUser) {
+            const [userUploads, linkedTg, linkedWeb] = await Promise.all([
+                redis.lrange(`user:${targetUser}:uploads`, 0, 999),
+                redis.get(`web_link:${targetUser}`),
+                redis.get(`telegram_link:${targetUser}`)
+            ]);
+            if (
+                userUploads.includes(id) ||
+                (linkedTg && linkedTg.toString() === currentOwner) ||
+                (linkedWeb && linkedWeb.toString() === currentOwner)
+            ) {
+                isOwner = true;
             }
-        } else {
-            // Anonymous upload: requires an authenticated user to prevent arbitrary DoS/storage hoarding
-            if (!userId) {
-                return { success: false, error: 'Please log in to manage file expiration' };
-            }
+        }
+
+        if (currentOwner && !isOwner) {
+            return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        }
+        if (!currentOwner && !userId) {
+            return { success: false, error: 'Please log in to manage file expiration' };
         }
 
         if (extraSeconds === -1) {
@@ -875,11 +892,24 @@ export async function extendImageExpiry(
         if (index === -1) return { success: false, error: 'Upload not found' };
 
         const image = db.images[index];
-        if (image.user_id && image.user_id !== '') {
-            if (!userId || image.user_id !== userId) {
-                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        const currentOwner = (image.user_id || '').toString().trim();
+        const targetUser = userId ? userId.toString().trim() : '';
+
+        let isOwner = false;
+        if (currentOwner && targetUser && currentOwner === targetUser) {
+            isOwner = true;
+        } else if (currentOwner && targetUser) {
+            const linkedTg = db.web_links?.[targetUser];
+            const linkedWeb = db.telegram_links?.[targetUser];
+            if (currentOwner === linkedTg || currentOwner === linkedWeb) {
+                isOwner = true;
             }
-        } else if (!userId) {
+        }
+
+        if (currentOwner && !isOwner) {
+            return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        }
+        if (!currentOwner && !userId) {
             return { success: false, error: 'Please log in to manage file expiration' };
         }
 

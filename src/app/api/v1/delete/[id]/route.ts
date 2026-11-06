@@ -19,11 +19,12 @@ async function resolveUserId(req: NextRequest): Promise<string | null> {
     return null;
 }
 
-export async function GET(
-    req: NextRequest,
-    context: { params: Promise<{ id: string }> }
-) {
-    return DELETE(req, context);
+// Reject GET to prevent CSRF cross-origin state-changing deletions via <img> or <a> tags
+export async function GET() {
+    return NextResponse.json({
+        success: false,
+        error: { code: 'METHOD_NOT_ALLOWED', message: 'GET is not allowed for resource deletion. Please use DELETE.' }
+    }, { status: 405 });
 }
 
 export async function DELETE(

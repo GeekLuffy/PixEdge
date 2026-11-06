@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
                 const { getTelegramUserProfilePhoto } = await import('@/lib/telegram');
-                const photoUrl = await getTelegramUserProfilePhoto(from.id);
+                const photoUrl = await getTelegramUserProfilePhoto(from.id, baseUrl);
 
                 let redis: any = null;
                 try {

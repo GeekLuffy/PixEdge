@@ -20,6 +20,8 @@
 | 🚀 **2 GB Uploads** | MTProto (gramjs) mode breaks the 20 MB Bot API cap — upload up to 2 GB |
 | 🏎️ **Edge Delivery** | 302 redirect to Telegram CDN — minimal server bandwidth |
 | 🌊 **True Streaming** | v2 files are streamed in 1 MB chunks with flat RAM usage |
+| 📱 **Mobile Responsive** | Fully adaptive media viewer layout with touch-friendly controls (`/i/[id]`) |
+| 🛡️ **Hardened Security** | Zero bot token exposure, anti-CSRF, rate limiting, and input sanitization |
 | 👤 **User Accounts** | Email/password, GitHub OAuth, Google OAuth, and Telegram Login |
 | 🗂️ **Personal Dashboard** | Manage your uploads, view analytics, generate API keys |
 | 🔑 **API Keys** | Generate a personal API key from your dashboard for programmatic access |
@@ -218,6 +220,30 @@ graph LR
     Redis -->|Metadata| Next
     Bot[Telegram Bot] -->|Webhook| Next
 ```
+
+---
+
+## 🛡️ Security Architecture & Protections
+
+PixEdge implements multi-layered security controls to safeguard credentials, resources, and user sessions:
+
+* **Zero Telegram Bot Token Exposure**:
+  * Telegram profile pictures fetched via Bot API (`getFile`) contain bot tokens directly in the URL pathname (`/file/bot<TOKEN>/...`). PixEdge securely downloads the photo stream on the server, re-hosts it directly onto the private Telegram storage channel, and serves it through safe direct links (`/i/avatar-<userId>.jpg`).
+  * Real-time automated token redaction (`redactSensitiveTokens`) scrubs bot tokens from outgoing messages, callback alerts, and internal log handlers.
+  * Session, JWT, and database cache cleaners automatically purge poisoned token links from Redis and local records.
+* **Anti-CSRF Safe Deletions**:
+  * Destructive file deletion routes (`/api/v1/delete/[id]`) strictly reject HTTP `GET` requests (returning `405 Method Not Allowed`). Only verified HTTP `DELETE` requests with valid session authentication or `X-API-Key` headers are processed.
+* **XSS & SSRF Avatar Hardening**:
+  * Profile avatar inputs strictly disallow dangerous URL protocols (`javascript:`, `data:`, `vbscript:`) and block attempts to inject raw Telegram Bot API endpoints.
+  * Display names are sanitized against HTML tags (`<` / `>`) with an enforced 64-character ceiling.
+* **Rate Limiting & Abuse Prevention**:
+  * IP-based rate limiting across all upload routes (`/api/upload` legacy endpoint limited to 30 requests/min; `/api/v1/upload` rate limited with tiered allowances).
+  * 50 MB hard payload limit enforced for standard Bot API endpoints to prevent server memory saturation.
+* **Bidirectional Ownership Verification**:
+  * Deletions and expiration extensions (`extendImageExpiry`) check both direct user IDs and linked Telegram/web accounts (`web_link` and `telegram_link`), ensuring seamless dashboard ownership of bot-uploaded files without authorization bypasses.
+* **Race-Free Stream Lifecycle & Protected Hashes**:
+  * Single-use uploads (Burn-After-View and Burn-After-Download) delay Telegram channel message deletion until streaming completes via stream event listeners.
+  * Password hashes are replaced with `is_protected: boolean` flags on all user metadata endpoints to prevent offline hash exposure.
 
 ---
 

@@ -1274,7 +1274,7 @@ export default function DashboardPage() {
         }
         if (session?.user?.name) {
             setName(session.user.name);
-            if (session.user.image) {
+            if (session.user.image && !session.user.image.includes('api.telegram.org/file/bot')) {
                 setAvatarInput(session.user.image);
             }
             fetchApiKey();
@@ -1346,8 +1346,9 @@ export default function DashboardPage() {
 
     const user = session.user;
     const avatarUrl =
-        user?.image ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=8b5cf6&color=fff&size=200`;
+        (user?.image && !user.image.includes('api.telegram.org/file/bot'))
+            ? user.image
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=8b5cf6&color=fff&size=200`;
 
     const tabs = [
         { id: "overview", label: "Overview", icon: BarChart3 },

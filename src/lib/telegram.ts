@@ -6,6 +6,13 @@ export function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function redactSensitiveTokens(text: string): string {
+  if (!text || typeof text !== 'string') return text;
+  return text
+    .replace(/bot[0-9]+:[A-Za-z0-9_-]+/gi, 'bot[REDACTED_BOT_TOKEN]')
+    .replace(/(https?:\/\/api\.telegram\.org\/file\/bot)[^/]+/gi, '$1[REDACTED_BOT_TOKEN]');
+}
+
 export interface TelegramFileResult {
   file_id: string;
   file_unique_id: string;
@@ -227,12 +234,13 @@ export async function sendMessage(chatId: number | string, text: string, parseMo
   if (!token) return null;
 
   try {
+    const sanitizedText = redactSensitiveTokens(text);
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text,
+        text: sanitizedText,
         parse_mode: parseMode,
         disable_web_page_preview: true,
         link_preview_options: { is_disabled: true },
@@ -348,13 +356,14 @@ export async function editMessageText(chatId: number | string, messageId: number
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
 
+  const sanitizedText = redactSensitiveTokens(text);
   await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       chat_id: chatId,
       message_id: messageId,
-      text,
+      text: sanitizedText,
       parse_mode: parseMode,
       reply_markup: replyMarkup
     }),
@@ -382,13 +391,32 @@ export async function deleteChannelMediaMessage(messageId?: number): Promise<boo
   return await deleteTelegramMessage(chatId, messageId);
 }
 
-// Fetches the user's current profile picture URL from Telegram Bot API
-export async function getTelegramUserProfilePhoto(userId: number | string): Promise<string | null> {
+// Fetches the user's current profile picture from Telegram, downloads it securely on the server,
+// uploads it to the Telegram storage channel, and returns a safe PixEdge direct URL.
+// The raw Telegram bot token URL is NEVER exposed to clients or stored in Redis.
+export async function getTelegramUserProfilePhoto(userId: number | string, baseUrl?: string): Promise<string | null> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return null;
+  const cleanUserId = userId.toString().trim();
 
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${userId}&limit=1`);
+    const { Redis } = await import('@upstash/redis');
+    const redisUrl = process.env.UPSTASH_REDIS_REST_URL?.trim();
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+    let redis: any = null;
+    if (redisUrl && redisToken) {
+      redis = new Redis({ url: redisUrl, token: redisToken });
+      const cachedAvatar: string | null = await redis.get(`user:custom_avatar:${cleanUserId}`);
+      if (cachedAvatar) {
+        if (!cachedAvatar.includes('api.telegram.org/file/bot')) {
+          return cachedAvatar;
+        }
+        // Purge previously leaked bot token URL from Redis
+        await redis.del(`user:custom_avatar:${cleanUserId}`);
+      }
+    }
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${cleanUserId}&limit=1`);
     const data = await res.json();
     if (data.ok && data.result?.photos?.length > 0) {
       const photos = data.result.photos[0];
@@ -397,11 +425,41 @@ export async function getTelegramUserProfilePhoto(userId: number | string): Prom
       const fileRes = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${fileId}`);
       const fileData = await fileRes.json();
       if (fileData.ok && fileData.result?.file_path) {
-        return `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
+        // Download photo on the server directly (never pass bot token URL to browser)
+        const downloadRes = await fetch(`https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`);
+        if (downloadRes.ok) {
+          const photoArrayBuffer = await downloadRes.arrayBuffer();
+          const photoBlob = new Blob([photoArrayBuffer], { type: 'image/jpeg' });
+          const avatarFileName = `avatar-${cleanUserId}.jpg`;
+
+          // Re-upload to PixEdge storage channel
+          const uploadResult = await uploadToTelegram(photoBlob, avatarFileName, `Profile photo for user ${cleanUserId}`);
+          if (uploadResult?.file_id) {
+            const avatarId = `avatar-${cleanUserId}`;
+            const { saveImage } = await import('@/lib/db');
+            await saveImage({
+              id: avatarId,
+              telegram_file_id: uploadResult.file_id,
+              created_at: Date.now(),
+              metadata: {
+                size: photoArrayBuffer.byteLength,
+                type: 'image/jpeg'
+              }
+            }, 'bot', cleanUserId);
+
+            const siteUrl = baseUrl || process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
+            const safeAvatarUrl = `${siteUrl}/i/${avatarId}.jpg`;
+
+            if (redis) {
+              await redis.set(`user:custom_avatar:${cleanUserId}`, safeAvatarUrl);
+            }
+            return safeAvatarUrl;
+          }
+        }
       }
     }
   } catch (err) {
-    console.error('[telegram] Failed to fetch user profile photo:', err);
+    console.error('[telegram] Failed to fetch and re-host user profile photo:', err);
   }
   return null;
 }
