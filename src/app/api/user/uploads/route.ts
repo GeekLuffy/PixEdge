@@ -21,7 +21,7 @@ export async function GET() {
             tags: Array.isArray(u.tags) ? u.tags : [],
             burn_after_view: !!u.burn_after_view,
             burn_after_download: !!u.burn_after_download,
-            password_hash: u.password_hash || undefined,
+            is_protected: !!u.password_hash,
             metadata: u.metadata
         }));
         return NextResponse.json({ uploads: sanitizedUploads });

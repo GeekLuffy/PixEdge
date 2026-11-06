@@ -837,6 +837,7 @@ export default function DashboardPage() {
                             ...item,
                             folder: folderInput.trim() || undefined,
                             tags: parsedTags,
+                            is_protected: passwordInput.trim() ? true : (passwordInput === '' ? false : (item.is_protected ?? !!item.password_hash)),
                             password_hash: passwordInput.trim() ? 'protected' : (passwordInput === '' ? '' : item.password_hash),
                             burn_after_view: burnViewModal,
                             burn_after_download: burnDownloadModal,
@@ -2100,7 +2101,7 @@ export default function DashboardPage() {
                                                         <Video size={10} /> Video
                                                     </div>
                                                 )}
-                                                {upload.password_hash && (
+                                                {(upload.is_protected || upload.password_hash) && (
                                                     <div style={{
                                                         position: 'absolute',
                                                         top: '8px',
@@ -2124,7 +2125,7 @@ export default function DashboardPage() {
                                                     <div style={{
                                                         position: 'absolute',
                                                         top: '8px',
-                                                        right: upload.password_hash ? '84px' : '8px',
+                                                        right: (upload.is_protected || upload.password_hash) ? '84px' : '8px',
                                                         background: 'rgba(239, 68, 68, 0.85)',
                                                         backdropFilter: 'blur(8px)',
                                                         padding: '4px 8px',
@@ -2989,7 +2990,7 @@ export default function DashboardPage() {
                                         <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                         <input
                                             type={showModalPassword ? "text" : "password"}
-                                            placeholder={organizingItem?.password_hash ? "Protected (Type new PIN to update)" : "Add secret PIN or password"}
+                                            placeholder={(organizingItem?.is_protected || organizingItem?.password_hash) ? "Protected (Type new PIN to update)" : "Add secret PIN or password"}
                                             value={passwordInput}
                                             onChange={(e) => setPasswordInput(e.target.value)}
                                             style={{

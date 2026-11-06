@@ -40,7 +40,7 @@ export async function GET(
                 return {
                     id: img.id,
                     url: `${baseUrl}/i/${img.id}`,
-                    direct_url: `${baseUrl}/api/v1/info/${img.id}`,
+                    direct_url: `${baseUrl}/i/${img.id}`,
                     type: img.metadata?.type || 'image/jpeg',
                     size: img.metadata?.size || 0,
                     created_at: img.created_at,

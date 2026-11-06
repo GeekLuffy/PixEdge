@@ -9,7 +9,7 @@ import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/
 import { isGramConfigured, uploadFileViaGram } from '@/lib/gramjs';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { validateCustomId, generateSuggestions } from '@/lib/slugs';
+import { validateCustomId, generateSuggestions, getDirectMediaExtension } from '@/lib/slugs';
 
 // Allow long-running uploads (Vercel Pro / Northflank)
 export const maxDuration = 300; // 5 minutes
@@ -415,12 +415,14 @@ export async function POST(req: NextRequest) {
             `Link: ${publicUrl}`
         );
 
+        const mediaExt = getDirectMediaExtension(mimeType);
+
         return NextResponse.json({
             success: true,
             data: {
                 id,
                 url: `${baseUrl}/i/${id}`,
-                direct_url: `${baseUrl}/i/${id}.jpg`,
+                direct_url: `${baseUrl}/i/${id}${mediaExt}`,
                 timestamp: record.created_at,
                 expires_at: expiresIn ? Date.now() + expiresIn * 1000 : null,
                 upload_mode: usedGram ? 'mtproto_v2' : 'botapi_v1',

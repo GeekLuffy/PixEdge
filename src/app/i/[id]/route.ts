@@ -45,6 +45,38 @@ function isBotCrawler(req: NextRequest): boolean {
     return botPattern.test(userAgent);
 }
 
+function attachStreamCleanup(stream: ReadableStream<any>, onFinish: () => void): ReadableStream<any> {
+    let triggered = false;
+    const triggerOnce = () => {
+        if (!triggered) {
+            triggered = true;
+            try { onFinish(); } catch (err) { console.error('Stream cleanup callback error:', err); }
+        }
+    };
+
+    const reader = stream.getReader();
+    return new ReadableStream({
+        async pull(controller) {
+            try {
+                const { done, value } = await reader.read();
+                if (done) {
+                    controller.close();
+                    triggerOnce();
+                } else {
+                    controller.enqueue(value);
+                }
+            } catch (err) {
+                controller.error(err);
+                triggerOnce();
+            }
+        },
+        cancel(reason) {
+            triggerOnce();
+            return reader.cancel(reason);
+        }
+    });
+}
+
 export async function HEAD(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -283,19 +315,25 @@ export async function GET(
         const isExplicitDownload = downloadParam === '1' || downloadParam === 'true';
         const isBot = isBotCrawler(req);
 
-        // Increment counts & check self-destruct triggers (only for real human users, ignore bot crawlers)
+        // Determine if self-destruct trigger applies (delayed until stream finishes to avoid race conditions)
+        const shouldBurn = !isBot && (
+            (isExplicitDownload && !!record.burn_after_download) ||
+            (!isExplicitDownload && serveRaw && !!record.burn_after_view && (!rangeHeader || rangeHeader.startsWith('bytes=0-')))
+        );
+
+        const scheduleBurn = () => {
+            if (shouldBurn) {
+                purgeImage(id).catch(err => console.error('Self destruct burn error:', err));
+            }
+        };
+
+        // Increment counts (only for real human users, ignore bot crawlers).
+        // Views are incremented solely on raw media delivery to prevent double-counting when viewing HTML pages.
         if (!isBot) {
             if (isExplicitDownload) {
                 await incrementDownloads(id);
-                if (record.burn_after_download) {
-                    purgeImage(id).catch(err => console.error('Self destruct burn_after_download error:', err));
-                }
             } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
                 await incrementViews(id);
-                if (record.burn_after_view) {
-                    // Purge after serving raw media to browser so image renders cleanly on screen
-                    purgeImage(id).catch(err => console.error('Self destruct burn_after_view error:', err));
-                }
             }
         }
 
@@ -332,7 +370,8 @@ export async function GET(
                     const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
                     headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
-                    return new Response(stream, { status, headers });
+                    const outputStream = shouldBurn ? attachStreamCleanup(stream, scheduleBurn) : stream;
+                    return new Response(outputStream, { status, headers });
                 } catch (gramErr) {
                     console.error('[gramjs] stream error:', gramErr);
                     if (record.metadata?.version === 'v2') {
@@ -372,14 +411,11 @@ export async function GET(
             const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
             headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
-            return new Response(response.body, { status: response.status, headers });
+            const outputStream = (shouldBurn && response.body) ? attachStreamCleanup(response.body, scheduleBurn) : response.body;
+            return new Response(outputStream, { status: response.status, headers });
         }
 
-        // Increment views for HTML page view (only for real human users)
-        if (!isBot) {
-            await incrementViews(id);
-        }
-
+        // HTML page view: views are counted on raw media delivery to prevent double view counts.
         const isVideo = !!record.metadata?.type?.startsWith('video/');
         const isAudio = !!record.metadata?.type?.startsWith('audio/');
         const isMedia = isVideo || isAudio;

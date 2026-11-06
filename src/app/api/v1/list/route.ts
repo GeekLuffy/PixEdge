@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getUserUploads, verifyApiKey } from '@/lib/db';
+import { getDirectMediaExtension } from '@/lib/slugs';
 
 export async function GET(req: NextRequest) {
     let userId: string | undefined;
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
                 uploads: uploads.map((u) => ({
                     id: u.id,
                     url: `${baseUrl}/i/${u.id}`,
-                    direct_url: `${baseUrl}/i/${u.id}.${u.metadata?.type?.startsWith('video/') ? 'mp4' : 'jpg'}`,
+                    direct_url: `${baseUrl}/i/${u.id}${getDirectMediaExtension(u.metadata?.type)}`,
                     views: u.views,
                     downloads: u.downloads,
                     created_at: u.created_at,

@@ -501,19 +501,40 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const data: any = await redis.hgetall(`snap:${id}`);
         if (!data || Object.keys(data).length === 0) return false;
 
-        // Ownership check
+        // Ownership check (supports direct userId match, user upload lists, and linked Telegram/Web accounts)
+        let isOwner = false;
         if (data.user_id && data.user_id !== '') {
-            // New record: user_id is stored directly on the snap
-            if (data.user_id !== userId) return false;
-        } else {
-            // Legacy record (uploaded before this fix): verify via user's upload list
-            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 49);
-            if (!userUploads.includes(id)) return false;
+            if (data.user_id === userId) {
+                isOwner = true;
+            } else {
+                const [linkedTg, linkedWeb] = await Promise.all([
+                    redis.get(`telegram_link:${data.user_id}`),
+                    redis.get(`web_link:${userId}`)
+                ]);
+                if (
+                    (linkedTg && linkedTg.toString() === userId) ||
+                    (linkedWeb && linkedWeb.toString() === data.user_id)
+                ) {
+                    isOwner = true;
+                }
+            }
         }
+
+        if (!isOwner) {
+            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 999);
+            if (userUploads.includes(id)) {
+                isOwner = true;
+            }
+        }
+
+        if (!isOwner) return false;
 
         const messageId = data.message_id ? parseInt(data.message_id) : undefined;
         await redis.del(`snap:${id}`);
         await redis.lrem(`user:${userId}:uploads`, 0, id);
+        if (data.user_id && data.user_id !== userId) {
+            await redis.lrem(`user:${data.user_id}:uploads`, 0, id);
+        }
 
         if (messageId) {
             deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
@@ -526,18 +547,29 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const content = await fs.readFile(DB_PATH, 'utf-8');
         const db = JSON.parse(content);
         const index = db.images.findIndex((img: any) => img.id === id);
-        if (index !== -1) {
-            const image = db.images[index];
-            const messageId = image?.message_id;
-            db.images.splice(index, 1);
-            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        if (index === -1) return false;
 
-            if (messageId) {
-                deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
-            }
-            return true;
+        const image = db.images[index];
+        let isOwner = false;
+        if (!image.user_id || image.user_id === userId) {
+            isOwner = true;
+        } else if (
+            (db.telegram_links && db.telegram_links[image.user_id] === userId) ||
+            (db.web_links && db.web_links[userId] === image.user_id)
+        ) {
+            isOwner = true;
         }
-        return false;
+
+        if (!isOwner) return false;
+
+        const messageId = image?.message_id;
+        db.images.splice(index, 1);
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+
+        if (messageId) {
+            deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+        }
+        return true;
     } catch {
         return false;
     }
