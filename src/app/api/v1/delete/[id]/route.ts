@@ -10,12 +10,20 @@ async function resolveUserId(req: NextRequest): Promise<string | null> {
 
     const apiKey =
         req.headers.get('x-api-key') ||
-        req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+        req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+        req.nextUrl.searchParams.get('key');
 
     if (apiKey) {
         return await verifyApiKey(apiKey);
     }
     return null;
+}
+
+export async function GET(
+    req: NextRequest,
+    context: { params: Promise<{ id: string }> }
+) {
+    return DELETE(req, context);
 }
 
 export async function DELETE(

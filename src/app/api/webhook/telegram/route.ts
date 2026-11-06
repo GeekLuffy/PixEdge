@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog, escapeHtml } from '@/lib/telegram';
+import { randomInt } from 'crypto';
+import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog, escapeHtml, deleteTelegramMessage } from '@/lib/telegram';
 import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount, unlinkTelegramAccount, getImage } from '@/lib/db';
 import { validateCustomId, generateSuggestions } from '@/lib/slugs';
 
@@ -144,42 +145,69 @@ export async function POST(req: NextRequest) {
             if (command === '/login' || command === '/link') {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
-                // Generate 6-digit PIN
-                const pin = Math.floor(100000 + Math.random() * 900000).toString();
-                const pinKey = `telegram:login_pin:${pin}`;
-                
-                // Fetch user's Telegram profile photo URL
                 const { getTelegramUserProfilePhoto } = await import('@/lib/telegram');
                 const photoUrl = await getTelegramUserProfilePhoto(from.id);
 
-                // Store in Redis if cloud is enabled
+                let redis: any = null;
                 try {
                     const { Redis } = await import('@upstash/redis');
-                    const redis = new Redis({
-                        url: process.env.UPSTASH_REDIS_REST_URL!,
-                        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-                    });
-                    await redis.set(pinKey, JSON.stringify({
-                        id: from.id,
-                        first_name: from.first_name,
-                        username: from.username,
-                        photo_url: photoUrl || null
-                    }), { ex: 300 });
+                    if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+                        redis = new Redis({
+                            url: process.env.UPSTASH_REDIS_REST_URL.trim(),
+                            token: process.env.UPSTASH_REDIS_REST_TOKEN.trim(),
+                        });
+                    }
                 } catch (e) {
-                    console.error('Failed to store PIN in Redis:', e);
+                    console.error('Failed to init Redis for login PIN:', e);
+                }
+
+                // Clean up any existing pending login prompt for this user to prevent confusion
+                if (redis) {
+                    try {
+                        const prevLoginStr: any = await redis.get(`telegram:active_login:${from.id}`);
+                        if (prevLoginStr) {
+                            const prevLogin = typeof prevLoginStr === 'string' ? JSON.parse(prevLoginStr) : prevLoginStr;
+                            if (prevLogin?.chat_id && prevLogin?.message_id) {
+                                await deleteTelegramMessage(prevLogin.chat_id, prevLogin.message_id);
+                            }
+                            if (prevLogin?.pin) {
+                                await redis.del(`telegram:login_pin:${prevLogin.pin}`);
+                            }
+                        }
+                    } catch (cleanupErr) {
+                        console.warn('[webhook] Could not clean up previous login message:', cleanupErr);
+                    }
+                }
+
+                // Generate cryptographically secure 6-digit PIN (valid for 2 minutes)
+                let pin = '';
+                if (redis) {
+                    let stored = false;
+                    for (let attempt = 0; attempt < 5 && !stored; attempt++) {
+                        pin = randomInt(100000, 1000000).toString();
+                        const result = await redis.set(
+                            `telegram:login_pin:${pin}`,
+                            'pending',
+                            { ex: 120, nx: true }
+                        );
+                        stored = result === 'OK';
+                    }
+                }
+                if (!pin) {
+                    pin = Math.floor(100000 + Math.random() * 900000).toString();
                 }
 
                 // Generate 1-Click Login URL with PIN
                 const directLoginUrl = `${baseUrl}/login?pin=${pin}`;
 
-                await sendMessage(chatId,
+                const sentMessage = await sendMessage(chatId,
                     `🔑 <b>PixEdge Web Login</b>\n\n` +
                     `1️⃣ <b>Option A (1-Click Login):</b>\n` +
                     `Tap the button below to log in directly:\n\n` +
                     `2️⃣ <b>Option B (PIN Code):</b>\n` +
                     `Your PIN: <code>${pin}</code>\n` +
                     `<i>Enter this PIN on the login page.</i>\n\n` +
-                    `<i>Expires in 5 minutes.</i>`,
+                    `<i>Expires in 2 minutes.</i>`,
                     'HTML',
                     {
                         inline_keyboard: [[
@@ -187,15 +215,62 @@ export async function POST(req: NextRequest) {
                         ]]
                     }
                 );
+
+                const sentMessageId = sentMessage?.message_id;
+
+                if (redis) {
+                    await redis.set(
+                        `telegram:login_pin:${pin}`,
+                        JSON.stringify({
+                            id: from.id,
+                            chat_id: chatId,
+                            message_id: sentMessageId,
+                            first_name: from.first_name,
+                            username: from.username,
+                            photo_url: photoUrl || null
+                        }),
+                        { ex: 120 }
+                    );
+
+                    if (sentMessageId) {
+                        await redis.set(
+                            `telegram:active_login:${from.id}`,
+                            JSON.stringify({ pin, chat_id: chatId, message_id: sentMessageId }),
+                            { ex: 120 }
+                        );
+
+                        // If under 2 min no login then delete prompt and send login fail message
+                        setTimeout(async () => {
+                            try {
+                                const currentPinData = await redis.get(`telegram:login_pin:${pin}`);
+                                if (currentPinData) {
+                                    // Still exists, so login never occurred within 2 minutes
+                                    await redis.del(`telegram:login_pin:${pin}`);
+                                    await redis.del(`telegram:active_login:${from.id}`);
+                                    await deleteTelegramMessage(chatId, sentMessageId);
+                                    await sendMessage(
+                                        chatId,
+                                        `⌛ <b>Login Expired / Failed</b>\n\n` +
+                                        `No login was detected within 2 minutes. The link and PIN have expired.\n\n` +
+                                        `Send /login to request a new login link.`,
+                                        'HTML'
+                                    );
+                                }
+                            } catch (expiryErr) {
+                                console.error('[webhook] 2-minute login expiration error:', expiryErr);
+                            }
+                        }, 120 * 1000);
+                    }
+                }
+
                 return new NextResponse('OK');
             }
 
             if (command === '/status') {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
                 const linked = await isAccountLinked(from.id);
-                const linkedAccount = linked ? await getLinkedWebAccount(from.id) : null;
                             
-                if (linked && linkedAccount) {
+                if (linked) {
                     await sendMessage(chatId,
                         `✅ <b>Account Status: Linked</b>\n\n` +
                         `Your Telegram is connected to your PixEdge account.\n` +

@@ -37,12 +37,51 @@ export function validateCustomId(id: string): SlugValidationResult {
     }
 
     // Reserved system routes
-    const reserved = ['api', 'admin', 'dashboard', 'login', 'docs', 'upload', 'i', 'static', 'stats', 'icon'];
+    const reserved = ['api', 'admin', 'dashboard', 'login', 'docs', 'upload', 'i', 'static', 'stats', 'icon', 'album', 'albums'];
     if (reserved.includes(sanitized)) {
         return { valid: false, error: 'This vanity slug is reserved by the system' };
     }
 
     return { valid: true, sanitized };
+}
+
+/**
+ * Returns the proper file extension (.mp3, .wav, .mp4, .jpg, etc.) for direct media URLs.
+ */
+export function getDirectMediaExtension(mimeType?: string): string {
+    const norm = (mimeType || '').split(';')[0].trim().toLowerCase();
+    const map: Record<string, string> = {
+        'audio/mpeg': '.mp3',
+        'audio/mp3': '.mp3',
+        'audio/wav': '.wav',
+        'audio/x-wav': '.wav',
+        'audio/wave': '.wav',
+        'audio/ogg': '.ogg',
+        'audio/m4a': '.m4a',
+        'audio/mp4': '.m4a',
+        'audio/webm': '.weba',
+        'audio/flac': '.flac',
+        'audio/aac': '.aac',
+        'audio/3gpp': '.3gp',
+        'video/mp4': '.mp4',
+        'video/webm': '.webm',
+        'video/quicktime': '.mov',
+        'video/x-matroska': '.mkv',
+        'video/mpeg': '.mpeg',
+        'video/3gpp': '.3gp',
+        'image/gif': '.gif',
+        'image/png': '.png',
+        'image/webp': '.webp',
+        'image/avif': '.avif',
+        'image/bmp': '.bmp',
+        'image/tiff': '.tif',
+        'image/jpeg': '.jpg',
+        'image/jpg': '.jpg',
+    };
+    if (map[norm]) return map[norm];
+    if (norm.startsWith('audio/')) return '.mp3';
+    if (norm.startsWith('video/')) return '.mp4';
+    return '.jpg';
 }
 
 /**

@@ -17,6 +17,11 @@ export async function GET() {
             expires_at: u.expires_at ?? null,
             views: u.views,
             downloads: u.downloads,
+            folder: u.folder || '',
+            tags: Array.isArray(u.tags) ? u.tags : [],
+            burn_after_view: !!u.burn_after_view,
+            burn_after_download: !!u.burn_after_download,
+            is_protected: !!u.password_hash,
             metadata: u.metadata
         }));
         return NextResponse.json({ uploads: sanitizedUploads });

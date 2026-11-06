@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImage, rateLimit } from '@/lib/db';
+import { getDirectMediaExtension } from '@/lib/slugs';
 
 export async function GET(
     req: NextRequest,
@@ -38,13 +39,14 @@ export async function GET(
 
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ||
             (req.headers.get('host') ? `http://${req.headers.get('host')}` : '');
+        const mediaExt = getDirectMediaExtension(record.metadata?.type);
 
         return NextResponse.json({
             success: true,
             data: {
                 id: record.id,
                 url: `${baseUrl}/i/${record.id}`,
-                direct_url: `${baseUrl}/i/${record.id}.jpg`,
+                direct_url: `${baseUrl}/i/${record.id}${mediaExt}`,
                 views: record.views,
                 is_protected: !!record.password_hash,
                 created_at: record.created_at,

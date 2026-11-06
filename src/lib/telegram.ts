@@ -222,26 +222,59 @@ export async function getTelegramFileUrl(fileId: string): Promise<string> {
   return `https://api.telegram.org/file/bot${token}/${filePath}`;
 }
 
-export async function sendMessage(chatId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML', replyMarkup?: any): Promise<void> {
+export async function sendMessage(chatId: number | string, text: string, parseMode: 'HTML' | 'Markdown' = 'HTML', replyMarkup?: any): Promise<any> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
+  if (!token) return null;
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      parse_mode: parseMode,
-      disable_web_page_preview: true,
-      link_preview_options: { is_disabled: true },
-      reply_markup: replyMarkup
-    }),
-  });
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: parseMode,
+        disable_web_page_preview: true,
+        link_preview_options: { is_disabled: true },
+        reply_markup: replyMarkup
+      }),
+    });
 
-  const data = await response.json();
-  if (!data.ok) {
-    console.error(`Telegram sendMessage error: ${data.description}`);
+    const data = await response.json();
+    if (!data.ok) {
+      console.error(`Telegram sendMessage error: ${data.description}`);
+      return null;
+    }
+    return data.result;
+  } catch (err) {
+    console.error('Telegram sendMessage exception:', err);
+    return null;
+  }
+}
+
+export async function deleteTelegramMessage(chatId: number | string, messageId: number): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !chatId || !messageId) return false;
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+      }),
+    });
+
+    const data = await response.json();
+    if (data.ok) {
+      return true;
+    }
+    console.warn(`[telegram] deleteMessage warning (${messageId}): ${data.description}`);
+    return false;
+  } catch (error) {
+    console.error(`[telegram] Failed to delete message ${messageId} in chat ${chatId}:`, error);
+    return false;
   }
 }
 
@@ -344,30 +377,9 @@ export async function deleteChannelMediaMessage(messageId?: number): Promise<boo
   }
 
   // Fall back to Telegram Bot API deleteMessage
-  const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return false;
-
-  try {
-    const response = await fetch(`https://api.telegram.org/bot${token}/deleteMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        message_id: messageId,
-      }),
-    });
-
-    const data = await response.json();
-    if (data.ok) {
-      console.log(`[telegram] Successfully deleted channel message ${messageId} via Bot API`);
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error(`[telegram] Failed to delete channel message ${messageId}:`, error);
-    return false;
-  }
+  if (!chatId) return false;
+  return await deleteTelegramMessage(chatId, messageId);
 }
 
 // Fetches the user's current profile picture URL from Telegram Bot API

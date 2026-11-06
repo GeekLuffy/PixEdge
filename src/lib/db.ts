@@ -9,8 +9,8 @@ const DB_PATH = path.join(process.cwd(), 'db.json');
 
 const redis = (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)
     ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+        url: process.env.UPSTASH_REDIS_REST_URL.trim(),
+        token: process.env.UPSTASH_REDIS_REST_TOKEN.trim(),
     })
     : null;
 
@@ -314,6 +314,29 @@ export async function deleteFolder(userId: string, folderName: string): Promise<
 
     if (useCloud() && redis) {
         await redis.srem(`user:${userId}:folders`, cleanName);
+        try {
+            const uploads = await redis.lrange(`user:${userId}:uploads`, 0, 999);
+            if (Array.isArray(uploads) && uploads.length > 0) {
+                const p = redis.pipeline();
+                for (const uploadId of uploads) {
+                    p.hget(`snap:${uploadId}`, 'folder');
+                }
+                const folders = await p.exec();
+                const updateP = redis.pipeline();
+                let hasUpdates = false;
+                for (let i = 0; i < uploads.length; i++) {
+                    if (folders && folders[i] === cleanName) {
+                        updateP.hdel(`snap:${uploads[i]}`, 'folder');
+                        hasUpdates = true;
+                    }
+                }
+                if (hasUpdates) {
+                    await updateP.exec();
+                }
+            }
+        } catch (e) {
+            console.error('Error clearing folder from user uploads:', e);
+        }
         return true;
     }
 
@@ -323,8 +346,15 @@ export async function deleteFolder(userId: string, folderName: string): Promise<
         const db = JSON.parse(content);
         if (db.folders && db.folders[userId]) {
             db.folders[userId] = db.folders[userId].filter((f: string) => f !== cleanName);
-            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
         }
+        if (Array.isArray(db.images)) {
+            for (const img of db.images) {
+                if (img.user_id === userId && img.folder === cleanName) {
+                    delete img.folder;
+                }
+            }
+        }
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
         return true;
     } catch {
         return false;
@@ -471,19 +501,40 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const data: any = await redis.hgetall(`snap:${id}`);
         if (!data || Object.keys(data).length === 0) return false;
 
-        // Ownership check
+        // Ownership check (supports direct userId match, user upload lists, and linked Telegram/Web accounts)
+        let isOwner = false;
         if (data.user_id && data.user_id !== '') {
-            // New record: user_id is stored directly on the snap
-            if (data.user_id !== userId) return false;
-        } else {
-            // Legacy record (uploaded before this fix): verify via user's upload list
-            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 49);
-            if (!userUploads.includes(id)) return false;
+            if (data.user_id === userId) {
+                isOwner = true;
+            } else {
+                const [linkedTg, linkedWeb] = await Promise.all([
+                    redis.get(`telegram_link:${data.user_id}`),
+                    redis.get(`web_link:${userId}`)
+                ]);
+                if (
+                    (linkedTg && linkedTg.toString() === userId) ||
+                    (linkedWeb && linkedWeb.toString() === data.user_id)
+                ) {
+                    isOwner = true;
+                }
+            }
         }
+
+        if (!isOwner) {
+            const userUploads = await redis.lrange(`user:${userId}:uploads`, 0, 999);
+            if (userUploads.includes(id)) {
+                isOwner = true;
+            }
+        }
+
+        if (!isOwner) return false;
 
         const messageId = data.message_id ? parseInt(data.message_id) : undefined;
         await redis.del(`snap:${id}`);
         await redis.lrem(`user:${userId}:uploads`, 0, id);
+        if (data.user_id && data.user_id !== userId) {
+            await redis.lrem(`user:${data.user_id}:uploads`, 0, id);
+        }
 
         if (messageId) {
             deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
@@ -496,18 +547,29 @@ export async function deleteImage(id: string, userId: string): Promise<boolean> 
         const content = await fs.readFile(DB_PATH, 'utf-8');
         const db = JSON.parse(content);
         const index = db.images.findIndex((img: any) => img.id === id);
-        if (index !== -1) {
-            const image = db.images[index];
-            const messageId = image?.message_id;
-            db.images.splice(index, 1);
-            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        if (index === -1) return false;
 
-            if (messageId) {
-                deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
-            }
-            return true;
+        const image = db.images[index];
+        let isOwner = false;
+        if (!image.user_id || image.user_id === userId) {
+            isOwner = true;
+        } else if (
+            (db.telegram_links && db.telegram_links[image.user_id] === userId) ||
+            (db.web_links && db.web_links[userId] === image.user_id)
+        ) {
+            isOwner = true;
         }
-        return false;
+
+        if (!isOwner) return false;
+
+        const messageId = image?.message_id;
+        db.images.splice(index, 1);
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+
+        if (messageId) {
+            deleteChannelMediaMessage(messageId).catch(err => console.error('Auto channel deletion error:', err));
+        }
+        return true;
     } catch {
         return false;
     }
@@ -658,49 +720,108 @@ export async function verifyLinkToken(token: string): Promise<string | null> {
 }
 
 export async function linkTelegramToAccount(telegramId: string, webUserId: string): Promise<void> {
-    if (!redis) return;
+    if (useCloud() && redis) {
+        // Clean up any stale mappings to maintain a strict 1:1 bidirectional mapping
+        const existingWebUser = await redis.get(`telegram_link:${telegramId}`);
+        if (existingWebUser && existingWebUser !== webUserId) {
+            await redis.del(`web_link:${existingWebUser}`);
+        }
 
-    // Clean up any stale mappings to maintain a strict 1:1 bidirectional mapping
-    const existingWebUser = await redis.get(`telegram_link:${telegramId}`);
-    if (existingWebUser && existingWebUser !== webUserId) {
-        await redis.del(`web_link:${existingWebUser}`);
+        const existingTelegram = await redis.get(`web_link:${webUserId}`);
+        if (existingTelegram && existingTelegram !== telegramId) {
+            await redis.del(`telegram_link:${existingTelegram}`);
+        }
+
+        // Bidirectional mapping
+        await redis.set(`telegram_link:${telegramId}`, webUserId);
+        await redis.set(`web_link:${webUserId}`, telegramId);
+        return;
     }
 
-    const existingTelegram = await redis.get(`web_link:${webUserId}`);
-    if (existingTelegram && existingTelegram !== telegramId) {
-        await redis.del(`telegram_link:${existingTelegram}`);
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (!db.telegram_links) db.telegram_links = {};
+        if (!db.web_links) db.web_links = {};
+        db.telegram_links[telegramId.toString()] = webUserId.toString();
+        db.web_links[webUserId.toString()] = telegramId.toString();
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+    } catch (e) {
+        console.error('Failed to save local telegram link:', e);
     }
-
-    // Bidirectional mapping
-    await redis.set(`telegram_link:${telegramId}`, webUserId);
-    await redis.set(`web_link:${webUserId}`, telegramId);
 }
 
 export async function getLinkedWebAccount(telegramId: string | number): Promise<string | null> {
-    if (!redis) return null;
-    return await redis.get(`telegram_link:${telegramId.toString()}`);
+    if (useCloud() && redis) {
+        return await redis.get(`telegram_link:${telegramId.toString()}`);
+    }
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        return db.telegram_links?.[telegramId.toString()] || null;
+    } catch {
+        return null;
+    }
 }
 
 export async function getLinkedTelegram(webUserId: string): Promise<string | null> {
-    if (!redis) return null;
-    return await redis.get(`web_link:${webUserId}`);
+    if (useCloud() && redis) {
+        return await redis.get(`web_link:${webUserId}`);
+    }
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        return db.web_links?.[webUserId] || null;
+    } catch {
+        return null;
+    }
 }
 
 export async function isAccountLinked(telegramId: string | number): Promise<boolean> {
-    if (!redis) return false;
-    const linked = await redis.exists(`telegram_link:${telegramId.toString()}`);
-    return linked === 1;
+    if (useCloud() && redis) {
+        const linked = await redis.exists(`telegram_link:${telegramId.toString()}`);
+        return linked === 1;
+    }
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        return !!db.telegram_links?.[telegramId.toString()];
+    } catch {
+        return false;
+    }
 }
 
 export async function unlinkTelegramAccount(telegramId: string | number): Promise<boolean> {
-    if (!redis) return false;
-    const webUserId = await redis.get(`telegram_link:${telegramId.toString()}`);
-    if (webUserId) {
-        await redis.del(`telegram_link:${telegramId.toString()}`);
-        await redis.del(`web_link:${webUserId}`);
-        return true;
+    if (useCloud() && redis) {
+        const webUserId = await redis.get(`telegram_link:${telegramId.toString()}`);
+        if (webUserId) {
+            await redis.del(`telegram_link:${telegramId.toString()}`);
+            await redis.del(`web_link:${webUserId}`);
+            return true;
+        }
+        return false;
     }
-    return false;
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+        if (db.telegram_links && db.telegram_links[telegramId.toString()]) {
+            const webUserId = db.telegram_links[telegramId.toString()];
+            delete db.telegram_links[telegramId.toString()];
+            if (db.web_links && db.web_links[webUserId]) {
+                delete db.web_links[webUserId];
+            }
+            await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
 }
 
 // Extends or removes link expiration duration for a given upload
@@ -719,6 +840,11 @@ export async function extendImageExpiry(
         if (data.user_id && data.user_id !== '') {
             if (!userId || data.user_id !== userId) {
                 return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+            }
+        } else {
+            // Anonymous upload: requires an authenticated user to prevent arbitrary DoS/storage hoarding
+            if (!userId) {
+                return { success: false, error: 'Please log in to manage file expiration' };
             }
         }
 
@@ -749,8 +875,12 @@ export async function extendImageExpiry(
         if (index === -1) return { success: false, error: 'Upload not found' };
 
         const image = db.images[index];
-        if (userId && image.user_id && image.user_id !== userId) {
-            return { success: false, error: 'Unauthorized' };
+        if (image.user_id && image.user_id !== '') {
+            if (!userId || image.user_id !== userId) {
+                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+            }
+        } else if (!userId) {
+            return { success: false, error: 'Please log in to manage file expiration' };
         }
 
         if (extraSeconds === -1) {
