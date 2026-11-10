@@ -35,6 +35,8 @@ export interface ImageRecord {
     // Self-destruct (Burn after reading) toggles
     burn_after_view?: boolean;
     burn_after_download?: boolean;
+    // Internal avatar profile image flag (excluded from user uploads, activity & views)
+    is_avatar?: boolean;
     metadata: {
         size: number;
         type: string;
@@ -58,54 +60,58 @@ export async function saveImage(
     expiresIn?: number // seconds until expiry; undefined = never
 ) {
     if (useCloud() && redis) {
+        const isAvatar = !!record.is_avatar || record.id.startsWith('avatar-');
         const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
         const pipeline = redis.pipeline();
         pipeline.hset(`snap:${record.id}`, {
             ...record,
-            user_id: userId?.toString() || '',
+            user_id: isAvatar ? '' : (userId?.toString() || ''),
             views: 0,
             downloads: 0,
             expires_at: expiresAt ? expiresAt.toString() : '',
-            folder: (record as any).folder || '',
-            tags: JSON.stringify((record as any).tags || []),
+            folder: isAvatar ? '' : ((record as any).folder || ''),
+            tags: isAvatar ? '[]' : JSON.stringify((record as any).tags || []),
             password_hash: record.password_hash || '',
             burn_after_view: record.burn_after_view ? 'true' : 'false',
             burn_after_download: record.burn_after_download ? 'true' : 'false',
+            is_avatar: isAvatar ? 'true' : 'false',
             metadata: JSON.stringify(record.metadata)
         });
 
-        if ((record as any).folder && userId) {
-            pipeline.sadd(`user:${userId}:folders`, ((record as any).folder as string).trim());
-        }
+        if (!isAvatar) {
+            if ((record as any).folder && userId) {
+                pipeline.sadd(`user:${userId}:folders`, ((record as any).folder as string).trim());
+            }
 
-        if (expiresIn) {
-            // Auto-delete the Redis key when the link expires
-            pipeline.expire(`snap:${record.id}`, expiresIn);
-        }
+            if (expiresIn) {
+                // Auto-delete the Redis key when the link expires
+                pipeline.expire(`snap:${record.id}`, expiresIn);
+            }
 
-        // 1. Total Uploads
-        pipeline.incr('stats:total_uploads');
+            // 1. Total Uploads
+            pipeline.incr('stats:total_uploads');
 
-        // 2. Source specific stats
-        if (source === 'web') {
-            pipeline.incr('stats:web_uploads');
-        } else {
-            pipeline.incr('stats:bot_uploads');
-        }
+            // 2. Source specific stats
+            if (source === 'web') {
+                pipeline.incr('stats:web_uploads');
+            } else {
+                pipeline.incr('stats:bot_uploads');
+            }
 
-        // 3. User specific tracking
-        if (userId) {
-            pipeline.sadd('stats:users', userId.toString());
-            pipeline.lpush(`user:${userId}:uploads`, record.id);
-            pipeline.ltrim(`user:${userId}:uploads`, 0, 49); // Keep last 50
-        }
+            // 3. User specific tracking
+            if (userId) {
+                pipeline.sadd('stats:users', userId.toString());
+                pipeline.lpush(`user:${userId}:uploads`, record.id);
+                pipeline.ltrim(`user:${userId}:uploads`, 0, 49); // Keep last 50
+            }
 
-        // 4. Media Type stats
-        const type = record.metadata.type || '';
-        if (type.startsWith('video/') || type === 'image/gif') {
-            pipeline.incr('stats:videos');
-        } else {
-            pipeline.incr('stats:images');
+            // 4. Media Type stats
+            const type = record.metadata.type || '';
+            if (type.startsWith('video/') || type === 'image/gif') {
+                pipeline.incr('stats:videos');
+            } else {
+                pipeline.incr('stats:images');
+            }
         }
 
         await pipeline.exec();
@@ -125,11 +131,21 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
     const ids = await redis.lrange(`user:${userId}:uploads`, 0, 49);
     if (!ids || ids.length === 0) return [];
 
-    const results = await Promise.all(ids.map(id => redis.hgetall(`snap:${id}`)));
+    // Filter out and purge any avatar records from the user's upload list
+    const avatarIds = ids.filter(id => id.startsWith('avatar-'));
+    if (avatarIds.length > 0) {
+        Promise.all(avatarIds.map(aId => redis.lrem(`user:${userId}:uploads`, 0, aId))).catch(() => {});
+    }
+
+    const cleanIds = ids.filter(id => !id.startsWith('avatar-'));
+    if (cleanIds.length === 0) return [];
+
+    const results = await Promise.all(cleanIds.map(id => redis.hgetall(`snap:${id}`)));
 
     return results
         .map((data: any, index) => {
             if (!data || Object.keys(data).length === 0) return null;
+            if (data.is_avatar === 'true' || cleanIds[index]?.startsWith('avatar-')) return null;
             
             // Parse tags safely whether stored as string or array
             let parsedTags: string[] = [];
@@ -143,7 +159,7 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
 
             return {
                 ...data,
-                id: ids[index],
+                id: cleanIds[index],
                 message_id: data.message_id ? parseInt(data.message_id) : undefined,
                 views: parseInt(data.views || '0'),
                 downloads: parseInt(data.downloads || '0'),
@@ -152,6 +168,7 @@ export async function getUserUploads(userId: string): Promise<ImageRecord[]> {
                 tags: Array.isArray(parsedTags) ? parsedTags : [],
                 burn_after_view: data.burn_after_view === 'true' || data.burn_after_view === true,
                 burn_after_download: data.burn_after_download === 'true' || data.burn_after_download === true,
+                is_avatar: data.is_avatar === 'true' || data.is_avatar === true,
                 metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
             } as ImageRecord;
         })
@@ -438,6 +455,7 @@ export async function getImage(id: string): Promise<ImageRecord | null> {
             tags: Array.isArray(parsedTags) ? parsedTags : [],
             burn_after_view: data.burn_after_view === 'true' || data.burn_after_view === true,
             burn_after_download: data.burn_after_download === 'true' || data.burn_after_download === true,
+            is_avatar: data.is_avatar === 'true' || data.is_avatar === true,
             metadata: typeof data.metadata === 'string' ? JSON.parse(data.metadata) : data.metadata
         } as ImageRecord;
     }
@@ -836,16 +854,33 @@ export async function extendImageExpiry(
             return { success: false, error: 'Upload record not found' };
         }
 
-        // Ownership verification (if upload is owned by a specific user)
-        if (data.user_id && data.user_id !== '') {
-            if (!userId || data.user_id !== userId) {
-                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        const currentOwner = (data.user_id || '').toString().trim();
+        const targetUser = userId ? userId.toString().trim() : '';
+
+        // Ownership verification (including bidirectional linked accounts)
+        let isOwner = false;
+        if (currentOwner && targetUser && currentOwner === targetUser) {
+            isOwner = true;
+        } else if (currentOwner && targetUser) {
+            const [userUploads, linkedTg, linkedWeb] = await Promise.all([
+                redis.lrange(`user:${targetUser}:uploads`, 0, 999),
+                redis.get(`web_link:${targetUser}`),
+                redis.get(`telegram_link:${targetUser}`)
+            ]);
+            if (
+                userUploads.includes(id) ||
+                (linkedTg && linkedTg.toString() === currentOwner) ||
+                (linkedWeb && linkedWeb.toString() === currentOwner)
+            ) {
+                isOwner = true;
             }
-        } else {
-            // Anonymous upload: requires an authenticated user to prevent arbitrary DoS/storage hoarding
-            if (!userId) {
-                return { success: false, error: 'Please log in to manage file expiration' };
-            }
+        }
+
+        if (currentOwner && !isOwner) {
+            return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        }
+        if (!currentOwner && !userId) {
+            return { success: false, error: 'Please log in to manage file expiration' };
         }
 
         if (extraSeconds === -1) {
@@ -875,11 +910,24 @@ export async function extendImageExpiry(
         if (index === -1) return { success: false, error: 'Upload not found' };
 
         const image = db.images[index];
-        if (image.user_id && image.user_id !== '') {
-            if (!userId || image.user_id !== userId) {
-                return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        const currentOwner = (image.user_id || '').toString().trim();
+        const targetUser = userId ? userId.toString().trim() : '';
+
+        let isOwner = false;
+        if (currentOwner && targetUser && currentOwner === targetUser) {
+            isOwner = true;
+        } else if (currentOwner && targetUser) {
+            const linkedTg = db.web_links?.[targetUser];
+            const linkedWeb = db.telegram_links?.[targetUser];
+            if (currentOwner === linkedTg || currentOwner === linkedWeb) {
+                isOwner = true;
             }
-        } else if (!userId) {
+        }
+
+        if (currentOwner && !isOwner) {
+            return { success: false, error: 'Must be logged in as the file owner to extend expiry' };
+        }
+        if (!currentOwner && !userId) {
             return { success: false, error: 'Please log in to manage file expiration' };
         }
 
@@ -1025,5 +1073,104 @@ export async function incrementAlbumViews(id: string) {
         }
     } catch {
         // ignore
+    }
+}
+
+// Permanently delete a user account and all associated user data from Redis database
+export async function deleteUserAccount(userId: string): Promise<boolean> {
+    const cleanUserId = userId.toString().trim();
+    if (!cleanUserId) return false;
+
+    if (useCloud() && redis) {
+        const pipeline = redis.pipeline();
+
+        // 1. Fetch user data to find email and linked keys
+        const userKey = `user:${cleanUserId}`;
+        const [userData, userApiKey, linkedTg, linkedWeb, userUploads] = await Promise.all([
+            redis.get(userKey),
+            redis.get(`user:${cleanUserId}:apikey`),
+            redis.get(`telegram_link:${cleanUserId}`),
+            redis.get(`web_link:${cleanUserId}`),
+            redis.lrange(`user:${cleanUserId}:uploads`, 0, -1)
+        ]);
+
+        const userObj: any = typeof userData === 'string' ? JSON.parse(userData) : userData;
+        if (userObj?.email) {
+            pipeline.del(`user:email:${userObj.email.toLowerCase().trim()}`);
+        }
+
+        // 2. Delete API Key
+        if (userApiKey) {
+            pipeline.del(`apikey:${userApiKey}`);
+        }
+        pipeline.del(`user:${cleanUserId}:apikey`);
+
+        // 3. Delete all upload records (snaps) for this user
+        const allSnapIds = new Set<string>();
+        if (Array.isArray(userUploads)) {
+            userUploads.forEach(id => id && allSnapIds.add(id));
+        }
+
+        // Check linked Telegram account if any
+        const linkedId = (linkedTg || linkedWeb)?.toString().trim();
+        if (linkedId && linkedId !== cleanUserId) {
+            const linkedUploads = await redis.lrange(`user:${linkedId}:uploads`, 0, -1);
+            if (Array.isArray(linkedUploads)) {
+                linkedUploads.forEach(id => id && allSnapIds.add(id));
+            }
+            pipeline.del(`user:${linkedId}:uploads`);
+            pipeline.del(`user:${linkedId}:folders`);
+            pipeline.del(`user:${linkedId}`);
+            pipeline.del(`user:custom_avatar:${linkedId}`);
+            pipeline.del(`snap:avatar-${linkedId}`);
+            pipeline.del(`telegram:active_login:${linkedId}`);
+            pipeline.del(`telegram_link:${linkedId}`);
+            pipeline.del(`web_link:${linkedId}`);
+            pipeline.srem('stats:users', linkedId);
+        }
+
+        // Delete each snap key
+        for (const snapId of allSnapIds) {
+            pipeline.del(`snap:${snapId}`);
+        }
+        pipeline.del(`user:${cleanUserId}:uploads`);
+
+        // 4. Delete folders, avatars, links, user profile
+        pipeline.del(`user:${cleanUserId}:folders`);
+        pipeline.del(`user:custom_avatar:${cleanUserId}`);
+        pipeline.del(`snap:avatar-${cleanUserId}`);
+        pipeline.del(`telegram:active_login:${cleanUserId}`);
+        pipeline.del(`telegram_link:${cleanUserId}`);
+        pipeline.del(`web_link:${cleanUserId}`);
+        pipeline.del(userKey);
+        pipeline.srem('stats:users', cleanUserId);
+
+        await pipeline.exec();
+        return true;
+    }
+
+    try {
+        await ensureLocalDb();
+        const content = await fs.readFile(DB_PATH, 'utf-8');
+        const db = JSON.parse(content);
+
+        // Filter out images owned by user
+        if (Array.isArray(db.images)) {
+            db.images = db.images.filter((img: any) => img.user_id !== cleanUserId && img.id !== `avatar-${cleanUserId}`);
+        }
+
+        // Clean links
+        if (db.telegram_links) delete db.telegram_links[cleanUserId];
+        if (db.web_links) delete db.web_links[cleanUserId];
+
+        // Clean users
+        if (Array.isArray(db.users)) {
+            db.users = db.users.filter((u: any) => u.id !== cleanUserId);
+        }
+
+        await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2));
+        return true;
+    } catch {
+        return false;
     }
 }

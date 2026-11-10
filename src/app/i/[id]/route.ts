@@ -1,10 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImage, incrementViews, incrementDownloads, purgeImage } from '@/lib/db';
-import { getTelegramFileUrl } from '@/lib/telegram';
+import {
+    fetchWithRetry,
+    getTelegramFileUrl,
+    invalidateTelegramFileUrl,
+    TelegramApiError,
+} from '@/lib/telegram';
 import { isGramConfigured, streamFileViaGram } from '@/lib/gramjs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300; // allow long streaming for large files
+
+function attachStreamCleanup(stream: ReadableStream<Uint8Array>, onComplete: () => Promise<void>): ReadableStream<Uint8Array> {
+    let cleanedUp = false;
+    const runCleanup = async () => {
+        if (!cleanedUp) {
+            cleanedUp = true;
+            try {
+                await onComplete();
+            } catch (err) {
+                console.error('[stream-cleanup] Error running cleanup:', err);
+            }
+        }
+    };
+
+    const reader = stream.getReader();
+    return new ReadableStream<Uint8Array>({
+        async pull(controller) {
+            try {
+                const { done, value } = await reader.read();
+                if (done) {
+                    controller.close();
+                    await runCleanup();
+                } else {
+                    controller.enqueue(value);
+                }
+            } catch (err) {
+                controller.error(err);
+                await runCleanup();
+            }
+        },
+        async cancel(reason) {
+            await reader.cancel(reason);
+            await runCleanup();
+        }
+    });
+}
 
 function parseRangeHeader(rangeHeader: string | null, fileSize: number): { start: number; end: number } | null {
     if (!rangeHeader || !rangeHeader.startsWith('bytes=')) return null;
@@ -43,38 +84,6 @@ function isBotCrawler(req: NextRequest): boolean {
     const userAgent = req.headers.get('user-agent') || '';
     const botPattern = /bot|crawler|spider|facebookexternalhit|whatsapp|telegrambot|twitterbot|slackbot|discordbot|curl|wget|python|node-fetch|axios|fetch|go-http-client/i;
     return botPattern.test(userAgent);
-}
-
-function attachStreamCleanup(stream: ReadableStream<any>, onFinish: () => void): ReadableStream<any> {
-    let triggered = false;
-    const triggerOnce = () => {
-        if (!triggered) {
-            triggered = true;
-            try { onFinish(); } catch (err) { console.error('Stream cleanup callback error:', err); }
-        }
-    };
-
-    const reader = stream.getReader();
-    return new ReadableStream({
-        async pull(controller) {
-            try {
-                const { done, value } = await reader.read();
-                if (done) {
-                    controller.close();
-                    triggerOnce();
-                } else {
-                    controller.enqueue(value);
-                }
-            } catch (err) {
-                controller.error(err);
-                triggerOnce();
-            }
-        },
-        cancel(reason) {
-            triggerOnce();
-            return reader.cancel(reason);
-        }
-    });
 }
 
 export async function HEAD(
@@ -147,7 +156,8 @@ export async function GET(
         const userAgent = req.headers.get('user-agent') || '';
         const isTelegramBot = userAgent.toLowerCase().includes('telegrambot');
         const accept = req.headers.get('accept') || '';
-        const serveRaw = hasExtension || (!accept.includes('text/html') && !isTelegramBot);
+        const isAvatar = id.startsWith('avatar-') || !!record.is_avatar;
+        const serveRaw = isAvatar || hasExtension || (!accept.includes('text/html') && !isTelegramBot);
 
         // Password Protection Verification
         if (record.password_hash) {
@@ -313,29 +323,31 @@ export async function GET(
         const rangeHeader = req.headers.get('range');
         const downloadParam = req.nextUrl.searchParams.get('download') || req.nextUrl.searchParams.get('dl');
         const isExplicitDownload = downloadParam === '1' || downloadParam === 'true';
+        const isEmbedded = req.nextUrl.searchParams.get('embedded') === '1';
         const isBot = isBotCrawler(req);
 
-        // Determine if self-destruct trigger applies (delayed until stream finishes to avoid race conditions)
-        const shouldBurn = !isBot && (
-            (isExplicitDownload && !!record.burn_after_download) ||
-            (!isExplicitDownload && serveRaw && !!record.burn_after_view && (!rangeHeader || rangeHeader.startsWith('bytes=0-')))
-        );
-
-        const scheduleBurn = () => {
-            if (shouldBurn) {
-                purgeImage(id).catch(err => console.error('Self destruct burn error:', err));
+        // Increment counts only after upstream media fetch succeeds (never on failed 502/503 responses).
+        // Avatars are strictly for profile display and NEVER increment views, downloads, or stats.
+        const recordAccessMetrics = async () => {
+            if (isBot || isAvatar) return;
+            if (isExplicitDownload) {
+                await incrementDownloads(id);
+            } else if (serveRaw && !isEmbedded && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
+                await incrementViews(id);
             }
         };
 
-        // Increment counts (only for real human users, ignore bot crawlers).
-        // Views are incremented solely on raw media delivery to prevent double-counting when viewing HTML pages.
-        if (!isBot) {
-            if (isExplicitDownload) {
-                await incrementDownloads(id);
-            } else if (serveRaw && (!rangeHeader || rangeHeader.startsWith('bytes=0-'))) {
-                await incrementViews(id);
+        // Delay self-destruct purging until media streaming has fully completed to prevent race conditions
+        const shouldPurgeAfterStream = !isBot && !isAvatar && (
+            (isExplicitDownload && record.burn_after_download) ||
+            (record.burn_after_view && (!rangeHeader || rangeHeader.startsWith('bytes=0-')))
+        );
+
+        const onStreamFinished = async () => {
+            if (shouldPurgeAfterStream) {
+                await purgeImage(id).catch(err => console.error('Self destruct purge error:', err));
             }
-        }
+        };
 
         if (serveRaw) {
             // ── v2 path: gramjs MTProto streaming (true 1 MB-chunk streaming with Range support) ──────
@@ -370,7 +382,8 @@ export async function GET(
                     const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
                     headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
-                    const outputStream = shouldBurn ? attachStreamCleanup(stream, scheduleBurn) : stream;
+                    await recordAccessMetrics();
+                    const outputStream = shouldPurgeAfterStream ? attachStreamCleanup(stream, onStreamFinished) : stream;
                     return new Response(outputStream, { status, headers });
                 } catch (gramErr) {
                     console.error('[gramjs] stream error:', gramErr);
@@ -389,13 +402,44 @@ export async function GET(
                 return new NextResponse('Files over 20 MB uploaded via Telegram Bot API cannot be retrieved directly. Please configure MTProto.', { status: 503 });
             }
 
-            const fileUrl = await getTelegramFileUrl(record.telegram_file_id);
             const fetchHeaders: Record<string, string> = {};
             if (rangeHeader) fetchHeaders['Range'] = rangeHeader;
 
-            const response = await fetch(fileUrl, { headers: fetchHeaders });
+            let fileUrl = await getTelegramFileUrl(record.telegram_file_id);
+            let response = await fetchWithRetry(fileUrl, { headers: fetchHeaders }, { maxRetries: 2, timeoutMs: 20000 });
+
+            // Cached Telegram file_path can expire early; invalidate and retry once with a fresh getFile lookup
+            if (response.status === 404 || response.status === 410) {
+                await response.body?.cancel().catch(() => {});
+                invalidateTelegramFileUrl(record.telegram_file_id);
+                fileUrl = await getTelegramFileUrl(record.telegram_file_id, { forceRefresh: true });
+                response = await fetchWithRetry(fileUrl, { headers: fetchHeaders }, { maxRetries: 2, timeoutMs: 20000 });
+            }
+
+            if (!response.ok && response.status !== 206) {
+                await response.body?.cancel().catch(() => {});
+                if (response.status === 404) {
+                    return new NextResponse('Image not found', { status: 404 });
+                }
+                if (response.status === 429) {
+                    const retryAfter = response.headers.get('Retry-After') || '5';
+                    return new NextResponse('Upstream rate limit exceeded. Please try again shortly.', {
+                        status: 503,
+                        headers: { 'Retry-After': retryAfter },
+                    });
+                }
+                return new NextResponse('Upstream media storage temporarily unavailable', { status: 502 });
+            }
+
+            await recordAccessMetrics();
+
             const headers = new Headers();
-            headers.set('Content-Type', response.headers.get('Content-Type') || record.metadata?.type || 'image/jpeg');
+            const upstreamContentType = response.headers.get('Content-Type');
+            const resolvedContentType =
+                (upstreamContentType && upstreamContentType !== 'application/octet-stream')
+                    ? upstreamContentType
+                    : (record.metadata?.type || 'image/jpeg');
+            headers.set('Content-Type', resolvedContentType);
             headers.set('Accept-Ranges', 'bytes');
             headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
@@ -411,16 +455,29 @@ export async function GET(
             const dispositionType = isExplicitDownload ? 'attachment' : 'inline';
             headers.set('Content-Disposition', `${dispositionType}; filename="${finalFileName}"`);
 
-            const outputStream = (shouldBurn && response.body) ? attachStreamCleanup(response.body, scheduleBurn) : response.body;
+            const responseStream = response.body;
+            const outputStream = (responseStream && shouldPurgeAfterStream)
+                ? attachStreamCleanup(responseStream as ReadableStream<Uint8Array>, onStreamFinished)
+                : responseStream;
+
             return new Response(outputStream, { status: response.status, headers });
         }
 
-        // HTML page view: views are counted on raw media delivery to prevent double view counts.
+        // Increment views/downloads for HTML page view (only for real human users, ignore avatars)
+        if (!isBot && !isAvatar) {
+            if (isExplicitDownload) {
+                await incrementDownloads(id);
+            } else {
+                await incrementViews(id);
+            }
+        }
+
         const isVideo = !!record.metadata?.type?.startsWith('video/');
         const isAudio = !!record.metadata?.type?.startsWith('audio/');
         const isMedia = isVideo || isAudio;
         const ext = isVideo ? '.mp4' : (isAudio ? '.mp3' : '.jpg');
         const proxiedImgSrc = `/i/${id}${ext}`;
+        const embeddedImgSrc = `${proxiedImgSrc}?embedded=1`;
         const views = record.views || 0;
         const downloads = record.downloads || 0;
         const formattedDate = new Date(record.created_at).toLocaleDateString();
@@ -1524,7 +1581,7 @@ export async function GET(
                         <div class="player-wrapper">
                             ${isVideo ? `
                                 <div class="custom-player-container" id="playerContainer">
-                                    <video id="mediaElement" src="${proxiedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
+                                    <video id="mediaElement" src="${embeddedImgSrc}" playsinline preload="auto" onclick="togglePlay()"></video>
 
                                     <!-- Big Center Play Button -->
                                     <div class="big-play-btn" id="bigPlayBtn" onclick="togglePlay()">
@@ -1576,7 +1633,7 @@ export async function GET(
                                 </div>
                             ` : isAudio ? `
                                 <div class="audio-player-card" id="audioPlayerCard">
-                                    <audio id="mediaElement" src="${proxiedImgSrc}" preload="auto"></audio>
+                                    <audio id="mediaElement" src="${embeddedImgSrc}" preload="auto"></audio>
 
                                     <div class="vinyl-disc-wrap">
                                         <div class="vinyl-disc" id="vinylDisc">
@@ -1637,7 +1694,7 @@ export async function GET(
                                 </div>
                             ` : `
                                 <div class="media-container" id="mediaContainer">
-                                    <img id="mediaElement" src="${proxiedImgSrc}" alt="PixEdge Media" onclick="toggleZoom(this)">
+                                    <img id="mediaElement" src="${embeddedImgSrc}" alt="PixEdge Media" onclick="toggleZoom(this)">
                                 </div>
                             `}
                         </div>
@@ -2141,7 +2198,19 @@ export async function GET(
                 headers: { 'Content-Type': 'text/html' },
             }
         );
-    } catch (error) {
+    } catch (error: any) {
+        if (error instanceof TelegramApiError || error?.name === 'TelegramApiError') {
+            const status = error.statusCode === 429 ? 503 : (error.statusCode >= 500 ? error.statusCode : 502);
+            const headers: Record<string, string> = {};
+            if (error.retryAfter) headers['Retry-After'] = String(error.retryAfter);
+            console.warn(`[i/${id}] Upstream Telegram error (${error.statusCode}): ${error.message}`);
+            return new NextResponse('Upstream media storage temporarily unavailable', { status, headers });
+        }
+        const causeCode = error?.cause?.code || error?.code;
+        if (causeCode === 'ECONNRESET' || causeCode === 'ETIMEDOUT' || causeCode === 'UND_ERR_SOCKET') {
+            console.warn(`[i/${id}] Upstream network error (${causeCode}): ${error.message}`);
+            return new NextResponse('Upstream media storage connection reset', { status: 502 });
+        }
         console.error('Redirection error:', error);
         return new NextResponse('Internal server error', { status: 500 });
     }
