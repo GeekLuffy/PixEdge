@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadToTelegram } from '@/lib/telegram';
+import { uploadToTelegram, resolveBotMediaType } from '@/lib/telegram';
 import { saveImage, generateId, getImage, rateLimit } from '@/lib/db';
 import { validateCustomId, getDirectMediaExtension } from '@/lib/slugs';
 
@@ -42,9 +42,10 @@ export async function POST(req: NextRequest) {
 
         const ext = getDirectMediaExtension(file.type || 'image/jpeg');
         const fileName = `upload${ext}`;
+        const mediaType = resolveBotMediaType(file.type, fileName);
 
         // 1. Upload to Telegram
-        const telegramResult = await uploadToTelegram(file, fileName);
+        const telegramResult = await uploadToTelegram(file, fileName, undefined, mediaType);
 
         // 2. Save to DB
         await saveImage({

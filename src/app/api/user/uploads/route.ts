@@ -11,7 +11,9 @@ export async function GET() {
 
     try {
         const uploads = await getUserUploads(session.user.id);
-        const sanitizedUploads = uploads.map(u => ({
+        const sanitizedUploads = uploads
+            .filter(u => !u.id.startsWith('avatar-') && !u.is_avatar)
+            .map(u => ({
             id: u.id,
             created_at: u.created_at,
             expires_at: u.expires_at ?? null,
