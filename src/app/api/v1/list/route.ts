@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const uploads = await getUserUploads(userId);
+        const rawUploads = await getUserUploads(userId);
+        const uploads = rawUploads.filter(u => !u.id.startsWith('avatar-') && !u.is_avatar);
         const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
 
         return NextResponse.json({

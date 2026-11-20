@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomInt } from 'crypto';
-import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog, escapeHtml, deleteTelegramMessage } from '@/lib/telegram';
+import { TelegramUpdate, sendMessage, sendMediaToChannel, sendLog, escapeHtml, deleteTelegramMessage, answerCallbackQuery } from '@/lib/telegram';
 import { saveImage, generateId, getStats, registerUser, createLinkToken, isAccountLinked, getLinkedWebAccount, unlinkTelegramAccount, getImage } from '@/lib/db';
 import { validateCustomId, generateSuggestions } from '@/lib/slugs';
 
@@ -45,14 +45,7 @@ export async function POST(req: NextRequest) {
                 }
                 
                 // Answer the callback query to remove loading state
-                await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        callback_query_id: callbackId,
-                        text: success ? 'Account disconnected' : 'Failed to disconnect'
-                    })
-                });
+                await answerCallbackQuery(callbackId, success ? 'Account disconnected' : 'Failed to disconnect');
             }
             
             return new NextResponse('OK');
@@ -146,7 +139,7 @@ export async function POST(req: NextRequest) {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://pixedge.vercel.app';
 
                 const { getTelegramUserProfilePhoto } = await import('@/lib/telegram');
-                const photoUrl = await getTelegramUserProfilePhoto(from.id);
+                const photoUrl = await getTelegramUserProfilePhoto(from.id, baseUrl);
 
                 let redis: any = null;
                 try {
@@ -426,7 +419,7 @@ export async function POST(req: NextRequest) {
         return new NextResponse('OK');
     } catch (error) {
         console.error('Webhook error:', error);
-        await sendLog(`⚠️ <b>Webhook Error</b>\n\nError: ${error}`);
+        await sendLog(`⚠️ <b>Webhook Error</b>\n\nError: ${error}`).catch(() => {});
         return new NextResponse('OK'); // Always return OK to Telegram
     }
 }

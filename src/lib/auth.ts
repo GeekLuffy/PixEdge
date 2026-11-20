@@ -148,10 +148,14 @@ export const authOptions: NextAuthOptions = {
                     console.error('[auth] Failed to link telegram widget account:', linkErr);
                 }
 
+                const safeWidgetPhoto = (credentials.photo_url && !credentials.photo_url.includes('api.telegram.org/file/bot'))
+                    ? credentials.photo_url
+                    : null;
+
                 return {
                     id: rawId,
                     name: displayName,
-                    image: credentials.photo_url || null,
+                    image: safeWidgetPhoto,
                     email: `${rawId}@telegram.user`,
                 };
             }
@@ -218,10 +222,14 @@ export const authOptions: NextAuthOptions = {
                     }
                 }
 
+                const safePinPhoto = (userData.photo_url && !userData.photo_url.includes('api.telegram.org/file/bot'))
+                    ? userData.photo_url
+                    : null;
+
                 return {
                     id: userData.id.toString(),
                     name: userData.first_name || userData.name || 'Telegram User',
-                    image: userData.photo_url || null,
+                    image: safePinPhoto,
                     email: `${userData.id}@telegram.user`,
                 };
             }
@@ -235,11 +243,19 @@ export const authOptions: NextAuthOptions = {
                 
                 // Fetch custom avatar or saved Telegram image if available in Redis
                 try {
-                    const customAvatar: string | null = await redis.get(`user:custom_avatar:${token.sub}`);
+                    let customAvatar: string | null = await redis.get(`user:custom_avatar:${token.sub}`);
+                    if (customAvatar && customAvatar.includes('api.telegram.org/file/bot')) {
+                        // Clean poisoned bot token key from database
+                        await redis.del(`user:custom_avatar:${token.sub}`);
+                        customAvatar = null;
+                    }
+
                     if (customAvatar) {
                         session.user.image = customAvatar;
-                    } else if (token.picture) {
+                    } else if (token.picture && !token.picture.includes('api.telegram.org/file/bot')) {
                         session.user.image = token.picture;
+                    } else {
+                        session.user.image = null;
                     }
                 } catch (e) {
                     // Fallback to token picture
@@ -250,8 +266,10 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user, account }) {
             if (account && user) {
                 token.sub = user.id;
-                if (user.image) {
+                if (user.image && !user.image.includes('api.telegram.org/file/bot')) {
                     token.picture = user.image;
+                } else {
+                    token.picture = undefined;
                 }
             }
             return token;

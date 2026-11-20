@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getStats } from '@/lib/db';
+import { ensureTelegramWebhook } from '@/lib/telegram';
 
 export async function GET() {
+    // Non-blocking throttled webhook check/auto-heal so bot stays registered even without restarts
+    void ensureTelegramWebhook({ source: 'stats' }).catch(() => {});
+
     try {
         const stats = await getStats();
         return NextResponse.json(

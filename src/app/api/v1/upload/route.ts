@@ -4,7 +4,7 @@ import path from 'path';
 import os from 'os';
 import { Readable } from 'stream';
 import busboy from 'busboy';
-import { uploadToTelegram, sendLog } from '@/lib/telegram';
+import { uploadToTelegram, sendLog, resolveBotMediaType } from '@/lib/telegram';
 import { saveImage, generateId, rateLimit, getImage, verifyApiKey } from '@/lib/db';
 import { isGramConfigured, uploadFileViaGram } from '@/lib/gramjs';
 import { getServerSession } from 'next-auth';
@@ -57,6 +57,27 @@ function getMaxUploadBytes(): { maxBytes: number; maxMB: number; gramReady: bool
     return { maxBytes: maxMB * 1024 * 1024, maxMB, gramReady };
 }
 
+function isClientAbortError(err: unknown): boolean {
+    if (!err || typeof err !== 'object') return false;
+    const e = err as {
+        message?: unknown;
+        code?: unknown;
+        name?: unknown;
+        cause?: { code?: unknown };
+    };
+    const msg = typeof e.message === 'string' ? e.message.toLowerCase() : '';
+    const code = typeof e.code === 'string' ? e.code : (typeof e.cause?.code === 'string' ? e.cause.code : '');
+    return (
+        e.message === 'CLIENT_ABORTED' ||
+        e.name === 'AbortError' ||
+        msg === 'aborted' ||
+        msg.includes('unexpected end of form') ||
+        code === 'ECONNRESET' ||
+        code === 'ERR_STREAM_PREMATURE_CLOSE' ||
+        code === 'ECONNABORTED'
+    );
+}
+
 /**
  * Streams incoming multipart upload directly to disk using busboy.
  * Memory footprint stays < 15 MB even for 2 GB video uploads!
@@ -69,6 +90,10 @@ function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<Parse
 
     if (!req.body) {
         return Promise.reject(new Error('EMPTY_BODY'));
+    }
+
+    if (req.signal?.aborted) {
+        return Promise.reject(new Error('CLIENT_ABORTED'));
     }
 
     return new Promise((resolve, reject) => {
@@ -93,11 +118,22 @@ function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<Parse
         let fileFound = false;
         let writeError: Error | null = null;
         let writeStream: fs.WriteStream | null = null;
+        let nodeReadable: Readable | null = null;
         let isDone = false;
+
+        const onRequestAbort = () => {
+            cleanupAndReject(new Error('CLIENT_ABORTED'));
+        };
 
         const cleanupAndReject = (err: Error) => {
             if (isDone) return;
             isDone = true;
+            req.signal?.removeEventListener('abort', onRequestAbort);
+            if (nodeReadable) {
+                try { nodeReadable.unpipe(); } catch {}
+                try { nodeReadable.destroy(); } catch {}
+            }
+            try { (bb as unknown as { destroy?: () => void }).destroy?.(); } catch {}
             if (writeStream) {
                 try { writeStream.destroy(); } catch {}
             }
@@ -106,6 +142,21 @@ function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<Parse
             }
             reject(err);
         };
+
+        const finishSuccess = () => {
+            if (isDone) return;
+            isDone = true;
+            req.signal?.removeEventListener('abort', onRequestAbort);
+            resolve({
+                fields,
+                tempFilePath,
+                fileName,
+                fileSize,
+                mimeType,
+            });
+        };
+
+        req.signal?.addEventListener('abort', onRequestAbort, { once: true });
 
         bb.on('field', (name, val) => {
             fields[name] = val;
@@ -170,26 +221,9 @@ function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<Parse
 
             if (writeStream) {
                 if (writeStream.writableFinished) {
-                    isDone = true;
-                    resolve({
-                        fields,
-                        tempFilePath,
-                        fileName,
-                        fileSize,
-                        mimeType,
-                    });
+                    finishSuccess();
                 } else {
-                    writeStream.on('finish', () => {
-                        if (isDone) return;
-                        isDone = true;
-                        resolve({
-                            fields,
-                            tempFilePath,
-                            fileName,
-                            fileSize,
-                            mimeType,
-                        });
-                    });
+                    writeStream.on('finish', finishSuccess);
                 }
             } else {
                 cleanupAndReject(new Error('MISSING_FILE'));
@@ -199,7 +233,8 @@ function parseMultipartUpload(req: NextRequest, maxBytes: number): Promise<Parse
         bb.on('finish', handleDone);
         bb.on('close', handleDone);
 
-        const nodeReadable = Readable.fromWeb(req.body as any);
+        if (isDone) return;
+        nodeReadable = Readable.fromWeb(req.body as any);
         nodeReadable.on('error', cleanupAndReject);
         nodeReadable.pipe(bb);
     });
@@ -253,6 +288,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({
                 success: false,
                 error: { code: 'INVALID_REQUEST', message: 'Content-Type must be multipart/form-data' }
+            }, { status: 400 });
+        }
+        if (isClientAbortError(parseError)) {
+            console.warn('[upload] Client aborted multipart upload stream');
+            return NextResponse.json({
+                success: false,
+                error: { code: 'UPLOAD_ABORTED', message: 'Upload canceled or connection closed before completion' }
             }, { status: 400 });
         }
         console.error('Multipart parse error:', parseError);
@@ -374,9 +416,7 @@ export async function POST(req: NextRequest) {
 
         if (!record) {
             // ── v1: Bot API fallback — max 50 MB ──
-            let mediaType: 'photo' | 'animation' | 'video' = 'photo';
-            if (mimeType.startsWith('video/')) mediaType = 'video';
-            if (mimeType === 'image/gif') mediaType = 'animation';
+            const mediaType = resolveBotMediaType(mimeType, fileName);
 
             const fileBuffer = await fs.promises.readFile(tempFilePath);
             const fileBlob = new Blob([fileBuffer], { type: mimeType });

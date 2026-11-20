@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { signIn, useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Github, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, Sparkles, Shield, Link2 } from 'lucide-react';
+import { Github, Mail, Lock, User, ArrowRight, Loader2, AlertCircle, CheckCircle, Sparkles, Shield, Link2 } from 'lucide-react';
 import Link from 'next/link';
 
 const styles = {
@@ -234,6 +234,7 @@ function LoginPageContent() {
     const [linkSuccess, setLinkSuccess] = useState(false);
     const router = useRouter();
     const searchParams = useSearchParams();
+    const isDeletedAccount = searchParams.get('deleted') === '1';
     const { data: session } = useSession();
     const telegramWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -679,6 +680,28 @@ function LoginPageContent() {
                             onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
                         />
                     </div>
+
+                    {isDeletedAccount && !error && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                color: '#10b981',
+                                background: 'rgba(16, 185, 129, 0.1)',
+                                padding: '0.75rem',
+                                borderRadius: '12px',
+                                fontSize: '0.85rem',
+                                marginBottom: '1.5rem',
+                                border: '1px solid rgba(16, 185, 129, 0.25)',
+                            }}
+                        >
+                            <CheckCircle size={16} />
+                            Your account and all associated data have been permanently deleted.
+                        </motion.div>
+                    )}
 
                     {error && (
                         <motion.div

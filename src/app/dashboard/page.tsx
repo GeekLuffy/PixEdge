@@ -609,6 +609,43 @@ export default function DashboardPage() {
     const [batchTagsInput, setBatchTagsInput] = useState<string>("");
     const [showBatchDeleteModal, setShowBatchDeleteModal] = useState<boolean>(false);
 
+    // Account Deletion Multi-Step State
+    const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
+    const [deleteStep, setDeleteStep] = useState<1 | 2 | 3>(1);
+    const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
+
+    const handleDeleteAccount = async () => {
+        if (deleteConfirmInput.trim() !== "DELETE") {
+            setDeleteAccountError("Please type DELETE in capital letters to confirm.");
+            return;
+        }
+
+        setIsDeletingAccount(true);
+        setDeleteAccountError(null);
+
+        try {
+            const res = await fetch("/api/user/account", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ confirmText: "DELETE" }),
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                setDeleteAccountError(data.error || "Failed to delete account. Please try again.");
+                setIsDeletingAccount(false);
+                return;
+            }
+
+            await signOut({ callbackUrl: "/login?deleted=1" });
+        } catch (err: any) {
+            setDeleteAccountError("An unexpected error occurred. Please try again.");
+            setIsDeletingAccount(false);
+        }
+    };
+
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
 
     // Simple copy link
@@ -1274,7 +1311,7 @@ export default function DashboardPage() {
         }
         if (session?.user?.name) {
             setName(session.user.name);
-            if (session.user.image) {
+            if (session.user.image && !session.user.image.includes('api.telegram.org/file/bot')) {
                 setAvatarInput(session.user.image);
             }
             fetchApiKey();
@@ -1346,8 +1383,9 @@ export default function DashboardPage() {
 
     const user = session.user;
     const avatarUrl =
-        user?.image ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=8b5cf6&color=fff&size=200`;
+        (user?.image && !user.image.includes('api.telegram.org/file/bot'))
+            ? user.image
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=8b5cf6&color=fff&size=200`;
 
     const tabs = [
         { id: "overview", label: "Overview", icon: BarChart3 },
@@ -2849,9 +2887,14 @@ export default function DashboardPage() {
                                         Once you delete your account, there is no going back. Please be certain.
                                     </p>
                                     <motion.button
-                                        whileHover={{ background: "rgba(239, 68, 68, 0.1)" }}
+                                        whileHover={{ background: "rgba(239, 68, 68, 0.15)", borderColor: "#ef4444" }}
                                         whileTap={{ scale: 0.98 }}
-                                        onClick={() => alert("Account deletion is not implemented yet.")}
+                                        onClick={() => {
+                                            setDeleteStep(1);
+                                            setDeleteConfirmInput("");
+                                            setDeleteAccountError(null);
+                                            setDeleteAccountModalOpen(true);
+                                        }}
                                         style={styles.dangerButton}
                                     >
                                         Delete Account
@@ -4473,6 +4516,285 @@ export default function DashboardPage() {
                                 </div>
                             </motion.div>
                         </motion.div>
+                    )}
+                </AnimatePresence>
+                {/* Account Deletion Multi-Step Modal */}
+                <AnimatePresence>
+                    {deleteAccountModalOpen && (
+                        <div
+                            style={{
+                                position: 'fixed',
+                                inset: 0,
+                                background: 'rgba(0, 0, 0, 0.85)',
+                                backdropFilter: 'blur(12px)',
+                                WebkitBackdropFilter: 'blur(12px)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                zIndex: 1000,
+                                padding: '1rem',
+                            }}
+                            onClick={() => !isDeletingAccount && setDeleteAccountModalOpen(false)}
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    background: 'var(--panel-bg)',
+                                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                                    boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(239, 68, 68, 0.2)',
+                                    borderRadius: '20px',
+                                    padding: '28px',
+                                    width: '100%',
+                                    maxWidth: '460px',
+                                    color: 'var(--text-main)',
+                                }}
+                            >
+                                {deleteStep === 1 && (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#ef4444'
+                                            }}>
+                                                <Trash2 size={22} />
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
+                                                    Delete Account?
+                                                </h3>
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                    Step 1 of 3: Initial Confirmation
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--text-muted)', margin: '16px 0 24px' }}>
+                                            Are you sure you want to delete your account? This action will permanently close your account on PixEdge.
+                                        </p>
+
+                                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteAccountModalOpen(false)}
+                                                style={{
+                                                    padding: '10px 18px',
+                                                    borderRadius: '10px',
+                                                    background: 'rgba(255, 255, 255, 0.08)',
+                                                    color: 'var(--text-main)',
+                                                    border: 'none',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteStep(2)}
+                                                style={{
+                                                    padding: '10px 20px',
+                                                    borderRadius: '10px',
+                                                    background: '#ef4444',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                                                }}
+                                            >
+                                                Yes, Continue
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {deleteStep === 2 && (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#ef4444'
+                                            }}>
+                                                <AlertCircle size={22} />
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
+                                                    Delete All Data & Photos?
+                                                </h3>
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                    Step 2 of 3: Data Erasure Consent
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <p style={{ fontSize: '0.95rem', lineHeight: 1.6, color: 'var(--text-muted)', margin: '16px 0 24px' }}>
+                                            Do you want to permanently delete all your data and photos? All your uploads, folders, tags, API keys, and account records will be permanently removed from the database.
+                                        </p>
+
+                                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteStep(1)}
+                                                style={{
+                                                    padding: '10px 18px',
+                                                    borderRadius: '10px',
+                                                    background: 'rgba(255, 255, 255, 0.08)',
+                                                    color: 'var(--text-main)',
+                                                    border: 'none',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Back
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteStep(3)}
+                                                style={{
+                                                    padding: '10px 20px',
+                                                    borderRadius: '10px',
+                                                    background: '#ef4444',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    fontWeight: 600,
+                                                    cursor: 'pointer',
+                                                    boxShadow: '0 4px 14px rgba(239, 68, 68, 0.4)'
+                                                }}
+                                            >
+                                                Yes, Delete All Data
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {deleteStep === 3 && (
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                            <div style={{
+                                                width: '42px',
+                                                height: '42px',
+                                                borderRadius: '12px',
+                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                color: '#ef4444'
+                                            }}>
+                                                <Shield size={22} />
+                                            </div>
+                                            <div>
+                                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#f87171' }}>
+                                                    Final Confirmation
+                                                </h3>
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                    Step 3 of 3: Security Verification
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <p style={{ fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-muted)', margin: '14px 0 16px' }}>
+                                            To confirm permanent account deletion, please type the word <strong style={{ color: '#ef4444' }}>DELETE</strong> in capital letters below:
+                                        </p>
+
+                                        <div style={{ marginBottom: '20px' }}>
+                                            <input
+                                                type="text"
+                                                placeholder="Type DELETE to confirm"
+                                                value={deleteConfirmInput}
+                                                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                                                disabled={isDeletingAccount}
+                                                autoFocus
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '12px 14px',
+                                                    borderRadius: '10px',
+                                                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                                                    background: 'rgba(0, 0, 0, 0.4)',
+                                                    color: 'var(--text-main)',
+                                                    fontSize: '1rem',
+                                                    fontWeight: 600,
+                                                    letterSpacing: '1px',
+                                                    outline: 'none',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            />
+                                        </div>
+
+                                        {deleteAccountError && (
+                                            <div style={{
+                                                padding: '10px 14px',
+                                                borderRadius: '8px',
+                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                color: '#ef4444',
+                                                fontSize: '0.85rem',
+                                                marginBottom: '16px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}>
+                                                <AlertCircle size={16} />
+                                                <span>{deleteAccountError}</span>
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                            <button
+                                                type="button"
+                                                disabled={isDeletingAccount}
+                                                onClick={() => setDeleteAccountModalOpen(false)}
+                                                style={{
+                                                    padding: '10px 18px',
+                                                    borderRadius: '10px',
+                                                    background: 'rgba(255, 255, 255, 0.08)',
+                                                    color: 'var(--text-main)',
+                                                    border: 'none',
+                                                    fontWeight: 600,
+                                                    cursor: isDeletingAccount ? 'not-allowed' : 'pointer'
+                                                }}
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={deleteConfirmInput.trim() !== "DELETE" || isDeletingAccount}
+                                                onClick={handleDeleteAccount}
+                                                style={{
+                                                    padding: '10px 22px',
+                                                    borderRadius: '10px',
+                                                    background: (deleteConfirmInput.trim() === "DELETE" && !isDeletingAccount) ? '#ef4444' : 'rgba(239, 68, 68, 0.3)',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    fontWeight: 700,
+                                                    cursor: (deleteConfirmInput.trim() === "DELETE" && !isDeletingAccount) ? 'pointer' : 'not-allowed',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    boxShadow: (deleteConfirmInput.trim() === "DELETE" && !isDeletingAccount) ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none'
+                                                }}
+                                            >
+                                                {isDeletingAccount && <Loader2 size={16} className="animate-spin" />}
+                                                {isDeletingAccount ? "Deleting Account..." : "Permanently Delete Account"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </motion.div>
+                        </div>
                     )}
                 </AnimatePresence>
             </div>
